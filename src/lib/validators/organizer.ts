@@ -1,5 +1,6 @@
 import { PayoutMode } from "@prisma/client";
 import { z } from "zod";
+import { seatStateSchema, seatingSummarySchema, venueSeatingConfigSchema } from "@/src/lib/validators/venue-seating";
 
 export const organizerOnboardingSchema = z.object({
   companyName: z.string().min(2),
@@ -25,4 +26,13 @@ export const venueRequestSchema = z.object({
   stateId: z.string().min(1),
   cityId: z.string().min(1),
   categoryId: z.string().optional(),
+  seatingConfig: venueSeatingConfigSchema,
+  seatState: seatStateSchema.optional(),
+  summary: seatingSummarySchema,
+});
+
+export const venueUpdateSchema = z.object({
+  seatingConfig: venueSeatingConfigSchema,
+  seatState: seatStateSchema.optional(),
+  summary: seatingSummarySchema,
 });

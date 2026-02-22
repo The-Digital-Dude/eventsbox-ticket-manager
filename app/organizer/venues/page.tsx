@@ -1,18 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { EmptyState } from "@/src/components/shared/empty-state";
+import { SeatMapBuilder } from "@/src/components/shared/seat-map-builder";
+import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { Badge } from "@/src/components/ui/badge";
+import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
 type CityRow = { id: string; name: string };
 type StateRow = { id: string; name: string; cities: CityRow[] };
-type VenueRow = { id: string; name: string; addressLine1: string; status: string };
+type CategoryRow = { id: string; name: string };
+type VenueRow = {
+  id: string;
+  name: string;
+  addressLine1: string;
+  status: string;
+  totalSeats: number | null;
+  totalTables: number | null;
+  seatingConfig?: VenueSeatingConfig | null;
+  seatState?: Record<string, SeatState> | null;
+};
+
+type Step = "details" | "seating";
 
 const nav = [
   { href: "/organizer/status", label: "Status" },
@@ -25,65 +39,213 @@ const nav = [
 export default function OrganizerVenuesPage() {
   const [venues, setVenues] = useState<VenueRow[]>([]);
   const [name, setName] = useState("");
-  const [address, setAddress] = useState("");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [addressLine2, setAddressLine2] = useState("");
   const [stateId, setStateId] = useState("");
   const [cityId, setCityId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
   const [states, setStates] = useState<StateRow[]>([]);
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const [step, setStep] = useState<Step>("details");
+  const [editingVenueId, setEditingVenueId] = useState<string | null>(null);
 
   async function load() {
-    const [vRes, lRes] = await Promise.all([fetch("/api/organizer/venues"), fetch("/api/public/locations")]);
+    const [vRes, lRes, cRes] = await Promise.all([
+      fetch("/api/organizer/venues"),
+      fetch("/api/public/locations"),
+      fetch("/api/public/categories"),
+    ]);
     const v = await vRes.json();
     const l = await lRes.json();
+    const c = await cRes.json();
     setVenues(v?.data ?? []);
     setStates(l?.data ?? []);
+    setCategories(c?.data ?? []);
   }
 
   useEffect(() => {
     let active = true;
-    Promise.all([fetch("/api/organizer/venues").then((r) => r.json()), fetch("/api/public/locations").then((r) => r.json())])
-      .then(([v, l]) => {
+    Promise.all([fetch("/api/organizer/venues").then((res) => res.json()), fetch("/api/public/locations").then((res) => res.json()), fetch("/api/public/categories").then((res) => res.json())]).then(
+      ([v, l, c]) => {
         if (!active) return;
         setVenues(v?.data ?? []);
         setStates(l?.data ?? []);
-      });
+        setCategories(c?.data ?? []);
+      },
+    );
     return () => {
       active = false;
     };
   }, []);
 
-  async function requestVenue() {
+  const cities = useMemo(() => states.find((state) => state.id === stateId)?.cities ?? [], [states, stateId]);
+
+  function validateDetails() {
+    if (!name.trim()) {
+      toast.error("Venue name is required");
+      return false;
+    }
+    if (!addressLine1.trim()) {
+      toast.error("Address line 1 is required");
+      return false;
+    }
+    if (!stateId || !cityId) {
+      toast.error("Please select state and city");
+      return false;
+    }
+    return true;
+  }
+
+  function beginCreateWithSeating() {
+    if (!validateDetails()) return;
+    setEditingVenueId(null);
+    setStep("seating");
+  }
+
+  function resetForm() {
+    setName("");
+    setAddressLine1("");
+    setAddressLine2("");
+    setStateId("");
+    setCityId("");
+    setCategoryId("");
+    setEditingVenueId(null);
+    setStep("details");
+  }
+
+  async function submitNewVenue(payload: {
+    seatingConfig: VenueSeatingConfig;
+    seatState?: Record<string, SeatState>;
+    summary: { totalSeats: number; totalTables: number; sectionCount: number };
+  }) {
     const res = await fetch("/api/organizer/venues", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, addressLine1: address, stateId, cityId }),
+      body: JSON.stringify({
+        name,
+        addressLine1,
+        addressLine2: addressLine2 || undefined,
+        stateId,
+        cityId,
+        categoryId: categoryId || undefined,
+        seatingConfig: payload.seatingConfig,
+        seatState: payload.seatState,
+        summary: payload.summary,
+      }),
     });
-    const payload = await res.json();
-    if (!res.ok) return toast.error(payload?.error?.message ?? "Unable to request venue");
-    toast.success("Venue request submitted");
-    setName("");
-    setAddress("");
+
+    const response = await res.json();
+    if (!res.ok) {
+      toast.error(response?.error?.message ?? "Unable to create venue");
+      return;
+    }
+
+    toast.success("Venue and seating configuration submitted");
+    resetForm();
     await load();
   }
 
-  const cities = states.find((s) => s.id === stateId)?.cities ?? [];
+  async function saveExistingVenueSeating(
+    venueId: string,
+    payload: {
+      seatingConfig: VenueSeatingConfig;
+      seatState?: Record<string, SeatState>;
+      summary: { totalSeats: number; totalTables: number; sectionCount: number };
+    },
+  ) {
+    const res = await fetch(`/api/organizer/venues/${venueId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const response = await res.json();
+    if (!res.ok) {
+      toast.error(response?.error?.message ?? "Unable to update venue seating");
+      return;
+    }
+
+    toast.success("Venue seating updated");
+    resetForm();
+    await load();
+  }
+
+  function startEditSeating(venueId: string) {
+    setEditingVenueId(venueId);
+    setStep("seating");
+  }
+
+  const editingVenue = venues.find((venue) => venue.id === editingVenueId) ?? null;
 
   return (
     <SidebarLayout role="organizer" title="Organizer" items={nav}>
-      <PageHeader title="Venue Requests" subtitle="Create venue requests and track admin decisions." />
-      <div className="grid gap-4 rounded-2xl border border-neutral-200 bg-white p-6 md:grid-cols-2">
-        <div className="space-y-2"><Label>Venue Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-        <div className="space-y-2"><Label>Address</Label><Input value={address} onChange={(e) => setAddress(e.target.value)} /></div>
-        <div className="space-y-2"><Label>State</Label><select className="h-10 w-full rounded-xl border border-neutral-300 bg-white px-3 text-sm" value={stateId} onChange={(e) => setStateId(e.target.value)}><option value="">Select state</option>{states.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-        <div className="space-y-2"><Label>City</Label><select className="h-10 w-full rounded-xl border border-neutral-300 bg-white px-3 text-sm" value={cityId} onChange={(e) => setCityId(e.target.value)}><option value="">Select city</option>{cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-        <Button onClick={requestVenue}>Submit Venue Request</Button>
+      <PageHeader title="Venue Requests" subtitle="Step 1: venue details. Step 2: seating configuration." />
+
+      <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center gap-2">
+          <Badge className={step === "details" ? "bg-neutral-900 text-white" : ""}>Step 1 Details</Badge>
+          <Badge className={step === "seating" ? "bg-neutral-900 text-white" : ""}>Step 2 Seating</Badge>
+          {editingVenue ? <Badge>Edit mode: {editingVenue.name}</Badge> : null}
+        </div>
+
+        {step === "details" ? (
+          <div className="space-y-5">
+            <div className="grid gap-5 md:grid-cols-2">
+              <div className="space-y-2"><Label>Venue Name</Label><Input value={name} onChange={(event) => setName(event.target.value)} /></div>
+              <div className="space-y-2"><Label>Category</Label><select className="h-10 w-full rounded-xl border border-neutral-300 bg-white px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">Select category (optional)</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>
+              <div className="space-y-2 md:col-span-2"><Label>Address line 1</Label><Input value={addressLine1} onChange={(event) => setAddressLine1(event.target.value)} /></div>
+              <div className="space-y-2 md:col-span-2"><Label>Address line 2</Label><Input value={addressLine2} onChange={(event) => setAddressLine2(event.target.value)} /></div>
+              <div className="space-y-2"><Label>State</Label><select className="h-10 w-full rounded-xl border border-neutral-300 bg-white px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" value={stateId} onChange={(event) => { setStateId(event.target.value); setCityId(""); }}><option value="">Select state</option>{states.map((state) => <option key={state.id} value={state.id}>{state.name}</option>)}</select></div>
+              <div className="space-y-2"><Label>City</Label><select className="h-10 w-full rounded-xl border border-neutral-300 bg-white px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" value={cityId} onChange={(event) => setCityId(event.target.value)}><option value="">Select city</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></div>
+            </div>
+            <div className="flex gap-3">
+              <Button onClick={beginCreateWithSeating}>Next: Seating Configuration</Button>
+              <Button variant="outline" onClick={resetForm}>Reset</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-neutral-600">
+              {editingVenue
+                ? "Updating seating for an existing venue."
+                : "Configure seating map sections and submit the venue request."}
+            </p>
+            <SeatMapBuilder
+              initialConfig={editingVenue?.seatingConfig ?? null}
+              initialSeatState={editingVenue?.seatState ?? null}
+              saveLabel={editingVenue ? "Save Seating Update" : "Submit Venue Request"}
+              onSave={(payload) =>
+                editingVenue
+                  ? saveExistingVenueSeating(editingVenue.id, payload)
+                  : submitNewVenue(payload)
+              }
+            />
+            <Button variant="outline" onClick={() => setStep("details")}>Back to Details</Button>
+          </div>
+        )}
       </div>
-      {venues.length === 0 ? <EmptyState title="No venue requests yet" subtitle="Submit your first venue request to start onboarding locations." /> : null}
+
+      {venues.length === 0 ? (
+        <EmptyState title="No venue requests yet" subtitle="Add venue details and configure seats/tables in step 2." />
+      ) : null}
+
       <div className="grid gap-3">
         {venues.map((venue) => (
-          <div key={venue.id} className="rounded-2xl border border-neutral-200 bg-white p-4">
-            <p className="font-medium">{venue.name}</p>
-            <p className="text-sm text-neutral-600">{venue.addressLine1}</p>
-            <Badge className="mt-2">{venue.status}</Badge>
+          <div key={venue.id} className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-medium text-neutral-900">{venue.name}</p>
+                <p className="text-sm text-neutral-600">{venue.addressLine1}</p>
+              </div>
+              <Badge>{venue.status}</Badge>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+              <Badge>Total seats: {venue.totalSeats ?? 0}</Badge>
+              <Badge>Total tables: {venue.totalTables ?? 0}</Badge>
+            </div>
+            <div className="mt-3">
+              <Button size="sm" variant="outline" onClick={() => startEditSeating(venue.id)}>Edit Seating</Button>
+            </div>
           </div>
         ))}
       </div>

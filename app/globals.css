@@ -12,3 +12,8 @@ body {
   background: radial-gradient(circle at top right, #eceffd 0%, #f7f8fb 48%, #ffffff 100%);
   color: var(--foreground);
 }
+
+label + input,
+label + select {
+  margin-top: 2px;
+}

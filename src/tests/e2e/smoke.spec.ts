@@ -73,6 +73,24 @@ test("organizer onboarding + admin approval + venue approval", async ({ baseURL 
       addressLine1: "Venue Street",
       stateId,
       cityId,
+      seatingConfig: {
+        mapType: "seats",
+        sections: [
+          {
+            id: "smoke-sec-1",
+            name: "Smoke Section",
+            mapType: "seats",
+            rowStart: 0,
+            maxRows: 2,
+            columns: [{ index: 1, rows: 2, seats: 4 }],
+          },
+        ],
+        seatState: {},
+        summary: { totalSeats: 8, totalTables: 0, sectionCount: 1 },
+        schemaVersion: 1,
+      },
+      seatState: {},
+      summary: { totalSeats: 8, totalTables: 0, sectionCount: 1 },
     },
   });
   expect(res.ok()).toBeTruthy();
@@ -87,8 +105,33 @@ test("organizer onboarding + admin approval + venue approval", async ({ baseURL 
   });
   expect(res.ok()).toBeTruthy();
 
+  res = await organizer.put(`/api/organizer/venues/${targetVenue!.id}`, {
+    data: {
+      seatingConfig: {
+        mapType: "seats",
+        sections: [
+          {
+            id: "smoke-sec-1",
+            name: "Smoke Section",
+            mapType: "seats",
+            rowStart: 0,
+            maxRows: 2,
+            columns: [{ index: 1, rows: 2, seats: 5 }],
+          },
+        ],
+        seatState: {},
+        summary: { totalSeats: 10, totalTables: 0, sectionCount: 1 },
+        schemaVersion: 1,
+      },
+      seatState: {},
+      summary: { totalSeats: 10, totalTables: 0, sectionCount: 1 },
+    },
+  });
+  expect(res.ok()).toBeTruthy();
+
   res = await organizer.get("/api/organizer/venues");
-  const myVenues = (await res.json()).data as Array<{ id: string; status: string }>;
+  const myVenues = (await res.json()).data as Array<{ id: string; status: string; totalSeats: number }>;
   const approvedVenue = myVenues.find((v) => v.id === targetVenue!.id);
   expect(approvedVenue?.status).toBe("APPROVED");
+  expect(approvedVenue?.totalSeats).toBe(10);
 });

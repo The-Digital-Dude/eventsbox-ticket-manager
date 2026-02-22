@@ -117,6 +117,7 @@ model Category {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  venues    Venue[]
 }
 
 model State {
@@ -151,6 +152,12 @@ model Venue {
   stateId            String
   cityId             String
   categoryId         String?
+  seatingConfig      Json?
+  seatState          Json?
+  seatingSchemaVersion Int      @default(1)
+  seatingUpdatedAt   DateTime?
+  totalSeats         Int?
+  totalTables        Int?
   status             VenueStatus @default(PENDING_APPROVAL)
   rejectionReason    String?
   createdAt          DateTime    @default(now())
@@ -158,6 +165,7 @@ model Venue {
   organizerProfile   OrganizerProfile @relation(fields: [organizerProfileId], references: [id], onDelete: Cascade)
   state              State       @relation(fields: [stateId], references: [id])
   city               City        @relation(fields: [cityId], references: [id])
+  category           Category?   @relation(fields: [categoryId], references: [id])
 
   @@index([organizerProfileId])
   @@index([status])
