@@ -48,10 +48,10 @@ export default function AdminConfigPage() {
   return (
     <SidebarLayout role="admin" title="Admin" items={nav}>
       <PageHeader title="Platform Config" subtitle="Default commission, GST and payout mode." />
-      <div className="grid gap-4 rounded-2xl border border-neutral-200 bg-white p-6 md:grid-cols-3">
+      <div className="grid gap-4 rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm md:grid-cols-3">
         <div className="space-y-2"><Label>Commission %</Label><Input value={commission} onChange={(e) => setCommission(e.target.value)} /></div>
         <div className="space-y-2"><Label>GST %</Label><Input value={gst} onChange={(e) => setGst(e.target.value)} /></div>
-        <div className="space-y-2"><Label>Payout Default</Label><select className="h-10 w-full rounded-xl border border-neutral-300 px-3" value={mode} onChange={(e) => setMode(e.target.value)}><option value="MANUAL">MANUAL</option><option value="STRIPE_CONNECT">STRIPE_CONNECT</option></select></div>
+        <div className="space-y-2"><Label>Payout Default</Label><select className="app-select" value={mode} onChange={(e) => setMode(e.target.value)}><option value="MANUAL">MANUAL</option><option value="STRIPE_CONNECT">STRIPE_CONNECT</option></select></div>
         <Button onClick={save}>Save Config</Button>
       </div>
     </SidebarLayout>

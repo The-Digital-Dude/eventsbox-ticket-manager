@@ -82,7 +82,7 @@ export default function AdminVenuesPage() {
       <PageHeader title="Venue Requests" subtitle="Review venue requests and inspect seating layouts." />
       <div className="grid gap-3">
         {rows.map((venue) => (
-          <div key={venue.id} className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <div key={venue.id} className="rounded-2xl border border-[var(--border)] bg-white p-4 shadow-sm">
             <p className="font-medium">
               {venue.name} <span className="text-sm text-neutral-500">({venue.status})</span>
             </p>

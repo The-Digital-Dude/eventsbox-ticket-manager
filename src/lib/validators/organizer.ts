@@ -4,7 +4,13 @@ import { seatStateSchema, seatingSummarySchema, venueSeatingConfigSchema } from 
 
 export const organizerOnboardingSchema = z.object({
   companyName: z.string().min(2),
+  brandName: z.string().optional(),
+  website: z.string().optional(),
   phone: z.string().min(6),
+  alternatePhone: z.string().optional(),
+  supportEmail: z.string().optional(),
+  facebookPage: z.string().optional(),
+  socialMediaLink: z.string().optional(),
   contactName: z.string().min(2),
   taxId: z.string().optional(),
   addressLine1: z.string().min(3),

@@ -181,10 +181,10 @@ export default function OrganizerVenuesPage() {
     <SidebarLayout role="organizer" title="Organizer" items={nav}>
       <PageHeader title="Venue Requests" subtitle="Step 1: venue details. Step 2: seating configuration." />
 
-      <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center gap-2">
-          <Badge className={step === "details" ? "bg-neutral-900 text-white" : ""}>Step 1 Details</Badge>
-          <Badge className={step === "seating" ? "bg-neutral-900 text-white" : ""}>Step 2 Seating</Badge>
+          <Badge className={step === "details" ? "border-transparent bg-[var(--theme-accent)] text-white" : ""}>Step 1 Details</Badge>
+          <Badge className={step === "seating" ? "border-transparent bg-[var(--theme-accent)] text-white" : ""}>Step 2 Seating</Badge>
           {editingVenue ? <Badge>Edit mode: {editingVenue.name}</Badge> : null}
         </div>
 
@@ -192,11 +192,11 @@ export default function OrganizerVenuesPage() {
           <div className="space-y-5">
             <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-2"><Label>Venue Name</Label><Input value={name} onChange={(event) => setName(event.target.value)} /></div>
-              <div className="space-y-2"><Label>Category</Label><select className="h-10 w-full rounded-xl border border-neutral-300 bg-white px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">Select category (optional)</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>
+              <div className="space-y-2"><Label>Category</Label><select className="app-select" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">Select category (optional)</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>
               <div className="space-y-2 md:col-span-2"><Label>Address line 1</Label><Input value={addressLine1} onChange={(event) => setAddressLine1(event.target.value)} /></div>
               <div className="space-y-2 md:col-span-2"><Label>Address line 2</Label><Input value={addressLine2} onChange={(event) => setAddressLine2(event.target.value)} /></div>
-              <div className="space-y-2"><Label>State</Label><select className="h-10 w-full rounded-xl border border-neutral-300 bg-white px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" value={stateId} onChange={(event) => { setStateId(event.target.value); setCityId(""); }}><option value="">Select state</option>{states.map((state) => <option key={state.id} value={state.id}>{state.name}</option>)}</select></div>
-              <div className="space-y-2"><Label>City</Label><select className="h-10 w-full rounded-xl border border-neutral-300 bg-white px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500" value={cityId} onChange={(event) => setCityId(event.target.value)}><option value="">Select city</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></div>
+              <div className="space-y-2"><Label>State</Label><select className="app-select" value={stateId} onChange={(event) => { setStateId(event.target.value); setCityId(""); }}><option value="">Select state</option>{states.map((state) => <option key={state.id} value={state.id}>{state.name}</option>)}</select></div>
+              <div className="space-y-2"><Label>City</Label><select className="app-select" value={cityId} onChange={(event) => setCityId(event.target.value)}><option value="">Select city</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></div>
             </div>
             <div className="flex gap-3">
               <Button onClick={beginCreateWithSeating}>Next: Seating Configuration</Button>
@@ -231,7 +231,7 @@ export default function OrganizerVenuesPage() {
 
       <div className="grid gap-3">
         {venues.map((venue) => (
-          <div key={venue.id} className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <div key={venue.id} className="rounded-2xl border border-[var(--border)] bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="font-medium text-neutral-900">{venue.name}</p>

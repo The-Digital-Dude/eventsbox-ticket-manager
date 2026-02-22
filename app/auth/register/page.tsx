@@ -39,32 +39,48 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Create Organizer Account</CardTitle>
-          <CardDescription>Start onboarding for EventsBox platform access.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={form.handleSubmit(handleSubmit)}>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" required {...form.register("email")} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" required minLength={8} {...form.register("password")} />
-            </div>
-            <Button className="w-full" disabled={loading}>
-              {loading ? "Creating..." : "Create account"}
-            </Button>
-          </form>
-          {verifyToken ? <p className="mt-3 text-xs text-neutral-600">Dev verify token: {verifyToken}</p> : null}
-          <p className="mt-4 text-sm text-neutral-600">
-            Already have an account? <Link href="/auth/login" className="font-medium text-neutral-900">Login</Link>
+    <div className="grid min-h-screen bg-[var(--page-bg)] lg:grid-cols-[1.05fr_0.95fr]">
+      <section className="hidden flex-col justify-between bg-[var(--theme-accent)] p-10 text-white lg:flex">
+        <div className="space-y-4">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/80">EventsBox</p>
+          <h1 className="max-w-md text-4xl font-semibold leading-tight">Create your organizer workspace account.</h1>
+          <p className="max-w-md text-sm leading-relaxed text-white/85">
+            Register once, complete onboarding, and submit venues with structured approval workflows.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+        <p className="text-xs text-white/70">Use a valid business email and secure password.</p>
+      </section>
+
+      <section className="flex items-center justify-center p-6 md:p-10">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Create Organizer Account</CardTitle>
+            <CardDescription>Start onboarding for EventsBox platform access.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={form.handleSubmit(handleSubmit)}>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" required {...form.register("email")} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input id="password" type="password" required minLength={8} {...form.register("password")} />
+              </div>
+              <Button className="w-full" disabled={loading}>
+                {loading ? "Creating..." : "Create account"}
+              </Button>
+            </form>
+            {verifyToken ? <p className="mt-3 rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-600">Dev verify token: {verifyToken}</p> : null}
+            <p className="mt-4 text-sm text-neutral-600">
+              Already have an account?{" "}
+              <Link href="/auth/login" className="font-medium text-[var(--theme-accent)] hover:underline">
+                Login
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      </section>
     </div>
   );
 }

@@ -55,12 +55,12 @@ export default function AdminCategoriesPage() {
   return (
     <SidebarLayout role="admin" title="Admin" items={nav}>
       <PageHeader title="Categories" subtitle="Manage event categories for venue mapping." />
-      <div className="flex gap-2 rounded-2xl border border-neutral-200 bg-white p-4">
+      <div className="flex gap-2 rounded-2xl border border-[var(--border)] bg-white p-4 shadow-sm">
         <Input placeholder="Category name" value={name} onChange={(e) => setName(e.target.value)} />
         <Button onClick={add}>Add</Button>
       </div>
       <div className="grid gap-2">
-        {rows.map((row) => <div key={row.id} className="rounded-xl border border-neutral-200 bg-white p-3 text-sm">{row.name}</div>)}
+        {rows.map((row) => <div key={row.id} className="rounded-xl border border-[var(--border)] bg-white p-3 text-sm shadow-sm">{row.name}</div>)}
       </div>
     </SidebarLayout>
   );

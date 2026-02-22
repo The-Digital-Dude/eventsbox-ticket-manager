@@ -1,19 +1,124 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f8fb;
-  --foreground: #111418;
+  --background: #f3f5fa;
+  --foreground: #171b24;
   --card: #ffffff;
-  --muted: #646f7d;
-  --border: #e3e7ee;
+  --muted: #697486;
+  --border: #dfe5ef;
+  --theme-accent: #0f38bf;
+  --theme-accent-rgb: 15 56 191;
+  --theme-secondary: #0f38bf;
+  --theme-secondary-rgb: 15 56 191;
+  --page-bg: #f5f7fc;
+}
+
+html.theme-dark {
+  color-scheme: dark;
+  --background: #0b1222;
+  --foreground: #e8eeff;
+  --card: #101a31;
+  --muted: #9ca9c7;
+  --border: #273759;
+  --theme-accent: #7c9fff;
+  --theme-accent-rgb: 124 159 255;
+  --theme-secondary: #5fd7cc;
+  --theme-secondary-rgb: 95 215 204;
+  --page-bg: #090f1f;
 }
 
 body {
-  background: radial-gradient(circle at top right, #eceffd 0%, #f7f8fb 48%, #ffffff 100%);
+  background: radial-gradient(circle at 88% 0%, rgb(var(--theme-accent-rgb) / 0.07) 0%, var(--page-bg) 38%, #ffffff 100%);
   color: var(--foreground);
 }
 
 label + input,
 label + select {
   margin-top: 2px;
+}
+
+.app-select {
+  height: 2.625rem;
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: white;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--foreground);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.app-select:focus-visible {
+  outline: none;
+  border-color: rgb(var(--theme-accent-rgb) / 0.55);
+  box-shadow: 0 0 0 2px rgb(var(--theme-accent-rgb) / 0.2);
+}
+
+html.theme-dark body {
+  background: radial-gradient(circle at 88% 0%, rgb(var(--theme-accent-rgb) / 0.2) 0%, var(--page-bg) 36%, #080d1b 100%);
+}
+
+html.theme-dark .bg-white {
+  background-color: var(--card) !important;
+}
+
+html.theme-dark .bg-neutral-50 {
+  background-color: #111d36 !important;
+}
+
+html.theme-dark .bg-neutral-100 {
+  background-color: #172445 !important;
+}
+
+html.theme-dark .text-neutral-900 {
+  color: #eef3ff !important;
+}
+
+html.theme-dark .text-neutral-800 {
+  color: #dbe4ff !important;
+}
+
+html.theme-dark .text-neutral-700 {
+  color: #c8d2ee !important;
+}
+
+html.theme-dark .text-neutral-600 {
+  color: #a8b4d3 !important;
+}
+
+html.theme-dark .text-neutral-500 {
+  color: #93a1c3 !important;
+}
+
+html.theme-dark .border-neutral-200,
+html.theme-dark .border-neutral-300 {
+  border-color: var(--border) !important;
+}
+
+html.theme-dark .hover\:bg-neutral-100:hover {
+  background-color: #1b2b4f !important;
+}
+
+html.theme-dark .hover\:bg-neutral-50:hover {
+  background-color: #172444 !important;
+}
+
+html.theme-dark .text-red-600 {
+  color: #ff7f91 !important;
+}
+
+html.theme-dark .hover\:bg-red-50:hover {
+  background-color: rgb(255 127 145 / 0.12) !important;
+}
+
+html.theme-dark .app-select {
+  background: var(--card);
+  color: var(--foreground);
+}
+
+html.theme-dark .shadow-sm {
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.28);
 }

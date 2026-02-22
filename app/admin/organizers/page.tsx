@@ -59,7 +59,7 @@ export default function AdminOrganizersPage() {
   return (
     <SidebarLayout role="admin" title="Admin" items={nav}>
       <PageHeader title="Organizer Governance" subtitle="Approve, reject, or suspend organizer accounts." />
-      <div className="rounded-2xl border border-neutral-200 bg-white p-2">
+      <div className="rounded-2xl border border-[var(--border)] bg-white p-3 shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>

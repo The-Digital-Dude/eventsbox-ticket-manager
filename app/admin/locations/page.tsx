@@ -81,24 +81,24 @@ export default function AdminLocationsPage() {
           <TabsTrigger value="states">States</TabsTrigger>
           <TabsTrigger value="cities">Cities</TabsTrigger>
         </TabsList>
-        <TabsContent value="states" className="mt-4 space-y-3 rounded-2xl border border-neutral-200 bg-white p-6">
+        <TabsContent value="states" className="mt-4 space-y-3 rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
           <div className="grid gap-2 md:grid-cols-3">
             <Input placeholder="Code" value={stateCode} onChange={(e) => setStateCode(e.target.value)} />
             <Input placeholder="State name" value={stateName} onChange={(e) => setStateName(e.target.value)} />
             <Button onClick={addState}>Add State</Button>
           </div>
-          {states.map((state) => <div key={state.id} className="text-sm">{state.code} - {state.name}</div>)}
+          {states.map((state) => <div key={state.id} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm">{state.code} - {state.name}</div>)}
         </TabsContent>
-        <TabsContent value="cities" className="mt-4 space-y-3 rounded-2xl border border-neutral-200 bg-white p-6">
+        <TabsContent value="cities" className="mt-4 space-y-3 rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
           <div className="grid gap-2 md:grid-cols-3">
-            <select className="h-10 rounded-xl border border-neutral-300 px-3" value={cityStateId} onChange={(e) => setCityStateId(e.target.value)}>
+            <select className="app-select" value={cityStateId} onChange={(e) => setCityStateId(e.target.value)}>
               <option value="">Choose state</option>
               {states.map((state) => <option key={state.id} value={state.id}>{state.name}</option>)}
             </select>
             <Input placeholder="City name" value={cityName} onChange={(e) => setCityName(e.target.value)} />
             <Button onClick={addCity}>Add City</Button>
           </div>
-          {cities.map((city) => <div key={city.id} className="text-sm">{city.name} ({city.state.name})</div>)}
+          {cities.map((city) => <div key={city.id} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm">{city.name} ({city.state.name})</div>)}
         </TabsContent>
       </Tabs>
     </SidebarLayout>

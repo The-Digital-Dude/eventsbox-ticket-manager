@@ -52,12 +52,12 @@ export default function OrganizerPayoutPage() {
           <TabsTrigger value="manual">Manual</TabsTrigger>
           <TabsTrigger value="stripe">Stripe Connect</TabsTrigger>
         </TabsList>
-        <TabsContent value="manual" className="mt-4 space-y-3 rounded-2xl border border-neutral-200 bg-white p-6">
+        <TabsContent value="manual" className="mt-4 space-y-3 rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
           <Label>Settlement Note</Label>
           <Input value={manualNote} onChange={(e) => setManualNote(e.target.value)} placeholder="Bank details or instruction" />
           <Button onClick={saveManual}>Save Manual Settings</Button>
         </TabsContent>
-        <TabsContent value="stripe" className="mt-4 space-y-3 rounded-2xl border border-neutral-200 bg-white p-6">
+        <TabsContent value="stripe" className="mt-4 space-y-3 rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
           <p className="text-sm text-neutral-600">Use Stripe Connect Express for payouts.</p>
           <Button onClick={startStripe}>Start Stripe Onboarding</Button>
         </TabsContent>

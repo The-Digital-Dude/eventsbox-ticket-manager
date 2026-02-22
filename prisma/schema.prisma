@@ -71,7 +71,13 @@ model OrganizerProfile {
   id               String                  @id @default(cuid())
   userId           String                  @unique
   companyName      String?
+  brandName        String?
+  website          String?
   phone            String?
+  alternatePhone   String?
+  supportEmail     String?
+  facebookPage     String?
+  socialMediaLink  String?
   contactName      String?
   taxId            String?
   addressLine1     String?

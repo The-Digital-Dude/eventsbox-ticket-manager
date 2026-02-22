@@ -351,12 +351,12 @@ export function SeatMapBuilder({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
         <div className="mb-4 grid gap-5 md:grid-cols-3">
           <div className="space-y-2">
             <Label>Section Name</Label>
             <select
-              className="h-10 w-full rounded-xl border border-neutral-300 bg-white px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
+              className="app-select"
               value={sectionName}
               onChange={(event) => setSectionName(event.target.value)}
             >
@@ -382,7 +382,7 @@ export function SeatMapBuilder({
           <div className="space-y-2">
             <Label>Map Type</Label>
             <select
-              className="h-10 w-full rounded-xl border border-neutral-300 bg-white px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
+              className="app-select"
               value={mapType}
               onChange={(event) => setMapType(event.target.value as SeatingMapType)}
             >
