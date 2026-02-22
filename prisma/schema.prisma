@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ORGANIZER
+}
+
+enum OrganizerApprovalStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum VenueStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum PayoutMode {
+  STRIPE_CONNECT
+  MANUAL
+}
+
+enum StripeOnboardingStatus {
+  NOT_STARTED
+  PENDING
+  COMPLETED
+}
+
+model User {
+  id                String             @id @default(cuid())
+  email             String             @unique
+  passwordHash      String
+  role              Role
+  emailVerified     Boolean            @default(false)
+  isActive          Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  organizerProfile  OrganizerProfile?
+  refreshTokens     RefreshToken[]
+  resetTokens       PasswordResetToken[]
+  verifyTokens      EmailVerificationToken[]
+  auditLogs         AuditLog[]
+}
+
+model RefreshToken {
+  id           String   @id @default(cuid())
+  userId       String
+  tokenHash    String
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model OrganizerProfile {
+  id               String                  @id @default(cuid())
+  userId           String                  @unique
+  companyName      String?
+  phone            String?
+  contactName      String?
+  taxId            String?
+  addressLine1     String?
+  addressLine2     String?
+  stateId          String?
+  cityId           String?
+  approvalStatus   OrganizerApprovalStatus @default(DRAFT)
+  rejectionReason  String?
+  onboardingDoneAt DateTime?
+  submittedAt      DateTime?
+  approvedAt       DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payoutSettings   OrganizerPayoutSettings?
+  venues           Venue[]
+}
+
+model OrganizerPayoutSettings {
+  id                    String                 @id @default(cuid())
+  organizerProfileId     String                 @unique
+  payoutMode             PayoutMode             @default(MANUAL)
+  manualPayoutNote       String?
+  stripeAccountId        String?
+  stripeOnboardingStatus StripeOnboardingStatus @default(NOT_STARTED)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  organizerProfile       OrganizerProfile       @relation(fields: [organizerProfileId], references: [id], onDelete: Cascade)
+}
+
+model PlatformConfig {
+  id                   String   @id @default("singleton")
+  defaultCommissionPct Decimal  @db.Decimal(5, 2)
+  defaultGstPct        Decimal  @db.Decimal(5, 2)
+  payoutModeDefault    PayoutMode
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model State {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  cities    City[]
+  venues    Venue[]
+}
+
+model City {
+  id        String   @id @default(cuid())
+  stateId   String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  state     State    @relation(fields: [stateId], references: [id], onDelete: Cascade)
+  venues    Venue[]
+
+  @@unique([stateId, name])
+  @@index([stateId])
+}
+
+model Venue {
+  id                 String      @id @default(cuid())
+  organizerProfileId String
+  name               String
+  addressLine1       String
+  addressLine2       String?
+  stateId            String
+  cityId             String
+  categoryId         String?
+  status             VenueStatus @default(PENDING_APPROVAL)
+  rejectionReason    String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  organizerProfile   OrganizerProfile @relation(fields: [organizerProfileId], references: [id], onDelete: Cascade)
+  state              State       @relation(fields: [stateId], references: [id])
+  city               City        @relation(fields: [cityId], references: [id])
+
+  @@index([organizerProfileId])
+  @@index([status])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorUserId String
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  actor      User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

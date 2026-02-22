@@ -1,0 +1,31 @@
+import { NextRequest } from "next/server";
+import { OrganizerApprovalStatus, Role } from "@prisma/client";
+import { accessTokenFromRequest } from "@/src/lib/auth/session";
+import { verifyAccessToken } from "@/src/lib/auth/jwt";
+import { prisma } from "@/src/lib/db";
+
+export async function requireAuth(req: NextRequest) {
+  const token = accessTokenFromRequest(req);
+  if (!token) {
+    throw new Error("UNAUTHENTICATED");
+  }
+  const payload = verifyAccessToken(token);
+  return payload;
+}
+
+export async function requireRole(req: NextRequest, role: Role) {
+  const payload = await requireAuth(req);
+  if (payload.role !== role) {
+    throw new Error("FORBIDDEN");
+  }
+  return payload;
+}
+
+export async function requireApprovedOrganizer(req: NextRequest) {
+  const payload = await requireRole(req, Role.ORGANIZER);
+  const profile = await prisma.organizerProfile.findUnique({ where: { userId: payload.sub } });
+  if (!profile || profile.approvalStatus !== OrganizerApprovalStatus.APPROVED) {
+    throw new Error("ORGANIZER_NOT_APPROVED");
+  }
+  return { payload, profile };
+}

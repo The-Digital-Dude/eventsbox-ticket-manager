@@ -1,0 +1,37 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/src/lib/db";
+import { fail } from "@/src/lib/http/response";
+import { loginSchema } from "@/src/lib/validators/auth";
+import { verifyPassword } from "@/src/lib/auth/password";
+import { issueSession } from "@/src/lib/auth/session";
+import { rateLimit } from "@/src/lib/http/rate-limit";
+
+export async function POST(req: NextRequest) {
+  try {
+    const ip = req.headers.get("x-forwarded-for") ?? "unknown";
+    const rl = rateLimit(`login:${ip}`, 20, 60_000);
+    if (rl.limited) {
+      return fail(429, { code: "RATE_LIMITED", message: "Too many attempts" });
+    }
+
+    const parsed = loginSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return fail(400, { code: "VALIDATION_ERROR", message: "Invalid input", details: parsed.error.flatten() });
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+    if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
+      return fail(401, { code: "INVALID_CREDENTIALS", message: "Invalid email or password" });
+    }
+
+    if (!user.isActive) {
+      return fail(403, { code: "ACCOUNT_DISABLED", message: "Account is disabled" });
+    }
+
+    const response = NextResponse.json({ success: true, data: { role: user.role, emailVerified: user.emailVerified } });
+    await issueSession({ id: user.id, email: user.email, role: user.role }, response);
+    return response;
+  } catch {
+    return fail(500, { code: "INTERNAL_ERROR", message: "Unable to login" });
+  }
+}
