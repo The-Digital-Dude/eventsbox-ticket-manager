@@ -53,7 +53,9 @@ export async function POST(req: NextRequest) {
     });
 
     return ok({ url: link.url, mocked: false });
-  } catch {
-    return fail(500, { code: "INTERNAL_ERROR", message: "Unable to start Stripe onboarding" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to start Stripe onboarding";
+    console.error("Stripe onboarding error:", error);
+    return fail(500, { code: "INTERNAL_ERROR", message });
   }
 }

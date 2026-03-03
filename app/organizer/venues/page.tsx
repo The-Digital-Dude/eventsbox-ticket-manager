@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Building2, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
 import { PageHeader } from "@/src/components/shared/page-header";
@@ -229,24 +230,40 @@ export default function OrganizerVenuesPage() {
         <EmptyState title="No venue requests yet" subtitle="Add venue details and configure seats/tables in step 2." />
       ) : null}
 
-      <div className="grid gap-3">
+      <div className="grid gap-4">
         {venues.map((venue) => (
-          <div key={venue.id} className="rounded-2xl border border-[var(--border)] bg-white p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="font-medium text-neutral-900">{venue.name}</p>
-                <p className="text-sm text-neutral-600">{venue.addressLine1}</p>
+          <article
+            key={venue.id}
+            className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.24)] bg-gradient-to-br from-white via-white to-[rgb(var(--theme-accent-rgb)/0.08)] p-5 shadow-sm transition hover:border-[rgb(var(--theme-accent-rgb)/0.34)] hover:shadow-[0_16px_38px_rgb(var(--theme-accent-rgb)/0.12)]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 space-y-2">
+                <div className="inline-flex items-center gap-2 rounded-lg bg-[rgb(var(--theme-accent-rgb)/0.08)] px-2.5 py-1 text-xs font-semibold text-[var(--theme-accent)]">
+                  <Building2 className="h-3.5 w-3.5" />
+                  {venue.status === "APPROVED" ? "Venue" : "Venue Request"}
+                </div>
+                <p className="truncate text-2xl font-semibold tracking-tight text-neutral-900">{venue.name}</p>
+                <div className="inline-flex items-center gap-1.5 text-sm text-neutral-700">
+                  <MapPin className="h-4 w-4 text-[var(--theme-secondary)]" />
+                  <span className="truncate">{venue.addressLine1}</span>
+                </div>
               </div>
               <Badge>{venue.status}</Badge>
             </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-              <Badge>Total seats: {venue.totalSeats ?? 0}</Badge>
-              <Badge>Total tables: {venue.totalTables ?? 0}</Badge>
+            <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2">
+              <div className="rounded-xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-white/85 px-3 py-2">
+                <p className="text-neutral-500">Total seats</p>
+                <p className="mt-1 text-sm font-semibold text-neutral-900">{venue.totalSeats ?? 0}</p>
+              </div>
+              <div className="rounded-xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-white/85 px-3 py-2">
+                <p className="text-neutral-500">Total tables</p>
+                <p className="mt-1 text-sm font-semibold text-neutral-900">{venue.totalTables ?? 0}</p>
+              </div>
             </div>
-            <div className="mt-3">
+            <div className="mt-4">
               <Button size="sm" variant="outline" onClick={() => startEditSeating(venue.id)}>Edit Seating</Button>
             </div>
-          </div>
+          </article>
         ))}
       </div>
     </SidebarLayout>

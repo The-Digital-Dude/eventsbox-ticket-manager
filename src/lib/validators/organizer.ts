@@ -25,6 +25,12 @@ export const payoutSchema = z.object({
   manualPayoutNote: z.string().optional(),
 });
 
+export const payoutTestPaymentSchema = z.object({
+  amount: z.coerce.number().positive().max(100000),
+  description: z.string().trim().min(2).max(120),
+  platformFeePct: z.coerce.number().min(0).max(100).optional(),
+});
+
 export const venueRequestSchema = z.object({
   name: z.string().min(2),
   addressLine1: z.string().min(3),

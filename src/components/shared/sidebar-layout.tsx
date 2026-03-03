@@ -76,7 +76,7 @@ export function SidebarLayout({
   return (
     <div className="min-h-screen bg-[var(--page-bg)]">
       <div className="flex min-h-screen w-full">
-        <aside className="hidden h-screen w-[280px] shrink-0 flex-col border-r border-[var(--border)] bg-white px-5 py-6 lg:flex">
+        <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 self-start flex-col overflow-y-auto border-r border-[var(--border)] bg-white px-5 py-6 lg:flex">
           <div className="mb-8">
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="text-xl font-semibold tracking-tight text-neutral-900">{title}</p>

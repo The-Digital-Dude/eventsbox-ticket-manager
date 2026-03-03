@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Armchair, MoveHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
@@ -283,66 +284,141 @@ export function SeatMapBuilder({
             })}
           </div>
         ) : (
-          <div className="space-y-3 overflow-x-auto pb-2">
-            {section.columns?.map((column, cIndex) => {
-              const offsetBefore = (section.columns ?? []).slice(0, cIndex).reduce((sum, c) => sum + c.seats, 0);
-              return (
-                <div key={`${section.id}-col-${column.index}`} className="space-y-2">
-                  {Array.from({ length: column.rows }).map((_, rowIdx) => {
-                    const rLabel = rowLabel(section.rowStart + rowIdx + 1);
-                    return (
-                      <div key={`${section.id}-${column.index}-${rowIdx}`} className="flex items-center gap-2">
-                        <span className="inline-flex h-6 min-w-7 items-center justify-center rounded-md bg-neutral-900 px-2 text-xs text-white">
-                          {rLabel}
-                        </span>
-                        <div className="flex gap-1">
-                          {Array.from({ length: column.seats }).map((_, seatIdx) => {
-                            const seatNo = offsetBefore + seatIdx + 1;
-                            const seatId = buildSeatId(section, rLabel, seatNo);
-                            const state = seatState[seatId] ?? {};
-                            const offset = state.offset ?? 0;
-                            return (
-                              <button
-                                key={seatId}
-                                type="button"
-                                onClick={() => !compact && toggleSeatSelected(seatId)}
-                                onPointerDown={(event) => {
-                                  if (compact || !state.selected || state.deleted) return;
-                                  setDragSeatId(seatId);
-                                  setDragStartX(event.clientX);
-                                  setDragBaseOffset(offset);
-                                }}
-                                onPointerMove={(event) => {
-                                  if (compact || dragSeatId !== seatId) return;
-                                  const delta = event.clientX - dragStartX;
-                                  setSeatState((prev) => ({
-                                    ...prev,
-                                    [seatId]: { ...(prev[seatId] ?? {}), offset: Math.max(-500, Math.min(500, dragBaseOffset + delta)) },
-                                  }));
-                                }}
-                                onPointerUp={() => {
-                                  if (dragSeatId === seatId) setDragSeatId(null);
-                                }}
-                                className={`grid h-6 w-6 place-items-center rounded-md border text-[10px] transition ${
-                                  state.deleted
-                                    ? "invisible"
-                                    : state.selected
-                                      ? "border-emerald-700 bg-emerald-300"
-                                      : "border-neutral-300 bg-neutral-50"
-                                }`}
-                                style={{ transform: `translateX(${offset}px)` }}
-                              >
-                                {seatNo}
-                              </button>
-                            );
-                          })}
+          <div className="space-y-2">
+            {(section.columns?.length ?? 0) > (compact ? 1 : 3) ? (
+              <div className="flex items-center justify-end gap-1.5 text-xs font-medium text-neutral-600">
+                <MoveHorizontal className="h-3.5 w-3.5 text-[var(--theme-secondary)]" />
+                <span>Scroll horizontally to view all columns</span>
+              </div>
+            ) : null}
+            <div className="relative overflow-x-auto pb-2">
+              {(section.columns?.length ?? 0) > (compact ? 1 : 3) ? (
+                <>
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8"
+                    style={{ background: "linear-gradient(to right, var(--surface), transparent)" }}
+                  />
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8"
+                    style={{ background: "linear-gradient(to left, var(--surface), transparent)" }}
+                  />
+                </>
+              ) : null}
+              <div
+                className={`grid gap-3 ${compact ? "w-max" : "min-w-full"}`}
+                style={{
+                  gridTemplateColumns: compact
+                    ? `repeat(${section.columns?.length ?? 1}, max-content)`
+                    : (section.columns?.length ?? 0) > 3
+                      ? `repeat(${section.columns?.length ?? 1}, minmax(calc((100% - 2 * 0.75rem) / 3), calc((100% - 2 * 0.75rem) / 3)))`
+                      : `repeat(${section.columns?.length ?? 1}, minmax(0, 1fr))`,
+                }}
+              >
+              {section.columns?.map((column, cIndex) => {
+                const offsetBefore = (section.columns ?? []).slice(0, cIndex).reduce((sum, c) => sum + c.seats, 0);
+                const compactSeatCell = 32;
+                const compactSeatGap = 4;
+                const compactTrackPadding = 16;
+                const compactLabelWidth = 28;
+                const compactMiddleGap = 10;
+                const compactColumnInnerWidth =
+                  compactLabelWidth +
+                  compactMiddleGap +
+                  compactTrackPadding +
+                  column.seats * compactSeatCell +
+                  Math.max(0, column.seats - 1) * compactSeatGap +
+                  compactTrackPadding;
+                return (
+                  <div
+                    key={`${section.id}-col-${column.index}`}
+                    className="space-y-2 overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 p-3"
+                    style={compact ? { width: `${compactColumnInnerWidth}px` } : undefined}
+                  >
+                    <p className="text-xs font-medium uppercase tracking-wide text-neutral-600">Column {column.index}</p>
+                    {Array.from({ length: column.rows }).map((_, rowIdx) => {
+                      const rLabel = rowLabel(section.rowStart + rowIdx + 1);
+                      return (
+                        <div key={`${section.id}-${column.index}-${rowIdx}`} className="grid grid-cols-[1.75rem_minmax(0,1fr)] items-center gap-2.5">
+                          <span className="inline-flex h-6 min-w-7 items-center justify-center rounded-md bg-neutral-900 px-2 text-xs text-white">
+                            {rLabel}
+                          </span>
+                          <div
+                            className="grid gap-1 px-2"
+                            style={{
+                              gridTemplateColumns: compact
+                                ? `repeat(${column.seats}, ${compactSeatCell}px)`
+                                : `repeat(${column.seats}, minmax(0, 1fr))`,
+                            }}
+                          >
+                            {Array.from({ length: column.seats }).map((_, seatIdx) => {
+                              const seatNo = offsetBefore + seatIdx + 1;
+                              const seatId = buildSeatId(section, rLabel, seatNo);
+                              const state = seatState[seatId] ?? {};
+                              const offset = Math.max(-12, Math.min(12, state.offset ?? 0));
+                              return (
+                                <button
+                                  key={seatId}
+                                  type="button"
+                                  onClick={() => !compact && toggleSeatSelected(seatId)}
+                                  onPointerDown={(event) => {
+                                    if (compact || !state.selected || state.deleted) return;
+                                    setDragSeatId(seatId);
+                                    setDragStartX(event.clientX);
+                                    setDragBaseOffset(offset);
+                                  }}
+                                  onPointerMove={(event) => {
+                                    if (compact || dragSeatId !== seatId) return;
+                                    const delta = event.clientX - dragStartX;
+                                    setSeatState((prev) => ({
+                                      ...prev,
+                                      [seatId]: { ...(prev[seatId] ?? {}), offset: Math.max(-12, Math.min(12, dragBaseOffset + delta)) },
+                                    }));
+                                  }}
+                                  onPointerUp={() => {
+                                    if (dragSeatId === seatId) setDragSeatId(null);
+                                  }}
+                                  onPointerCancel={() => {
+                                    if (dragSeatId === seatId) setDragSeatId(null);
+                                  }}
+                                  className={`group flex w-full flex-col items-center justify-center rounded-lg transition ${
+                                    compact ? "h-8 gap-0" : "h-10 gap-0.5"
+                                  } ${
+                                    state.deleted
+                                      ? "invisible"
+                                      : state.selected
+                                        ? "bg-emerald-100/80"
+                                        : "hover:bg-[rgb(var(--theme-accent-rgb)/0.08)]"
+                                  }`}
+                                  style={{ transform: `translateX(${offset}px)` }}
+                                >
+                                  <Armchair
+                                    className={`${compact ? "h-4 w-4" : "h-5 w-5"} transition ${
+                                      state.selected
+                                        ? "text-emerald-700"
+                                        : "text-[var(--theme-secondary)] group-hover:text-[var(--theme-accent)]"
+                                    }`}
+                                  />
+                                  <span
+                                    className={`${compact ? "text-[9px]" : "text-[10px]"} font-semibold leading-none ${
+                                      state.selected ? "text-emerald-800" : "text-neutral-700"
+                                    }`}
+                                  >
+                                    {seatNo}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
+                      );
+                    })}
+                  </div>
+                );
+              })}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -351,8 +427,8 @@ export function SeatMapBuilder({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
-        <div className="mb-4 grid gap-5 md:grid-cols-3">
+      <div className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.16)] bg-gradient-to-br from-white via-white to-[rgb(var(--theme-accent-rgb)/0.04)] p-6 shadow-sm">
+        <div className="mb-5 grid gap-5 md:grid-cols-3">
           <div className="space-y-2">
             <Label>Section Name</Label>
             <select
@@ -393,14 +469,22 @@ export function SeatMapBuilder({
         </div>
 
         {mapType === "seats" ? (
-          <div className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-            <div className="max-w-xs space-y-2">
-              <Label>Number of Columns</Label>
-              <Input type="number" min={1} max={50} value={columnCount} onChange={(event) => ensureColumns(Number(event.target.value || 1))} />
+          <div className="space-y-4 rounded-xl bg-[rgb(var(--theme-accent-rgb)/0.05)] p-4 md:p-5">
+            <div className="grid gap-4 lg:grid-cols-[minmax(240px,320px)_1fr] lg:items-end">
+              <div className="max-w-xs space-y-2">
+                <Label>Number of Columns</Label>
+                <Input type="number" min={1} max={50} value={columnCount} onChange={(event) => ensureColumns(Number(event.target.value || 1))} />
+              </div>
+              <p className="text-xs text-neutral-600">
+                Define rows and seats per column. Additional columns keep desktop width and become horizontally scrollable in preview.
+              </p>
             </div>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: columnCount }).map((_, idx) => (
-                <div key={`cfg-col-${idx}`} className="space-y-2 rounded-xl border border-neutral-200 bg-white p-3">
+                <div
+                  key={`cfg-col-${idx}`}
+                  className="space-y-2 rounded-xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-white/95 p-3 shadow-[0_10px_30px_rgb(var(--theme-accent-rgb)/0.06)]"
+                >
                   <p className="text-sm font-medium">Column {idx + 1}</p>
                   <div className="space-y-2">
                     <Label>Rows</Label>
@@ -441,29 +525,36 @@ export function SeatMapBuilder({
             </div>
           </div>
         ) : (
-          <div className="grid gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4 md:grid-cols-3">
+          <div className="grid gap-3 rounded-xl bg-[rgb(var(--theme-accent-rgb)/0.05)] p-4 md:grid-cols-3 md:p-5">
             <div className="space-y-2"><Label>Table Rows</Label><Input type="number" min={1} max={50} value={tableRows} onChange={(event) => setTableRows(Number(event.target.value || 1))} /></div>
             <div className="space-y-2"><Label>Table Columns</Label><Input type="number" min={1} max={50} value={tableColumns} onChange={(event) => setTableColumns(Number(event.target.value || 1))} /></div>
             <div className="space-y-2"><Label>Seats / Table</Label><Input type="number" min={2} max={20} value={seatsPerTable} onChange={(event) => setSeatsPerTable(Number(event.target.value || 2))} /></div>
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap gap-3">
+        <div className="mt-5 border-t border-[rgb(var(--theme-accent-rgb)/0.14)] pt-4">
+          <div className="flex flex-wrap gap-3">
           <Button type="button" onClick={addSection}>Add Section</Button>
           <Button type="button" variant="outline" onClick={deleteSelectedSeats}>Delete Selected Seats</Button>
           <Button type="button" variant="outline" onClick={() => setIsPreviewOpen(true)}>Preview Sections</Button>
           <Button type="button" onClick={handleSave} disabled={isSaving}>{isSaving ? "Saving..." : saveLabel}</Button>
+          </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-gradient-to-br from-white via-white to-[rgb(var(--theme-accent-rgb)/0.06)] p-6 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <Badge>Sections: {summary.sectionCount}</Badge>
           <Badge>Total Seats: {summary.totalSeats}</Badge>
           <Badge>Total Tables: {summary.totalTables}</Badge>
         </div>
 
-        {sections.length === 0 ? <p className="text-sm text-neutral-600">No sections configured yet.</p> : <div className="space-y-4">{sections.map((section) => renderSection(section))}</div>}
+        {sections.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[rgb(var(--theme-accent-rgb)/0.28)] bg-white/80 px-4 py-8 text-center">
+            <p className="text-sm font-medium text-neutral-700">No sections configured yet.</p>
+            <p className="mt-1 text-xs text-neutral-500">Add your first section above to preview the layout here.</p>
+          </div>
+        ) : <div className="space-y-4">{sections.map((section) => renderSection(section))}</div>}
       </div>
 
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
