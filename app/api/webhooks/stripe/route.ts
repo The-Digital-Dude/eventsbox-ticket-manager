@@ -6,6 +6,32 @@ import { env } from "@/src/lib/env";
 import { getStripeClient } from "@/src/lib/stripe/client";
 import { prisma } from "@/src/lib/db";
 
+function getWebhookSecrets() {
+  return [env.STRIPE_WEBHOOK_SECRET, env.STRIPE_CONNECT_WEBHOOK_SECRET].filter(
+    (secret): secret is string => Boolean(secret),
+  );
+}
+
+function constructEventWithKnownSecrets(stripe: Stripe, body: string, signature: string) {
+  const secrets = getWebhookSecrets();
+  let lastSignatureError: Error | null = null;
+
+  for (const secret of secrets) {
+    try {
+      return stripe.webhooks.constructEvent(body, signature, secret);
+    } catch (error) {
+      if (error instanceof Stripe.errors.StripeSignatureVerificationError) {
+        lastSignatureError = error;
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastSignatureError ?? new Error("No Stripe webhook secrets configured");
+}
+
 async function syncConnectedAccount(account: Stripe.Account) {
   if (!account.id) {
     return;
@@ -32,13 +58,12 @@ async function handleStripeEvent(event: Stripe.Event) {
       return;
     }
     case "account.application.deauthorized": {
-      const object = event.data.object as { account?: string | null };
-      if (!object.account) {
+      if (!event.account) {
         return;
       }
 
       await prisma.organizerPayoutSettings.updateMany({
-        where: { stripeAccountId: object.account },
+        where: { stripeAccountId: event.account },
         data: {
           stripeAccountId: null,
           stripeOnboardingStatus: StripeOnboardingStatus.NOT_STARTED,
@@ -75,7 +100,8 @@ export async function GET() {
 
   return ok({
     stripeConfigured: Boolean(stripe),
-    webhookSecretConfigured: Boolean(env.STRIPE_WEBHOOK_SECRET),
+    webhookSecretConfigured: getWebhookSecrets().length > 0,
+    webhookSecretCount: getWebhookSecrets().length,
     endpoint: "/api/webhooks/stripe",
     recentEvents,
   });
@@ -83,7 +109,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const stripe = getStripeClient();
-  if (!stripe || !env.STRIPE_WEBHOOK_SECRET) {
+  if (!stripe || getWebhookSecrets().length === 0) {
     return ok({ received: true, mocked: true });
   }
 
@@ -94,7 +120,7 @@ export async function POST(req: NextRequest) {
       return fail(400, { code: "MISSING_SIGNATURE", message: "Missing stripe signature" });
     }
 
-    const event = stripe.webhooks.constructEvent(body, signature, env.STRIPE_WEBHOOK_SECRET);
+    const event = constructEventWithKnownSecrets(stripe, body, signature);
     const existing = await prisma.stripeWebhookEvent.findUnique({
       where: { stripeEventId: event.id },
       select: { id: true, processedAt: true },

@@ -23,6 +23,7 @@ POST /api/webhooks/stripe
 The webhook route now:
 
 - verifies the Stripe signature with `STRIPE_WEBHOOK_SECRET`
+- supports both `STRIPE_WEBHOOK_SECRET` and `STRIPE_CONNECT_WEBHOOK_SECRET`
 - stores each Stripe event ID for idempotency
 - safely ignores duplicate retries after successful processing
 - updates organizer Stripe onboarding state from `account.updated`
@@ -38,6 +39,8 @@ stripe listen --forward-to http://192.168.0.23:3000/api/webhooks/stripe
 ```
 
 Stripe CLI will print a webhook signing secret that starts with `whsec_...`. Copy that into `.env` as `STRIPE_WEBHOOK_SECRET`, then restart the dev server.
+
+For connected-account events such as `account.updated`, configure a second Connect webhook and store its signing secret as `STRIPE_CONNECT_WEBHOOK_SECRET`.
 
 ### Check webhook health
 
