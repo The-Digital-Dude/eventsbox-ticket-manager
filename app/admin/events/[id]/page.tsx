@@ -53,6 +53,7 @@ function statusBadgeClass(status: string) {
   if (status === "PUBLISHED") return "bg-emerald-100 text-emerald-700 border-transparent";
   if (status === "PENDING_APPROVAL") return "bg-amber-100 text-amber-700 border-transparent";
   if (status === "REJECTED") return "bg-red-100 text-red-700 border-transparent";
+  if (status === "CANCELLED") return "bg-orange-100 text-orange-700 border-transparent";
   return "bg-neutral-100 text-neutral-600 border-transparent";
 }
 
@@ -69,6 +70,8 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [deciding, setDeciding] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
 
@@ -86,6 +89,32 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
     setShowRejectForm(false);
     setRejectReason("");
     // Reload event
+    const updated = await fetch(`/api/admin/events/${id}`).then((r) => r.json());
+    if (updated?.data) setEvent(updated.data);
+  }
+
+  async function cancelEvent() {
+    if (!confirm("Cancel this published event?")) return;
+
+    setCanceling(true);
+    const res = await fetch(`/api/admin/events/${id}/cancel`, { method: "POST" });
+    const payload = await res.json();
+    setCanceling(false);
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to cancel event");
+    toast.success("Event cancelled");
+    const updated = await fetch(`/api/admin/events/${id}`).then((r) => r.json());
+    if (updated?.data) setEvent(updated.data);
+  }
+
+  async function refundOrder(orderId: string) {
+    if (!confirm("Refund this paid order?")) return;
+
+    setRefundingOrderId(orderId);
+    const res = await fetch(`/api/admin/events/${id}/orders/${orderId}/refund`, { method: "POST" });
+    const payload = await res.json();
+    setRefundingOrderId(null);
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to refund order");
+    toast.success("Order refunded");
     const updated = await fetch(`/api/admin/events/${id}`).then((r) => r.json());
     if (updated?.data) setEvent(updated.data);
   }
@@ -147,6 +176,19 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
               onClick={() => setShowRejectForm((v) => !v)}
             >
               Reject
+            </Button>
+          </div>
+        )}
+        {event.status === "PUBLISHED" && (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-red-600 hover:bg-red-50"
+              onClick={cancelEvent}
+              disabled={canceling}
+            >
+              {canceling ? "Cancelling..." : "Cancel Event"}
             </Button>
           </div>
         )}
@@ -251,6 +293,11 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
           <h2 className="text-lg font-semibold text-neutral-900">Paid Orders</h2>
           <span className="text-sm text-neutral-500">{event.orders.length} total</span>
         </div>
+        {event.status === "CANCELLED" && event.orders.length > 0 && (
+          <div className="border-b border-[var(--border)] bg-orange-50 px-5 py-2 text-xs text-orange-700">
+            Event is cancelled. Refund actions are enabled for paid orders.
+          </div>
+        )}
         {event.orders.length === 0 ? (
           <div className="p-8 text-center">
             <Users className="mx-auto h-8 w-8 text-neutral-300" />
@@ -266,6 +313,9 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Check-in</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Total</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Paid At</th>
+                  {event.status === "CANCELLED" && (
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
@@ -293,6 +343,19 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
                       </td>
                       <td className="px-4 py-3 font-semibold text-neutral-900">${Number(order.total).toFixed(2)}</td>
                       <td className="px-4 py-3 text-neutral-500 text-xs">{order.paidAt ? formatDateTime(order.paidAt) : "—"}</td>
+                      {event.status === "CANCELLED" && (
+                        <td className="px-4 py-3 text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-600 hover:bg-red-50"
+                            onClick={() => refundOrder(order.id)}
+                            disabled={refundingOrderId === order.id}
+                          >
+                            {refundingOrderId === order.id ? "Refunding..." : "Refund"}
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

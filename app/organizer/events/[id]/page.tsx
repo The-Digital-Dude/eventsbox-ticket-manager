@@ -62,6 +62,7 @@ function statusBadgeClass(status: string) {
   if (status === "PUBLISHED") return "bg-emerald-100 text-emerald-700 border-transparent";
   if (status === "PENDING_APPROVAL") return "bg-amber-100 text-amber-700 border-transparent";
   if (status === "REJECTED") return "bg-red-100 text-red-700 border-transparent";
+  if (status === "CANCELLED") return "bg-orange-100 text-orange-700 border-transparent";
   return "bg-neutral-100 text-neutral-600 border-transparent";
 }
 
@@ -78,6 +79,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [canceling, setCanceling] = useState(false);
 
   // Ticket form state
   const [showTicketForm, setShowTicketForm] = useState(false);
@@ -153,6 +155,30 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     await load();
   }
 
+  async function cancelEvent() {
+    if (!event) return;
+
+    const paidOrdersCount = event.orders.length;
+    const message = paidOrdersCount > 0
+      ? `This event has ${paidOrdersCount} paid order(s). Cancel event anyway?`
+      : "Cancel this published event?";
+    if (!confirm(message)) return;
+
+    setCanceling(true);
+    const res = await fetch(`/api/organizer/events/${id}/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        acknowledgePaidOrders: paidOrdersCount > 0,
+      }),
+    });
+    const payload = await res.json();
+    setCanceling(false);
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to cancel event");
+    toast.success("Event cancelled");
+    await load();
+  }
+
   const canEdit = event?.status === "DRAFT" || event?.status === "REJECTED";
   const canSubmit = canEdit && (event?.ticketTypes?.filter((t) => t.isActive).length ?? 0) > 0;
 
@@ -185,6 +211,17 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               <Link href={`/organizer/events/${id}/edit`}>
                 <Button variant="outline" size="sm">Edit Event</Button>
               </Link>
+            )}
+            {event.status === "PUBLISHED" && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-red-600 hover:bg-red-50"
+                onClick={cancelEvent}
+                disabled={canceling}
+              >
+                {canceling ? "Cancelling..." : "Cancel Event"}
+              </Button>
             )}
             {canSubmit && (
               <Button onClick={submitForApproval} disabled={submitting}>

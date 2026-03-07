@@ -53,24 +53,29 @@ export default function EventOrdersPage({ params }: { params: Promise<{ id: stri
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [eventTitle, setEventTitle] = useState("");
+  const [eventStatus, setEventStatus] = useState("");
+  const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null);
   const [q, setQ] = useState("");
 
-  useEffect(() => {
-    async function load() {
-      const [ordersRes, eventRes] = await Promise.all([
-        fetch(`/api/organizer/events/${id}/orders`),
-        fetch(`/api/organizer/events/${id}`),
-      ]);
-      if (!ordersRes.ok) { toast.error("Failed to load orders"); router.push(`/organizer/events/${id}`); return; }
-      const ordersPayload = await ordersRes.json();
-      setOrders(ordersPayload.data ?? []);
-      if (eventRes.ok) {
-        const eventPayload = await eventRes.json();
-        setEventTitle(eventPayload.data?.title ?? "");
-      }
-      setLoading(false);
+  async function load() {
+    const [ordersRes, eventRes] = await Promise.all([
+      fetch(`/api/organizer/events/${id}/orders`),
+      fetch(`/api/organizer/events/${id}`),
+    ]);
+    if (!ordersRes.ok) { toast.error("Failed to load orders"); router.push(`/organizer/events/${id}`); return; }
+    const ordersPayload = await ordersRes.json();
+    setOrders(ordersPayload.data ?? []);
+    if (eventRes.ok) {
+      const eventPayload = await eventRes.json();
+      setEventTitle(eventPayload.data?.title ?? "");
+      setEventStatus(eventPayload.data?.status ?? "");
     }
+    setLoading(false);
+  }
+
+  useEffect(() => {
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, router]);
 
   const filtered = orders.filter((o) =>
@@ -81,6 +86,21 @@ export default function EventOrdersPage({ params }: { params: Promise<{ id: stri
 
   const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total), 0);
   const totalTickets = orders.reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0), 0);
+  const canRefund = eventStatus === "CANCELLED";
+
+  async function refundOrder(orderId: string) {
+    if (!canRefund) return;
+    if (!confirm("Refund this paid order?")) return;
+
+    setRefundingOrderId(orderId);
+    const res = await fetch(`/api/organizer/events/${id}/orders/${orderId}/refund`, { method: "POST" });
+    const payload = await res.json();
+    setRefundingOrderId(null);
+
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to refund order");
+    toast.success("Order refunded");
+    await load();
+  }
 
   function exportCSV() {
     const rows = [
@@ -115,6 +135,9 @@ export default function EventOrdersPage({ params }: { params: Promise<{ id: stri
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Orders</h1>
           {eventTitle && <p className="mt-1 text-sm text-neutral-500">{eventTitle}</p>}
+          {eventStatus === "CANCELLED" && (
+            <p className="mt-1 text-xs text-orange-700">Event is cancelled. You can refund paid orders below.</p>
+          )}
         </div>
         <Button variant="outline" size="sm" onClick={exportCSV} disabled={orders.length === 0}>
           <Download className="mr-2 h-4 w-4" /> Export CSV
@@ -162,6 +185,7 @@ export default function EventOrdersPage({ params }: { params: Promise<{ id: stri
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Tickets</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Total</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Paid At</th>
+                {canRefund && <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
@@ -184,6 +208,19 @@ export default function EventOrdersPage({ params }: { params: Promise<{ id: stri
                   </td>
                   <td className="px-4 py-3 font-semibold text-neutral-900">${Number(order.total).toFixed(2)}</td>
                   <td className="px-4 py-3 text-neutral-500">{order.paidAt ? formatDateTime(order.paidAt) : "—"}</td>
+                  {canRefund && (
+                    <td className="px-4 py-3 text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 hover:bg-red-50"
+                        onClick={() => refundOrder(order.id)}
+                        disabled={refundingOrderId === order.id}
+                      >
+                        {refundingOrderId === order.id ? "Refunding..." : "Refund"}
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

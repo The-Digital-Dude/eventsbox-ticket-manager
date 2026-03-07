@@ -76,3 +76,22 @@ Run:
 npm run lint
 npm run typecheck
 ```
+
+## Email Notifications (Resend)
+
+Email notifications are sent through Resend when configured:
+
+- order confirmation (after successful payment webhook)
+- event status changes for organizers (publish/reject/cancel)
+- attendee notice on event cancellation
+- refund confirmation
+
+Set these environment variables in `.env`:
+
+```text
+RESEND_API_KEY=re_...
+EMAIL_FROM=EventsBox <no-reply@yourdomain.com>
+EMAIL_REPLY_TO=support@yourdomain.com
+```
+
+If `RESEND_API_KEY` or `EMAIL_FROM` is missing, email sending is skipped gracefully.

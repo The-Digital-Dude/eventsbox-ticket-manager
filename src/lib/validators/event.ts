@@ -51,3 +51,7 @@ export const eventDecisionSchema = z.object({
   action: z.enum(["PUBLISHED", "REJECTED"]),
   reason: z.string().max(1000).optional(),
 });
+
+export const organizerEventCancelSchema = z.object({
+  acknowledgePaidOrders: z.boolean().optional().default(false),
+});

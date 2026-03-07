@@ -5,6 +5,7 @@ import { fail, ok } from "@/src/lib/http/response";
 import { env } from "@/src/lib/env";
 import { getStripeClient } from "@/src/lib/stripe/client";
 import { prisma } from "@/src/lib/db";
+import { sendOrderConfirmationEmail } from "@/src/lib/services/notifications";
 
 function getWebhookSecrets() {
   return [env.STRIPE_WEBHOOK_SECRET, env.STRIPE_CONNECT_WEBHOOK_SECRET].filter(
@@ -93,7 +94,16 @@ async function handleStripeEvent(event: Stripe.Event) {
 async function handlePaymentSucceeded(intent: Stripe.PaymentIntent) {
   const order = await prisma.order.findFirst({
     where: { stripePaymentIntentId: intent.id, status: "PENDING" },
-    include: { items: { include: { ticketType: true } } },
+    include: {
+      event: {
+        select: {
+          title: true,
+          startAt: true,
+          timezone: true,
+        },
+      },
+      items: { include: { ticketType: true } },
+    },
   });
   if (!order) return;
 
@@ -119,6 +129,18 @@ async function handlePaymentSucceeded(intent: Stripe.PaymentIntent) {
 
       await tx.qRTicket.createMany({ data: tickets });
     }
+  });
+
+  await sendOrderConfirmationEmail({
+    to: order.buyerEmail,
+    buyerName: order.buyerName,
+    orderId: order.id,
+    eventTitle: order.event.title,
+    startAt: order.event.startAt,
+    timezone: order.event.timezone,
+    orderTotal: Number(order.total),
+    ticketLines: order.items.map((item) => `${item.ticketType.name} x${item.quantity}`),
+    orderUrl: `${env.APP_URL}/orders/${order.id}`,
   });
 }
 

@@ -1,7 +1,7 @@
 # Current Task
 
 ## Active Task
-**Phase 2 complete — all features built and pushed to `sleep-mode` branch**
+**Phase 3 in progress — event cancellation flow (organizer + admin)**
 
 ---
 
@@ -50,11 +50,33 @@
 
 ---
 
+## Phase 3 Progress
+
+- Resend email service integrated with env-based graceful fallback
+- Order confirmation email wired on successful payment webhook
+- Organizer status email wired for admin publish/reject/cancel event actions
+- Event cancellation attendee notification emails wired (organizer/admin cancel routes)
+- Refund confirmation email wired when paid order refund completes
+- Organizer cancel endpoint added: `POST /api/organizer/events/:id/cancel`
+- Admin cancel endpoint added: `POST /api/admin/events/:id/cancel`
+- Organizer order refund endpoint added: `POST /api/organizer/events/:id/orders/:orderId/refund`
+- Admin order refund endpoint added: `POST /api/admin/events/:id/orders/:orderId/refund`
+- Organizer event detail UI now supports cancel action for published events
+- Admin event detail UI now supports cancel action for published events
+- Organizer event orders page supports refund action for cancelled events
+- Admin event detail paid orders table supports refund action for cancelled events
+- Cancel status badge style added on organizer/admin event detail pages
+- Integration tests added:
+  - `src/tests/integration/admin-event-decision-notify.test.ts`
+  - `src/tests/integration/organizer-event-cancel.test.ts`
+  - `src/tests/integration/admin-event-cancel.test.ts`
+  - `src/tests/integration/organizer-order-refund.test.ts`
+  - `src/tests/integration/admin-order-refund.test.ts`
+
+---
+
 ## Next Actions (Phase 3)
-1. **Email notifications** — Order confirmation email, event status change emails
-2. **Event image upload** — heroImage field via S3/Cloudflare R2
-3. **Organizer event cancel** — Cancel published events with attendee notification
-4. **Refund flow** — Stripe refund API integration for cancelled orders
-5. **Analytics dashboard** — Revenue charts, ticket sales over time
-6. **Mobile-responsive improvements** — Scanner page optimized for phone use
-7. **Merge `sleep-mode` → `main`** — PR review and merge
+1. **Event image upload** — heroImage field via S3/Cloudflare R2
+2. **Analytics dashboard** — Revenue charts, ticket sales over time
+3. **Mobile-responsive improvements** — Scanner page optimized for phone use
+4. **Merge `sleep-mode` → `main`** — PR review and merge
