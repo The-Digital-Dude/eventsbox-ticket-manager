@@ -37,6 +37,13 @@ enum StripeOnboardingStatus {
   COMPLETED
 }
 
+enum PayoutRequestStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
 model User {
   id                String             @id @default(cuid())
   email             String             @unique
@@ -93,6 +100,7 @@ model OrganizerProfile {
   updatedAt        DateTime                @updatedAt
   user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   payoutSettings   OrganizerPayoutSettings?
+  payoutRequests   PayoutRequest[]
   venues           Venue[]
 }
 
@@ -106,6 +114,23 @@ model OrganizerPayoutSettings {
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
   organizerProfile       OrganizerProfile       @relation(fields: [organizerProfileId], references: [id], onDelete: Cascade)
+}
+
+model PayoutRequest {
+  id                 String              @id @default(cuid())
+  organizerProfileId String
+  amount             Decimal?
+  note               String?
+  status             PayoutRequestStatus @default(PENDING)
+  adminNote          String?
+  requestedAt        DateTime            @default(now())
+  resolvedAt         DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  organizerProfile   OrganizerProfile    @relation(fields: [organizerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([organizerProfileId, status])
+  @@index([requestedAt])
 }
 
 model StripeWebhookEvent {

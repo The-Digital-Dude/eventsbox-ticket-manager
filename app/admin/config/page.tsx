@@ -11,6 +11,7 @@ import { Button } from "@/src/components/ui/button";
 const nav = [
   { href: "/admin/organizers", label: "Organizers" },
   { href: "/admin/venues", label: "Venues" },
+  { href: "/admin/payouts", label: "Payouts" },
   { href: "/admin/config", label: "Platform Config" },
   { href: "/admin/categories", label: "Categories" },
   { href: "/admin/locations", label: "Locations" },

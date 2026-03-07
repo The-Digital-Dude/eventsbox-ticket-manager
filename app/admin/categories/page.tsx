@@ -12,6 +12,7 @@ type CategoryRow = { id: string; name: string };
 const nav = [
   { href: "/admin/organizers", label: "Organizers" },
   { href: "/admin/venues", label: "Venues" },
+  { href: "/admin/payouts", label: "Payouts" },
   { href: "/admin/config", label: "Platform Config" },
   { href: "/admin/categories", label: "Categories" },
   { href: "/admin/locations", label: "Locations" },

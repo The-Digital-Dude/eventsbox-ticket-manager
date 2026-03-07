@@ -1,4 +1,4 @@
-import { OrganizerApprovalStatus, PayoutMode, VenueStatus } from "@prisma/client";
+import { OrganizerApprovalStatus, PayoutMode, PayoutRequestStatus, VenueStatus } from "@prisma/client";
 import { z } from "zod";
 
 export const organizerDecisionSchema = z.object({
@@ -30,4 +30,9 @@ export const stateSchema = z.object({
 export const citySchema = z.object({
   stateId: z.string().min(1),
   name: z.string().min(2),
+});
+
+export const payoutDecisionSchema = z.object({
+  action: z.enum([PayoutRequestStatus.APPROVED, PayoutRequestStatus.PAID, PayoutRequestStatus.REJECTED]),
+  adminNote: z.string().max(500).optional(),
 });

@@ -41,6 +41,7 @@ export function SidebarLayout({
     onboarding: ListChecks,
     dashboard: LayoutDashboard,
     payout: Wallet,
+    payouts: Wallet,
     venues: Store,
     organizers: Building2,
     "platform config": Settings,
