@@ -72,15 +72,54 @@ async function handleStripeEvent(event: Stripe.Event) {
       });
       return;
     }
-    case "checkout.session.completed":
-    case "checkout.session.async_payment_succeeded":
-    case "checkout.session.async_payment_failed":
-    case "payment_intent.succeeded":
-    case "payment_intent.payment_failed":
+    case "payment_intent.succeeded": {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      await handlePaymentSucceeded(intent);
       return;
+    }
+    case "payment_intent.payment_failed": {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      await prisma.order.updateMany({
+        where: { stripePaymentIntentId: intent.id, status: "PENDING" },
+        data: { status: "FAILED" },
+      });
+      return;
+    }
     default:
       return;
   }
+}
+
+async function handlePaymentSucceeded(intent: Stripe.PaymentIntent) {
+  const order = await prisma.order.findFirst({
+    where: { stripePaymentIntentId: intent.id, status: "PENDING" },
+    include: { items: { include: { ticketType: true } } },
+  });
+  if (!order) return;
+
+  // Mark order paid and increment sold counts
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({
+      where: { id: order.id },
+      data: { status: "PAID", paidAt: new Date() },
+    });
+
+    for (const item of order.items) {
+      await tx.ticketType.update({
+        where: { id: item.ticketTypeId },
+        data: { sold: { increment: item.quantity } },
+      });
+
+      // Generate one QRTicket per seat
+      const tickets = Array.from({ length: item.quantity }, (_, i) => ({
+        orderId: order.id,
+        orderItemId: item.id,
+        ticketNumber: `${order.id.slice(-6).toUpperCase()}-${item.ticketType.name.slice(0, 3).toUpperCase()}-${String(i + 1).padStart(3, "0")}`,
+      }));
+
+      await tx.qRTicket.createMany({ data: tickets });
+    }
+  });
 }
 
 export async function GET() {

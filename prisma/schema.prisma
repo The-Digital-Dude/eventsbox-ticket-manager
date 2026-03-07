@@ -44,32 +44,53 @@ enum PayoutRequestStatus {
   REJECTED
 }
 
+enum EventStatus {
+  DRAFT
+  PENDING_APPROVAL
+  PUBLISHED
+  REJECTED
+  CANCELLED
+}
+
+enum TicketTypeKind {
+  DIRECT
+  COMBO
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
 model User {
-  id                String             @id @default(cuid())
-  email             String             @unique
-  passwordHash      String
-  role              Role
-  emailVerified     Boolean            @default(false)
-  isActive          Boolean            @default(true)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  organizerProfile  OrganizerProfile?
-  refreshTokens     RefreshToken[]
-  resetTokens       PasswordResetToken[]
-  verifyTokens      EmailVerificationToken[]
-  auditLogs         AuditLog[]
+  id               String                   @id @default(cuid())
+  email            String                   @unique
+  passwordHash     String
+  role             Role
+  emailVerified    Boolean                  @default(false)
+  isActive         Boolean                  @default(true)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  organizerProfile OrganizerProfile?
+  refreshTokens    RefreshToken[]
+  resetTokens      PasswordResetToken[]
+  verifyTokens     EmailVerificationToken[]
+  auditLogs        AuditLog[]
 }
 
 model RefreshToken {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   userId       String
   tokenHash    String
   expiresAt    DateTime
   revokedAt    DateTime?
   replacedById String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -102,10 +123,11 @@ model OrganizerProfile {
   payoutSettings   OrganizerPayoutSettings?
   payoutRequests   PayoutRequest[]
   venues           Venue[]
+  events           Event[]
 }
 
 model OrganizerPayoutSettings {
-  id                    String                 @id @default(cuid())
+  id                     String                 @id @default(cuid())
   organizerProfileId     String                 @unique
   payoutMode             PayoutMode             @default(MANUAL)
   manualPayoutNote       String?
@@ -134,27 +156,27 @@ model PayoutRequest {
 }
 
 model StripeWebhookEvent {
-  id            String   @id @default(cuid())
-  stripeEventId String   @unique
+  id            String    @id @default(cuid())
+  stripeEventId String    @unique
   type          String
   livemode      Boolean
   payload       Json?
   processedAt   DateTime?
   lastError     String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([type])
   @@index([processedAt])
 }
 
 model PlatformConfig {
-  id                   String   @id @default("singleton")
-  defaultCommissionPct Decimal  @db.Decimal(5, 2)
-  defaultGstPct        Decimal  @db.Decimal(5, 2)
+  id                   String     @id @default("singleton")
+  defaultCommissionPct Decimal    @db.Decimal(5, 2)
+  defaultGstPct        Decimal    @db.Decimal(5, 2)
   payoutModeDefault    PayoutMode
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
 }
 
 model Category {
@@ -164,6 +186,7 @@ model Category {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   venues    Venue[]
+  events    Event[]
 }
 
 model State {
@@ -174,6 +197,7 @@ model State {
   updatedAt DateTime @updatedAt
   cities    City[]
   venues    Venue[]
+  events    Event[]
 }
 
 model City {
@@ -184,69 +208,187 @@ model City {
   updatedAt DateTime @updatedAt
   state     State    @relation(fields: [stateId], references: [id], onDelete: Cascade)
   venues    Venue[]
+  events    Event[]
 
   @@unique([stateId, name])
   @@index([stateId])
 }
 
 model Venue {
-  id                 String      @id @default(cuid())
-  organizerProfileId String
-  name               String
-  addressLine1       String
-  addressLine2       String?
-  stateId            String
-  cityId             String
-  categoryId         String?
-  seatingConfig      Json?
-  seatState          Json?
-  seatingSchemaVersion Int      @default(1)
-  seatingUpdatedAt   DateTime?
-  totalSeats         Int?
-  totalTables        Int?
-  status             VenueStatus @default(PENDING_APPROVAL)
-  rejectionReason    String?
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
-  organizerProfile   OrganizerProfile @relation(fields: [organizerProfileId], references: [id], onDelete: Cascade)
-  state              State       @relation(fields: [stateId], references: [id])
-  city               City        @relation(fields: [cityId], references: [id])
-  category           Category?   @relation(fields: [categoryId], references: [id])
+  id                   String           @id @default(cuid())
+  organizerProfileId   String
+  name                 String
+  addressLine1         String
+  addressLine2         String?
+  stateId              String
+  cityId               String
+  categoryId           String?
+  seatingConfig        Json?
+  seatState            Json?
+  seatingSchemaVersion Int              @default(1)
+  seatingUpdatedAt     DateTime?
+  totalSeats           Int?
+  totalTables          Int?
+  status               VenueStatus      @default(PENDING_APPROVAL)
+  rejectionReason      String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  organizerProfile     OrganizerProfile @relation(fields: [organizerProfileId], references: [id], onDelete: Cascade)
+  state                State            @relation(fields: [stateId], references: [id])
+  city                 City             @relation(fields: [cityId], references: [id])
+  category             Category?        @relation(fields: [categoryId], references: [id])
+  events               Event[]
 
   @@index([organizerProfileId])
   @@index([status])
 }
 
+model Event {
+  id                 String           @id @default(cuid())
+  organizerProfileId String
+  categoryId         String?
+  venueId            String?
+  stateId            String?
+  cityId             String?
+  title              String
+  slug               String           @unique
+  description        String?
+  heroImage          String?
+  contactEmail       String?
+  contactPhone       String?
+  cancelPolicy       String?
+  refundPolicy       String?
+  startAt            DateTime
+  endAt              DateTime
+  timezone           String           @default("Pacific/Auckland")
+  status             EventStatus      @default(DRAFT)
+  rejectionReason    String?
+  submittedAt        DateTime?
+  publishedAt        DateTime?
+  commissionPct      Decimal          @default(10) @db.Decimal(5, 2)
+  gstPct             Decimal          @default(15) @db.Decimal(5, 2)
+  platformFeeFixed   Decimal          @default(0) @db.Decimal(10, 2)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  organizerProfile   OrganizerProfile @relation(fields: [organizerProfileId], references: [id], onDelete: Cascade)
+  category           Category?        @relation(fields: [categoryId], references: [id])
+  venue              Venue?           @relation(fields: [venueId], references: [id])
+  state              State?           @relation(fields: [stateId], references: [id])
+  city               City?            @relation(fields: [cityId], references: [id])
+  ticketTypes        TicketType[]
+  orders             Order[]
+
+  @@index([organizerProfileId])
+  @@index([status])
+  @@index([startAt])
+}
+
+model TicketType {
+  id          String         @id @default(cuid())
+  eventId     String
+  name        String
+  description String?
+  kind        TicketTypeKind @default(DIRECT)
+  price       Decimal        @db.Decimal(10, 2)
+  quantity    Int
+  sold        Int            @default(0)
+  saleStartAt DateTime?
+  saleEndAt   DateTime?
+  maxPerOrder Int            @default(10)
+  isActive    Boolean        @default(true)
+  sortOrder   Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  event       Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+
+  @@index([eventId])
+}
+
+model Order {
+  id                    String      @id @default(cuid())
+  eventId               String
+  buyerEmail            String
+  buyerName             String
+  stripePaymentIntentId String?     @unique
+  subtotal              Decimal     @db.Decimal(10, 2)
+  platformFee           Decimal     @db.Decimal(10, 2)
+  gst                   Decimal     @db.Decimal(10, 2)
+  total                 Decimal     @db.Decimal(10, 2)
+  status                OrderStatus @default(PENDING)
+  paidAt                DateTime?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  event                 Event       @relation(fields: [eventId], references: [id])
+  items                 OrderItem[]
+  tickets               QRTicket[]
+
+  @@index([eventId])
+  @@index([buyerEmail])
+  @@index([stripePaymentIntentId])
+}
+
+model OrderItem {
+  id           String     @id @default(cuid())
+  orderId      String
+  ticketTypeId String
+  quantity     Int
+  unitPrice    Decimal    @db.Decimal(10, 2)
+  subtotal     Decimal    @db.Decimal(10, 2)
+  createdAt    DateTime   @default(now())
+  order        Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
+  tickets      QRTicket[]
+
+  @@index([orderId])
+  @@index([ticketTypeId])
+}
+
+model QRTicket {
+  id           String    @id @default(cuid())
+  orderId      String
+  orderItemId  String
+  token        String    @unique @default(cuid())
+  ticketNumber String
+  checkedInAt  DateTime?
+  createdAt    DateTime  @default(now())
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem    OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([token])
+}
+
 model AuditLog {
-  id         String   @id @default(cuid())
+  id          String   @id @default(cuid())
   actorUserId String
-  action     String
-  entityType String
-  entityId   String
-  metadata   Json?
-  createdAt  DateTime @default(now())
-  actor      User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+  action      String
+  entityType  String
+  entityId    String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  actor       User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
 
   @@index([actorUserId])
   @@index([entityType, entityId])
 }
 
 model EmailVerificationToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  token     String   @unique
+  token     String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  token     String   @unique
+  token     String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

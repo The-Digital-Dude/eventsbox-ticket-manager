@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Building2,
+  CalendarDays,
   ClipboardCheck,
   Compass,
   LayoutDashboard,
@@ -44,6 +45,7 @@ export function SidebarLayout({
     payouts: Wallet,
     venues: Store,
     organizers: Building2,
+    events: CalendarDays,
     "platform config": Settings,
     categories: Compass,
     locations: MapPin,
