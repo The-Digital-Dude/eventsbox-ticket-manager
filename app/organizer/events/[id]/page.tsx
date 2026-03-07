@@ -216,6 +216,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           </div>
           <p className="text-4xl font-semibold tracking-tight text-neutral-900">{event._count.orders}</p>
           <p className="text-sm text-neutral-500">paid order{event._count.orders !== 1 ? "s" : ""}</p>
+          {event._count.orders > 0 && (
+            <Link href={`/organizer/events/${id}/orders`} className="mt-2 inline-block text-xs text-[var(--theme-accent)] underline underline-offset-4">
+              View orders →
+            </Link>
+          )}
         </div>
       </div>
 
