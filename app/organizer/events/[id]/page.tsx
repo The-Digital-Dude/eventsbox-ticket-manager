@@ -54,6 +54,7 @@ const nav = [
   { href: "/organizer/events", label: "Events" },
   { href: "/organizer/payout", label: "Payout" },
   { href: "/organizer/venues", label: "Venues" },
+  { href: "/organizer/scanner", label: "Scanner" },
 ];
 
 function statusBadgeClass(status: string) {

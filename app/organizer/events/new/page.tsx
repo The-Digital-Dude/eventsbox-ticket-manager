@@ -20,6 +20,7 @@ const nav = [
   { href: "/organizer/events", label: "Events" },
   { href: "/organizer/payout", label: "Payout" },
   { href: "/organizer/venues", label: "Venues" },
+  { href: "/organizer/scanner", label: "Scanner" },
 ];
 
 export default function NewEventPage() {

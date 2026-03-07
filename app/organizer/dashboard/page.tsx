@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { OrganizerApprovalStatus, StripeOnboardingStatus, VenueStatus } from "@prisma/client";
-import { Building2, CheckCircle2, Clock3, Wallet } from "lucide-react";
+import { Building2, CalendarDays, CheckCircle2, Clock3, DollarSign, Ticket, Wallet } from "lucide-react";
 import { prisma } from "@/src/lib/db";
 import { getServerSession } from "@/src/lib/auth/server-auth";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
@@ -13,8 +13,10 @@ const nav = [
   { href: "/organizer/status", label: "Status" },
   { href: "/organizer/onboarding", label: "Onboarding" },
   { href: "/organizer/dashboard", label: "Dashboard" },
+  { href: "/organizer/events", label: "Events" },
   { href: "/organizer/payout", label: "Payout" },
   { href: "/organizer/venues", label: "Venues" },
+  { href: "/organizer/scanner", label: "Scanner" },
 ];
 
 export default async function OrganizerDashboardPage() {
@@ -28,6 +30,18 @@ export default async function OrganizerDashboardPage() {
     include: {
       payoutSettings: true,
       venues: { select: { id: true, status: true } },
+      events: {
+        select: {
+          id: true,
+          status: true,
+          _count: { select: { orders: true } },
+          ticketTypes: { select: { sold: true } },
+          orders: {
+            where: { status: "PAID" },
+            select: { total: true },
+          },
+        },
+      },
     },
   });
   if (!profile || profile.approvalStatus !== OrganizerApprovalStatus.APPROVED) {
@@ -47,6 +61,14 @@ export default async function OrganizerDashboardPage() {
   const pendingVenues = profile.venues.filter((venue) => venue.status === VenueStatus.PENDING_APPROVAL).length;
   const approvedVenues = profile.venues.filter((venue) => venue.status === VenueStatus.APPROVED).length;
   const rejectedVenues = profile.venues.filter((venue) => venue.status === VenueStatus.REJECTED).length;
+  const totalEvents = profile.events.length;
+  const publishedEvents = profile.events.filter((e) => e.status === "PUBLISHED").length;
+  const totalTicketsSold = profile.events.reduce((sum, e) => sum + e.ticketTypes.reduce((s, t) => s + t.sold, 0), 0);
+  const totalRevenue = profile.events.reduce(
+    (sum, e) => sum + e.orders.reduce((s, o) => s + Number(o.total), 0),
+    0,
+  );
+
   const payoutSettings = profile.payoutSettings;
   const payoutConfigured =
     payoutSettings?.payoutMode === "MANUAL"
@@ -80,6 +102,48 @@ export default async function OrganizerDashboardPage() {
             </Link>
           </div>
         </div>
+      </section>
+
+      {/* Events stats row */}
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-medium text-neutral-600">Total Events</p>
+            <CalendarDays className="h-4 w-4 text-[var(--theme-accent)]" />
+          </div>
+          <p className="text-4xl font-semibold tracking-tight text-neutral-900">{totalEvents}</p>
+          <p className="mt-1 text-xs text-neutral-500">{publishedEvents} published</p>
+        </article>
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-medium text-neutral-600">Tickets Sold</p>
+            <Ticket className="h-4 w-4 text-[var(--theme-accent)]" />
+          </div>
+          <p className="text-4xl font-semibold tracking-tight text-neutral-900">{totalTicketsSold}</p>
+          <p className="mt-1 text-xs text-neutral-500">Across all events</p>
+        </article>
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-medium text-neutral-600">Gross Revenue</p>
+            <DollarSign className="h-4 w-4 text-[var(--theme-accent)]" />
+          </div>
+          <p className="text-4xl font-semibold tracking-tight text-neutral-900">${totalRevenue.toFixed(2)}</p>
+          <p className="mt-1 text-xs text-neutral-500">From paid orders (incl. fees)</p>
+        </article>
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-medium text-neutral-600">Quick Actions</p>
+            <CalendarDays className="h-4 w-4 text-[var(--theme-accent)]" />
+          </div>
+          <div className="mt-1 flex flex-col gap-2">
+            <Link href="/organizer/events/new" className={cn(buttonVariants({ size: "sm" }), "w-full justify-center text-xs")}>
+              + New Event
+            </Link>
+            <Link href="/organizer/events" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full justify-center text-xs")}>
+              My Events
+            </Link>
+          </div>
+        </article>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
@@ -169,6 +233,10 @@ export default async function OrganizerDashboardPage() {
             <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-white px-3 py-2">
               <dt className="text-neutral-600">Total venues</dt>
               <dd className="font-semibold text-neutral-900">{totalVenues}</dd>
+            </div>
+            <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-white px-3 py-2">
+              <dt className="text-neutral-600">Events</dt>
+              <dd className="font-semibold text-neutral-900">{totalEvents} ({publishedEvents} live)</dd>
             </div>
           </dl>
         </article>
