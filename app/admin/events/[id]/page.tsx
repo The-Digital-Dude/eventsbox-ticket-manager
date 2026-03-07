@@ -6,6 +6,8 @@ import { ChevronLeft, CalendarDays, CheckCircle2, Users, Ticket, DollarSign } fr
 import { toast } from "sonner";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
 import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
 
 const nav = [
@@ -66,6 +68,27 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
   const router = useRouter();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deciding, setDeciding] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [showRejectForm, setShowRejectForm] = useState(false);
+
+  async function decide(action: "PUBLISHED" | "REJECTED") {
+    setDeciding(true);
+    const res = await fetch(`/api/admin/events/${id}/decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, reason: action === "REJECTED" ? rejectReason.trim() || undefined : undefined }),
+    });
+    const payload = await res.json();
+    setDeciding(false);
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Action failed");
+    toast.success(action === "PUBLISHED" ? "Event published" : "Event rejected");
+    setShowRejectForm(false);
+    setRejectReason("");
+    // Reload event
+    const updated = await fetch(`/api/admin/events/${id}`).then((r) => r.json());
+    if (updated?.data) setEvent(updated.data);
+  }
 
   useEffect(() => {
     fetch(`/api/admin/events/${id}`)
@@ -111,7 +134,47 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
             {" · "}{event.organizerProfile.user.email}
           </p>
         </div>
+
+        {event.status === "PENDING_APPROVAL" && (
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => decide("PUBLISHED")} disabled={deciding}>
+              {deciding ? "Processing..." : "Publish"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-red-600 hover:bg-red-50"
+              onClick={() => setShowRejectForm((v) => !v)}
+            >
+              Reject
+            </Button>
+          </div>
+        )}
       </div>
+
+      {showRejectForm && (
+        <div className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
+          <Input
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="Rejection reason (optional)"
+          />
+          <div className="mt-3 flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-red-600 hover:bg-red-50"
+              onClick={() => decide("REJECTED")}
+              disabled={deciding}
+            >
+              Confirm Reject
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setShowRejectForm(false); setRejectReason(""); }}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
