@@ -12,6 +12,10 @@ const eventInclude = {
   city: { select: { id: true, name: true } },
   ticketTypes: { orderBy: { sortOrder: "asc" as const } },
   _count: { select: { orders: true } },
+  orders: {
+    where: { status: "PAID" as const },
+    select: { total: true, platformFee: true, gst: true },
+  },
 };
 
 async function getOwnEvent(id: string, organizerProfileId: string) {

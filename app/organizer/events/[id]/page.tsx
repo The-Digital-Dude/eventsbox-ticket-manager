@@ -45,6 +45,7 @@ type EventDetail = {
   venue: { id: string; name: string; addressLine1: string } | null;
   ticketTypes: TicketType[];
   _count: { orders: number };
+  orders: Array<{ total: number | string; platformFee: number | string; gst: number | string }>;
 };
 
 const nav = [
@@ -201,7 +202,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       )}
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-neutral-600">
             <CalendarDays className="h-4 w-4 text-[var(--theme-accent)]" /> Schedule
@@ -228,6 +229,15 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               View orders →
             </Link>
           )}
+        </div>
+        <div className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-neutral-600">
+            <DollarSign className="h-4 w-4 text-[var(--theme-accent)]" /> Revenue
+          </div>
+          <p className="text-4xl font-semibold tracking-tight text-neutral-900">
+            ${event.orders.reduce((sum, o) => sum + Number(o.total), 0).toFixed(2)}
+          </p>
+          <p className="text-sm text-neutral-500">gross (incl. fees)</p>
         </div>
       </div>
 
