@@ -1,0 +1,243 @@
+"use client";
+
+import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, CalendarDays, CheckCircle2, Users, Ticket, DollarSign } from "lucide-react";
+import { toast } from "sonner";
+import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
+import { Badge } from "@/src/components/ui/badge";
+import Link from "next/link";
+
+const nav = [
+  { href: "/admin/organizers", label: "Organizers" },
+  { href: "/admin/events", label: "Events" },
+  { href: "/admin/venues", label: "Venues" },
+  { href: "/admin/payouts", label: "Payouts" },
+  { href: "/admin/config", label: "Platform Config" },
+  { href: "/admin/categories", label: "Categories" },
+  { href: "/admin/locations", label: "Locations" },
+];
+
+type TicketType = {
+  id: string; name: string; kind: string;
+  price: number | string; quantity: number; sold: number; isActive: boolean;
+};
+
+type QRTicket = { id: string; ticketNumber: string; checkedInAt: string | null };
+type OrderItem = {
+  id: string; quantity: number;
+  ticketType: { name: string };
+  tickets: QRTicket[];
+};
+type Order = {
+  id: string; buyerName: string; buyerEmail: string;
+  total: number | string; paidAt: string | null;
+  items: OrderItem[];
+};
+
+type EventDetail = {
+  id: string; title: string; slug: string; status: string;
+  startAt: string; endAt: string; timezone: string;
+  category: { name: string } | null;
+  venue: { name: string; addressLine1: string } | null;
+  state: { name: string } | null;
+  city: { name: string } | null;
+  organizerProfile: { companyName: string | null; brandName: string | null; user: { email: string } };
+  ticketTypes: TicketType[];
+  orders: Order[];
+};
+
+function statusBadgeClass(status: string) {
+  if (status === "PUBLISHED") return "bg-emerald-100 text-emerald-700 border-transparent";
+  if (status === "PENDING_APPROVAL") return "bg-amber-100 text-amber-700 border-transparent";
+  if (status === "REJECTED") return "bg-red-100 text-red-700 border-transparent";
+  return "bg-neutral-100 text-neutral-600 border-transparent";
+}
+
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString(undefined, {
+    day: "numeric", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+export default function AdminEventDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const router = useRouter();
+  const [event, setEvent] = useState<EventDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/admin/events/${id}`)
+      .then((r) => r.json())
+      .then((p) => {
+        if (!p?.data) { toast.error("Event not found"); router.push("/admin/events"); return; }
+        setEvent(p.data);
+        setLoading(false);
+      });
+  }, [id, router]);
+
+  if (loading || !event) {
+    return (
+      <SidebarLayout role="admin" title="Admin" items={nav}>
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => <div key={i} className="h-32 animate-pulse rounded-2xl bg-neutral-100" />)}
+        </div>
+      </SidebarLayout>
+    );
+  }
+
+  const allTickets = event.orders.flatMap((o) => o.items.flatMap((i) => i.tickets));
+  const totalIssued = allTickets.length;
+  const totalCheckedIn = allTickets.filter((t) => t.checkedInAt).length;
+  const totalRevenue = event.orders.reduce((sum, o) => sum + Number(o.total), 0);
+  const totalSold = event.ticketTypes.reduce((sum, t) => sum + t.sold, 0);
+
+  return (
+    <SidebarLayout role="admin" title="Admin" items={nav}>
+      <Link href="/admin/events" className="inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-900">
+        <ChevronLeft className="h-4 w-4" /> Back to Events
+      </Link>
+
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <Badge className={statusBadgeClass(event.status)}>{event.status.replace("_", " ")}</Badge>
+            {event.category && <Badge>{event.category.name}</Badge>}
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">{event.title}</h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            {event.organizerProfile.brandName ?? event.organizerProfile.companyName ?? event.organizerProfile.user.email}
+            {" · "}{event.organizerProfile.user.email}
+          </p>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center gap-2 text-sm text-neutral-500">
+            <CalendarDays className="h-4 w-4 text-[var(--theme-accent)]" /> Schedule
+          </div>
+          <p className="text-sm font-semibold text-neutral-900">{formatDateTime(event.startAt)}</p>
+          <p className="text-xs text-neutral-500">to {formatDateTime(event.endAt)}</p>
+        </article>
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center gap-2 text-sm text-neutral-500">
+            <Ticket className="h-4 w-4 text-[var(--theme-accent)]" /> Tickets Sold
+          </div>
+          <p className="text-3xl font-semibold text-neutral-900">{totalSold}</p>
+          <p className="text-xs text-neutral-500">across {event.ticketTypes.length} type{event.ticketTypes.length !== 1 ? "s" : ""}</p>
+        </article>
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center gap-2 text-sm text-neutral-500">
+            <CheckCircle2 className="h-4 w-4 text-[var(--theme-accent)]" /> Check-in Rate
+          </div>
+          <p className="text-3xl font-semibold text-neutral-900">
+            {totalIssued > 0 ? `${Math.round((totalCheckedIn / totalIssued) * 100)}%` : "—"}
+          </p>
+          <p className="text-xs text-neutral-500">{totalCheckedIn} / {totalIssued} tickets</p>
+        </article>
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center gap-2 text-sm text-neutral-500">
+            <DollarSign className="h-4 w-4 text-[var(--theme-accent)]" /> Gross Revenue
+          </div>
+          <p className="text-3xl font-semibold text-neutral-900">${totalRevenue.toFixed(2)}</p>
+          <p className="text-xs text-neutral-500">{event.orders.length} paid orders</p>
+        </article>
+      </div>
+
+      {/* Ticket Types */}
+      <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold text-neutral-900">Ticket Types</h2>
+        {event.ticketTypes.length === 0 ? (
+          <p className="text-sm text-neutral-500">No ticket types.</p>
+        ) : (
+          <div className="space-y-3">
+            {event.ticketTypes.map((tt) => {
+              const soldPct = tt.quantity > 0 ? Math.round((tt.sold / tt.quantity) * 100) : 0;
+              return (
+                <div key={tt.id} className="rounded-xl border border-[var(--border)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-neutral-900">{tt.name}</span>
+                      <Badge>{tt.kind}</Badge>
+                      {!tt.isActive && <Badge className="bg-neutral-100 text-neutral-500 border-transparent">Inactive</Badge>}
+                    </div>
+                    <span className="font-semibold text-neutral-900">${Number(tt.price).toFixed(2)}</span>
+                  </div>
+                  <div className="mt-3">
+                    <div className="mb-1 flex justify-between text-xs text-neutral-500">
+                      <span>{tt.sold} sold / {tt.quantity} total</span>
+                      <span>{soldPct}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-neutral-100">
+                      <div className="h-full rounded-full bg-[var(--theme-accent)]" style={{ width: `${soldPct}%` }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Orders */}
+      <section className="rounded-2xl border border-[var(--border)] bg-white shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between p-5 border-b border-[var(--border)]">
+          <h2 className="text-lg font-semibold text-neutral-900">Paid Orders</h2>
+          <span className="text-sm text-neutral-500">{event.orders.length} total</span>
+        </div>
+        {event.orders.length === 0 ? (
+          <div className="p-8 text-center">
+            <Users className="mx-auto h-8 w-8 text-neutral-300" />
+            <p className="mt-2 text-sm text-neutral-500">No paid orders yet</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-[var(--border)] bg-neutral-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Buyer</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Tickets</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Check-in</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Total</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Paid At</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {event.orders.map((order) => {
+                  const orderTickets = order.items.flatMap((i) => i.tickets);
+                  const checkedIn = orderTickets.filter((t) => t.checkedInAt).length;
+                  return (
+                    <tr key={order.id} className="hover:bg-neutral-50">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-neutral-900">{order.buyerName}</p>
+                        <p className="text-xs text-neutral-500">{order.buyerEmail}</p>
+                      </td>
+                      <td className="px-4 py-3 text-neutral-700">
+                        {order.items.map((item) => `${item.ticketType.name} ×${item.quantity}`).join(", ")}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge className={checkedIn === orderTickets.length && orderTickets.length > 0
+                          ? "bg-emerald-100 text-emerald-700 border-transparent"
+                          : checkedIn > 0
+                            ? "bg-amber-100 text-amber-700 border-transparent"
+                            : "bg-neutral-100 text-neutral-600 border-transparent"
+                        }>
+                          {checkedIn}/{orderTickets.length} in
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-neutral-900">${Number(order.total).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-neutral-500 text-xs">{order.paidAt ? formatDateTime(order.paidAt) : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </SidebarLayout>
+  );
+}

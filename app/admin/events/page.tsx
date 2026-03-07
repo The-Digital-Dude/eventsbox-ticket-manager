@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarDays, Ticket, Users } from "lucide-react";
+import { CalendarDays, ExternalLink, Ticket, Users } from "lucide-react";
 import { toast } from "sonner";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
 import { PageHeader } from "@/src/components/shared/page-header";
@@ -9,6 +9,7 @@ import { EmptyState } from "@/src/components/shared/empty-state";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
+import Link from "next/link";
 
 type EventRow = {
   id: string;
@@ -116,7 +117,14 @@ export default function AdminEventsPage() {
                     <Badge className={statusBadgeClass(event.status)}>{event.status.replace("_", " ")}</Badge>
                     {event.category && <Badge>{event.category.name}</Badge>}
                   </div>
-                  <h3 className="text-xl font-semibold tracking-tight text-neutral-900">{event.title}</h3>
+                  <h3 className="text-xl font-semibold tracking-tight text-neutral-900">
+                    <Link href={`/admin/events/${event.id}`} className="hover:text-[var(--theme-accent)] transition">
+                      {event.title}
+                    </Link>
+                    <Link href={`/admin/events/${event.id}`} className="ml-2 inline-flex">
+                      <ExternalLink className="h-4 w-4 text-neutral-400 hover:text-[var(--theme-accent)]" />
+                    </Link>
+                  </h3>
                   <p className="text-sm text-neutral-500">
                     {event.organizerProfile.companyName ?? event.organizerProfile.user.email}
                     {" · "}
