@@ -179,11 +179,18 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <Badge className={`mb-2 ${statusBadgeClass(event.status)}`}>{event.status.replace("_", " ")}</Badge>
             <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">{event.title}</h1>
           </div>
-          {canSubmit && (
-            <Button onClick={submitForApproval} disabled={submitting}>
-              {submitting ? "Submitting..." : "Submit for Approval"}
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {canEdit && (
+              <Link href={`/organizer/events/${id}/edit`}>
+                <Button variant="outline" size="sm">Edit Event</Button>
+              </Link>
+            )}
+            {canSubmit && (
+              <Button onClick={submitForApproval} disabled={submitting}>
+                {submitting ? "Submitting..." : "Submit for Approval"}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
