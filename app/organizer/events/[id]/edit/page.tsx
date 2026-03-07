@@ -44,6 +44,8 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [timezone, setTimezone] = useState("Pacific/Auckland");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [heroImage, setHeroImage] = useState("");
+  const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
   const [cancelPolicy, setCancelPolicy] = useState("");
   const [refundPolicy, setRefundPolicy] = useState("");
   const [commissionPct, setCommissionPct] = useState("10");
@@ -91,6 +93,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setTimezone(ev.timezone ?? "Pacific/Auckland");
       setContactEmail(ev.contactEmail ?? "");
       setContactPhone(ev.contactPhone ?? "");
+      setHeroImage(ev.heroImage ?? "");
       setCancelPolicy(ev.cancelPolicy ?? "");
       setRefundPolicy(ev.refundPolicy ?? "");
       setCommissionPct(String(ev.commissionPct ?? 10));
@@ -115,6 +118,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         categoryId: categoryId || undefined, venueId: venueId || undefined,
         stateId: stateId || undefined, cityId: cityId || undefined,
         startAt, endAt, timezone,
+        heroImage: heroImage || undefined,
         contactEmail: contactEmail || undefined, contactPhone: contactPhone || undefined,
         cancelPolicy: cancelPolicy || undefined, refundPolicy: refundPolicy || undefined,
         commissionPct: Number(commissionPct), gstPct: Number(gstPct),
@@ -126,6 +130,22 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
     if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to save event");
     toast.success("Event updated");
     router.push(`/organizer/events/${id}`);
+  }
+
+  async function uploadHero(file: File) {
+    setUploadingHeroImage(true);
+    const fd = new FormData();
+    fd.append("file", file);
+
+    const res = await fetch("/api/organizer/uploads/event-image", {
+      method: "POST",
+      body: fd,
+    });
+    const payload = await res.json();
+    setUploadingHeroImage(false);
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to upload image");
+    setHeroImage(payload.data.url);
+    toast.success("Hero image uploaded");
   }
 
   if (!ready) {
@@ -167,6 +187,28 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={5000}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Hero Image</Label>
+              <Input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  void uploadHero(file);
+                }}
+              />
+              <Input
+                value={heroImage}
+                onChange={(e) => setHeroImage(e.target.value)}
+                placeholder="Or paste image URL"
+              />
+              {uploadingHeroImage && <p className="text-xs text-neutral-500">Uploading image...</p>}
+              {heroImage && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={heroImage} alt="Event hero preview" className="h-40 w-full rounded-xl object-cover" />
+              )}
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">

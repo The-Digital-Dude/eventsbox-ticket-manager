@@ -121,8 +121,14 @@ export default async function PublicEventsPage({
                 return (
                   <Link key={event.id} href={`/events/${event.slug}`} className="group block">
                     <article className="h-full overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-sm transition group-hover:shadow-lg group-hover:border-[rgb(var(--theme-accent-rgb)/0.3)]">
-                      {/* Colour bar */}
-                      <div className="h-2 bg-gradient-to-r from-[var(--theme-accent)] to-[rgb(var(--theme-secondary,59,130,246))]" />
+                      {event.heroImage ? (
+                        <div
+                          className="h-40 w-full bg-cover bg-center"
+                          style={{ backgroundImage: `url(${event.heroImage})` }}
+                        />
+                      ) : (
+                        <div className="h-2 bg-gradient-to-r from-[var(--theme-accent)] to-[rgb(var(--theme-secondary,59,130,246))]" />
+                      )}
 
                       <div className="p-5">
                         <div className="mb-3 flex flex-wrap gap-2">

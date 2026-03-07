@@ -42,6 +42,8 @@ export default function NewEventPage() {
   const [timezone, setTimezone] = useState("Pacific/Auckland");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [heroImage, setHeroImage] = useState("");
+  const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
   const [cancelPolicy, setCancelPolicy] = useState("");
   const [refundPolicy, setRefundPolicy] = useState("");
   const [commissionPct, setCommissionPct] = useState("10");
@@ -75,6 +77,7 @@ export default function NewEventPage() {
         title, description, categoryId: categoryId || undefined,
         venueId: venueId || undefined, stateId: stateId || undefined,
         cityId: cityId || undefined, startAt, endAt, timezone,
+        heroImage: heroImage || undefined,
         contactEmail: contactEmail || undefined, contactPhone: contactPhone || undefined,
         cancelPolicy: cancelPolicy || undefined, refundPolicy: refundPolicy || undefined,
         commissionPct: Number(commissionPct), gstPct: Number(gstPct),
@@ -86,6 +89,22 @@ export default function NewEventPage() {
     if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to create event");
     toast.success("Event created — now add ticket types");
     router.push(`/organizer/events/${payload.data.id}`);
+  }
+
+  async function uploadHero(file: File) {
+    setUploadingHeroImage(true);
+    const fd = new FormData();
+    fd.append("file", file);
+
+    const res = await fetch("/api/organizer/uploads/event-image", {
+      method: "POST",
+      body: fd,
+    });
+    const payload = await res.json();
+    setUploadingHeroImage(false);
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to upload image");
+    setHeroImage(payload.data.url);
+    toast.success("Hero image uploaded");
   }
 
   return (
@@ -110,6 +129,28 @@ export default function NewEventPage() {
                 placeholder="Describe your event..."
                 maxLength={5000}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Hero Image</Label>
+              <Input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  void uploadHero(file);
+                }}
+              />
+              <Input
+                value={heroImage}
+                onChange={(e) => setHeroImage(e.target.value)}
+                placeholder="Or paste image URL"
+              />
+              {uploadingHeroImage && <p className="text-xs text-neutral-500">Uploading image...</p>}
+              {heroImage && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={heroImage} alt="Event hero preview" className="h-40 w-full rounded-xl object-cover" />
+              )}
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">

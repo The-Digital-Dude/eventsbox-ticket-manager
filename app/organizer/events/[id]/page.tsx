@@ -29,6 +29,7 @@ type EventDetail = {
   title: string;
   slug: string;
   status: string;
+  heroImage: string | null;
   description: string | null;
   startAt: string;
   endAt: string;
@@ -391,6 +392,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {/* Event Info */}
       <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
         <h2 className="mb-4 text-lg font-semibold text-neutral-900">Event Details</h2>
+        {event.heroImage && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={event.heroImage} alt={event.title} className="mb-4 h-48 w-full rounded-xl object-cover" />
+        )}
         <div className="grid gap-4 md:grid-cols-2">
           {[
             { label: "Category", value: event.category?.name ?? "—" },

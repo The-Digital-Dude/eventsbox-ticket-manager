@@ -95,3 +95,18 @@ EMAIL_REPLY_TO=support@yourdomain.com
 ```
 
 If `RESEND_API_KEY` or `EMAIL_FROM` is missing, email sending is skipped gracefully.
+
+## Event Image Uploads (Cloudinary)
+
+Organizer event create/edit supports image upload through Cloudinary.
+
+Set these in `.env`:
+
+```text
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+CLOUDINARY_UPLOAD_FOLDER=eventsbox/events
+```
+
+If Cloudinary env vars are missing, the upload endpoint returns `UPLOAD_NOT_CONFIGURED`.

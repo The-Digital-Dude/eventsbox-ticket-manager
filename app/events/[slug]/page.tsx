@@ -26,6 +26,7 @@ type EventDetail = {
   id: string;
   title: string;
   slug: string;
+  heroImage: string | null;
   description: string | null;
   startAt: string;
   endAt: string;
@@ -158,6 +159,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ slug: st
 
           {/* Left: Event info */}
           <div className="space-y-6">
+            {event.heroImage && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={event.heroImage}
+                alt={event.title}
+                className="h-72 w-full rounded-2xl border border-[var(--border)] object-cover shadow-sm"
+              />
+            )}
             <div>
               {event.category && <Badge className="mb-3">{event.category.name}</Badge>}
               <h1 className="text-3xl font-bold tracking-tight text-neutral-900">{event.title}</h1>

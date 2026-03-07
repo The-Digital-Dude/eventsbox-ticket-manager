@@ -1,7 +1,7 @@
 # Current Task
 
 ## Active Task
-**Phase 3 in progress — event cancellation flow (organizer + admin)**
+**Phase 3 in progress — event image upload + analytics/mobile improvements pending**
 
 ---
 
@@ -52,6 +52,9 @@
 
 ## Phase 3 Progress
 
+- Cloudinary image upload endpoint added: `POST /api/organizer/uploads/event-image`
+- Organizer event create/edit flows now support hero image upload and URL fallback
+- Public events list and event detail pages now render hero images when available
 - Resend email service integrated with env-based graceful fallback
 - Order confirmation email wired on successful payment webhook
 - Organizer status email wired for admin publish/reject/cancel event actions
@@ -67,6 +70,7 @@
 - Admin event detail paid orders table supports refund action for cancelled events
 - Cancel status badge style added on organizer/admin event detail pages
 - Integration tests added:
+  - `src/tests/integration/organizer-event-image-upload.test.ts`
   - `src/tests/integration/admin-event-decision-notify.test.ts`
   - `src/tests/integration/organizer-event-cancel.test.ts`
   - `src/tests/integration/admin-event-cancel.test.ts`
@@ -76,7 +80,6 @@
 ---
 
 ## Next Actions (Phase 3)
-1. **Event image upload** — heroImage field via S3/Cloudflare R2
-2. **Analytics dashboard** — Revenue charts, ticket sales over time
-3. **Mobile-responsive improvements** — Scanner page optimized for phone use
-4. **Merge `sleep-mode` → `main`** — PR review and merge
+1. **Analytics dashboard** — Revenue charts, ticket sales over time
+2. **Mobile-responsive improvements** — Scanner page optimized for phone use
+3. **Merge `sleep-mode` → `main`** — PR review and merge
