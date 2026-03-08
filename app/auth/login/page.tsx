@@ -81,14 +81,20 @@ export default function LoginPage() {
             </form>
             <div className="mt-4 flex flex-col gap-1.5">
               <p className="text-sm text-neutral-600">
-                New organizer?{" "}
-                <Link href="/auth/register" className="font-medium text-[var(--theme-accent)] hover:underline">
-                  Create account
+                <Link href="/auth/forgot-password" className="font-medium text-[var(--theme-accent)] hover:underline">
+                  Forgot password?
                 </Link>
               </p>
               <p className="text-sm text-neutral-600">
-                <Link href="/auth/forgot-password" className="font-medium text-[var(--theme-accent)] hover:underline">
-                  Forgot password?
+                New attendee?{" "}
+                <Link href="/auth/register/attendee" className="font-medium text-[var(--theme-accent)] hover:underline">
+                  Register here
+                </Link>
+              </p>
+              <p className="text-sm text-neutral-600">
+                Want to host events?{" "}
+                <Link href="/auth/register" className="font-medium text-[var(--theme-accent)] hover:underline">
+                  Register as Organizer
                 </Link>
               </p>
             </div>
