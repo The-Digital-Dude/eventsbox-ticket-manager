@@ -39,7 +39,7 @@ describe("organizer order refund integration", () => {
 
     requireRoleMock.mockResolvedValue({ sub: "org-user-1", role: "ORGANIZER" });
     findProfileMock.mockResolvedValue({ id: "org-profile-1" });
-    findOrderMock.mockResolvedValue({ id: "order-1" });
+    findOrderMock.mockResolvedValue({ id: "order-1", items: [] });
     refundPaidOrderMock.mockResolvedValue({
       success: true,
       data: { orderId: "order-1", status: "REFUNDED", refundId: "re_123" },
