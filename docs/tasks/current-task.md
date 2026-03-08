@@ -1,7 +1,7 @@
 # Current Task
 
 ## Active Task
-**Phase 3 in progress — merge prep**
+**Phase 3 complete — merged to `main` and pushed**
 
 ---
 
@@ -46,7 +46,7 @@
 
 - `npm run lint` ✅ clean
 - `npm run typecheck` ✅ clean
-- Git branch: `sleep-mode` pushed to GitHub
+- Git branches: `main` and `sleep-mode` pushed to GitHub
 
 ---
 
@@ -88,4 +88,6 @@
 ---
 
 ## Next Actions (Phase 3)
-1. **Merge `sleep-mode` → `main`** — PR review and merge
+1. **Phase 4 planning** — Prioritize next feature set and define acceptance criteria
+2. **Stability pass** — Investigate and fix integration test timeouts (`auth-flow`, `venue-seating-flow`)
+3. **Release prep** — Create release notes and deployment checklist
