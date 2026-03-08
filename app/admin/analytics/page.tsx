@@ -99,17 +99,17 @@ export default async function AdminAnalyticsPage() {
 
   // Per-event computed stats
   const eventRows = topEvents.map((e: typeof topEvents[number]) => {
-    const gross = e.orders.reduce((s, o) => s + Number(o.total), 0);
-    const fees = e.orders.reduce((s, o) => s + Number(o.platformFee), 0);
+    const gross = e.orders.reduce((s: number, o) => s + Number(o.total), 0);
+    const fees = e.orders.reduce((s: number, o) => s + Number(o.platformFee), 0);
     const orgName = e.organizerProfile.brandName ?? e.organizerProfile.companyName ?? e.organizerProfile.user.email;
     return { id: e.id, title: e.title, status: e.status, gross, fees, orders: e._count.orders, orgName };
   }).sort((a, b) => b.gross - a.gross);
 
   // Per-organizer computed stats
-  const orgRows = topOrganizers.map((org) => {
+  const orgRows = topOrganizers.map((org: typeof topOrganizers[number]) => {
     const allOrders = org.events.flatMap((e) => e.orders);
-    const gross = allOrders.reduce((s, o) => s + Number(o.total), 0);
-    const fees = allOrders.reduce((s, o) => s + Number(o.platformFee), 0);
+    const gross = allOrders.reduce((s: number, o) => s + Number(o.total), 0);
+    const fees = allOrders.reduce((s: number, o) => s + Number(o.platformFee), 0);
     const name = org.brandName ?? org.companyName ?? org.user.email;
     return { id: org.id, name, gross, fees, events: org.events.length, orders: allOrders.length };
   }).sort((a, b) => b.gross - a.gross).slice(0, 8);
