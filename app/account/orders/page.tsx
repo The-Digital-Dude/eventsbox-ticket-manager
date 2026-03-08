@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/src/lib/auth/server-auth";
 import { env } from "@/src/lib/env";
+import { OrdersTableClient } from "@/app/account/orders/orders-table-client";
 
 type OrderRow = {
   id: string;
@@ -11,6 +12,7 @@ type OrderRow = {
   paidAt: string | null;
   event: { title: string; startAt: string; slug: string };
   items: Array<{ quantity: number; ticketType: { name: string } }>;
+  cancellationRequest?: { id: string; status: "PENDING" | "APPROVED" | "REJECTED" } | null;
 };
 
 type OrdersPayload = {
@@ -22,17 +24,6 @@ type OrdersPayload = {
 };
 
 export const revalidate = 0;
-
-function formatDate(input: string | null) {
-  if (!input) return "-";
-  return new Date(input).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-}
-
-function statusBadgeClass(status: string) {
-  if (status === "PAID") return "bg-emerald-100 text-emerald-700 border-emerald-200";
-  if (status === "REFUNDED") return "bg-orange-100 text-orange-700 border-orange-200";
-  return "bg-neutral-100 text-neutral-600 border-[var(--border)]";
-}
 
 function buildPageHref(page: number) {
   return `/account/orders?page=${page}`;
@@ -81,46 +72,7 @@ export default async function AccountOrdersPage({
           </Link>
         </section>
       ) : (
-        <section className="overflow-hidden rounded-xl border border-[var(--border)] bg-white shadow-sm">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-50">
-              <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-neutral-500">
-                <th className="px-4 py-3">Event</th>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Tickets</th>
-                <th className="px-4 py-3">Total</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">View</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border)]">
-              {orders.map((order) => {
-                const ticketSummary = order.items.map((item) => `${item.ticketType.name} x${item.quantity}`).join(", ");
-
-                return (
-                  <tr key={order.id}>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-neutral-900">{order.event.title}</p>
-                    </td>
-                    <td className="px-4 py-3 text-neutral-600">{formatDate(order.event.startAt)}</td>
-                    <td className="px-4 py-3 text-neutral-600">{ticketSummary}</td>
-                    <td className="px-4 py-3 font-medium text-neutral-900">${Number(order.total).toFixed(2)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusBadgeClass(order.status)}`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link href={`/orders/${order.id}`} className="text-sm font-medium text-[var(--theme-accent)] hover:underline">
-                        View
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </section>
+        <OrdersTableClient initialOrders={orders} />
       )}
 
       <div className="flex items-center justify-between">

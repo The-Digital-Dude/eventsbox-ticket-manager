@@ -28,6 +28,9 @@ export async function GET(req: NextRequest) {
         where,
         include: {
           event: { select: { title: true, startAt: true, slug: true } },
+          cancellationRequest: {
+            select: { id: true, status: true },
+          },
           items: {
             select: {
               quantity: true,

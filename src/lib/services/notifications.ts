@@ -248,3 +248,29 @@ export async function sendOrderRefundedEmail(input: {
 
   return sendEmail({ to: input.to, subject, text, html });
 }
+
+export async function sendOrganizerCancellationRequestEmail(input: {
+  to: string;
+  attendeeEmail: string;
+  eventTitle: string;
+  orderId: string;
+  reason?: string | null;
+}) {
+  const subject = `Cancellation request: ${input.eventTitle}`;
+  const text = [
+    "Hello,",
+    "",
+    `Attendee ${input.attendeeEmail} has requested a cancellation for order ${input.orderId}.`,
+    `Event: ${input.eventTitle}`,
+    ...(input.reason ? [`Reason: ${input.reason}`] : []),
+  ].join("\n");
+
+  const html = `
+    <p>Hello,</p>
+    <p>Attendee <strong>${input.attendeeEmail}</strong> has requested a cancellation for order <strong>${input.orderId}</strong>.</p>
+    <p>Event: <strong>${input.eventTitle}</strong></p>
+    ${input.reason ? `<p>Reason: ${input.reason}</p>` : ""}
+  `;
+
+  return sendEmail({ to: input.to, subject, text, html });
+}
