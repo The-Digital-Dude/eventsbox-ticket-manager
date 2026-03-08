@@ -5,33 +5,44 @@ import { Badge } from "@/src/components/ui/badge";
 
 export const revalidate = 60;
 
-async function getPublishedEvents(q?: string, categoryId?: string, stateId?: string) {
-  return prisma.event.findMany({
-    where: {
-      status: "PUBLISHED",
-      ...(categoryId ? { categoryId } : {}),
-      ...(stateId ? { stateId } : {}),
-      ...(q ? {
-        OR: [
-          { title: { contains: q, mode: "insensitive" } },
-          { description: { contains: q, mode: "insensitive" } },
-        ],
-      } : {}),
-    },
-    include: {
-      category: { select: { name: true } },
-      venue: { select: { name: true } },
-      state: { select: { name: true } },
-      city: { select: { name: true } },
-      ticketTypes: {
-        where: { isActive: true },
-        orderBy: { price: "asc" },
-        select: { price: true, quantity: true, sold: true },
-        take: 1,
+const PAGE_SIZE = 12;
+
+async function getPublishedEvents(q?: string, categoryId?: string, stateId?: string, page = 1) {
+  const where = {
+    status: "PUBLISHED" as const,
+    ...(categoryId ? { categoryId } : {}),
+    ...(stateId ? { stateId } : {}),
+    ...(q ? {
+      OR: [
+        { title: { contains: q, mode: "insensitive" as const } },
+        { description: { contains: q, mode: "insensitive" as const } },
+      ],
+    } : {}),
+  };
+
+  const [events, total] = await Promise.all([
+    prisma.event.findMany({
+      where,
+      include: {
+        category: { select: { name: true } },
+        venue: { select: { name: true } },
+        state: { select: { name: true } },
+        city: { select: { name: true } },
+        ticketTypes: {
+          where: { isActive: true },
+          orderBy: { price: "asc" },
+          select: { price: true, quantity: true, sold: true },
+          take: 1,
+        },
       },
-    },
-    orderBy: { startAt: "asc" },
-  });
+      orderBy: { startAt: "asc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+    }),
+    prisma.event.count({ where }),
+  ]);
+
+  return { events, total, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
 }
 
 async function getCategories() {
@@ -49,11 +60,12 @@ function formatDate(iso: Date | string) {
 export default async function PublicEventsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; categoryId?: string; stateId?: string }>;
+  searchParams: Promise<{ q?: string; categoryId?: string; stateId?: string; page?: string }>;
 }) {
   const sp = await searchParams;
-  const [events, categories, states] = await Promise.all([
-    getPublishedEvents(sp.q, sp.categoryId, sp.stateId),
+  const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
+  const [{ events, total, pages }, categories, states] = await Promise.all([
+    getPublishedEvents(sp.q, sp.categoryId, sp.stateId, page),
     getCategories(),
     getStates(),
   ]);
@@ -110,7 +122,10 @@ export default async function PublicEventsPage({
           </div>
         ) : (
           <>
-            <p className="mb-6 text-sm text-neutral-500">{events.length} event{events.length !== 1 ? "s" : ""} found</p>
+            <p className="mb-6 text-sm text-neutral-500">
+              {total} event{total !== 1 ? "s" : ""} found
+              {pages > 1 && ` · Page ${page} of ${pages}`}
+            </p>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {events.map((event) => {
                 const lowestPrice = event.ticketTypes[0] ? Number(event.ticketTypes[0].price) : null;
@@ -167,6 +182,49 @@ export default async function PublicEventsPage({
                 );
               })}
             </div>
+
+            {/* Pagination */}
+            {pages > 1 && (
+              <div className="mt-10 flex items-center justify-center gap-2">
+                {page > 1 && (
+                  <Link
+                    href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.categoryId ? { categoryId: sp.categoryId } : {}), ...(sp.stateId ? { stateId: sp.stateId } : {}), page: page - 1 } }}
+                    className="rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 transition"
+                  >
+                    ← Previous
+                  </Link>
+                )}
+                {Array.from({ length: pages }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === pages || Math.abs(p - page) <= 2)
+                  .map((p, idx, arr) => (
+                    <>
+                      {idx > 0 && arr[idx - 1] !== p - 1 && (
+                        <span key={`ellipsis-${p}`} className="px-2 text-neutral-400">…</span>
+                      )}
+                      <Link
+                        key={p}
+                        href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.categoryId ? { categoryId: sp.categoryId } : {}), ...(sp.stateId ? { stateId: sp.stateId } : {}), page: p } }}
+                        className={`rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition ${
+                          p === page
+                            ? "border-[var(--theme-accent)] bg-[var(--theme-accent)] text-white"
+                            : "border-[var(--border)] bg-white text-neutral-700 hover:bg-neutral-50"
+                        }`}
+                      >
+                        {p}
+                      </Link>
+                    </>
+                  ))
+                }
+                {page < pages && (
+                  <Link
+                    href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.categoryId ? { categoryId: sp.categoryId } : {}), ...(sp.stateId ? { stateId: sp.stateId } : {}), page: page + 1 } }}
+                    className="rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 transition"
+                  >
+                    Next →
+                  </Link>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>

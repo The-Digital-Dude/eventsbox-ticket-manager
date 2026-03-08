@@ -28,6 +28,9 @@ export default async function HomePage() {
             <Link href="/events" className="rounded-lg px-3 py-1.5 text-sm font-medium text-neutral-600 hover:bg-neutral-100 transition">
               Browse Events
             </Link>
+            <Link href="/auth/register" className="hidden rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition sm:inline-flex">
+              Register
+            </Link>
             <Link href="/auth/login" className="rounded-lg bg-[var(--theme-accent)] px-4 py-1.5 text-sm font-medium text-white transition hover:opacity-90">
               Sign In
             </Link>
