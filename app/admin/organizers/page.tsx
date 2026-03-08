@@ -20,6 +20,7 @@ const nav = [
   { href: "/admin/organizers", label: "Organizers" },
   { href: "/admin/events", label: "Events" },
   { href: "/admin/orders", label: "Orders" },
+  { href: "/admin/attendees", label: "Attendees" },
   { href: "/admin/venues", label: "Venues" },
   { href: "/admin/payouts", label: "Payouts" },
   { href: "/admin/analytics", label: "Analytics" },
