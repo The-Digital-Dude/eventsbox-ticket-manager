@@ -123,10 +123,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ slug: st
 
     if (!res.ok) return toast.error(payload?.error?.message ?? "Checkout failed");
 
-    // In test mode without Stripe Elements: redirect to confirmation immediately
-    // In production, you'd use Stripe.js to confirm the payment intent first
-    toast.success("Order created! Redirecting to confirmation...");
-    router.push(`/orders/${payload.data.orderId}?pending=1`);
+    // Redirect to Stripe Elements checkout page to confirm payment
+    const { orderId, clientSecret } = payload.data;
+    router.push(`/checkout/${orderId}?cs=${encodeURIComponent(clientSecret)}`);
   }
 
   if (loading) {
