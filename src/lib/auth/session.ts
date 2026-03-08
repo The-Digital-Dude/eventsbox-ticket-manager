@@ -8,7 +8,7 @@ import { signAccessToken, signRefreshToken, verifyRefreshToken } from "@/src/lib
 type SessionUser = {
   id: string;
   email: string;
-  role: "SUPER_ADMIN" | "ORGANIZER";
+  role: "SUPER_ADMIN" | "ORGANIZER" | "ATTENDEE";
 };
 
 function hashToken(raw: string) {

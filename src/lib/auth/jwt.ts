@@ -4,7 +4,7 @@ import { ACCESS_EXPIRES_SECONDS, REFRESH_EXPIRES_SECONDS } from "@/src/lib/auth/
 
 export type AccessTokenPayload = {
   sub: string;
-  role: "SUPER_ADMIN" | "ORGANIZER";
+  role: "SUPER_ADMIN" | "ORGANIZER" | "ATTENDEE";
   email: string;
 };
 
