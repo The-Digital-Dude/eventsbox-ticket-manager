@@ -8,7 +8,7 @@ const poppins = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700
 
 export const metadata: Metadata = {
   title: "EventsBox Ticket Manager",
-  description: "Organizer onboarding and governance platform",
+  description: "Event ticketing and management platform for organizers and attendees.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
