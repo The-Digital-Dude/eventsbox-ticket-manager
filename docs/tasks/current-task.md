@@ -81,6 +81,8 @@
 - Integration timeout stability updates:
   - `src/tests/integration/auth-flow.test.ts` timeout set to `15_000`
   - `src/tests/integration/venue-seating-flow.test.ts` timeout set to `15_000`
+- Release notes drafted: `docs/releases/phase-3-release-notes.md`
+- Deployment checklist drafted: `docs/releases/phase-3-deployment-checklist.md`
 - Integration tests added:
   - `src/tests/integration/organizer-analytics.test.ts`
   - `src/tests/integration/organizer-event-image-upload.test.ts`
@@ -94,4 +96,8 @@
 
 ## Next Actions (Phase 3)
 1. **Phase 4 planning** — Prioritize next feature set and define acceptance criteria
-2. **Release prep** — Create release notes and deployment checklist
+
+## Release Prep Artifacts
+
+- Release notes: `docs/releases/phase-3-release-notes.md`
+- Deployment checklist: `docs/releases/phase-3-deployment-checklist.md`
