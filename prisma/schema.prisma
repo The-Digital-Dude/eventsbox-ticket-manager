@@ -67,6 +67,17 @@ enum OrderStatus {
   REFUNDED
 }
 
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum CancellationRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id               String                   @id @default(cuid())
   email            String                   @unique
@@ -320,6 +331,27 @@ model TicketType {
   @@index([eventId])
 }
 
+model PromoCode {
+  id                 String           @id @default(cuid())
+  organizerProfileId String
+  eventId            String?
+  code               String           @unique
+  discountType       DiscountType
+  discountValue      Decimal          @db.Decimal(10, 2)
+  maxUses            Int?
+  usedCount          Int              @default(0)
+  expiresAt          DateTime?
+  isActive           Boolean          @default(true)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  organizerProfile   OrganizerProfile @relation(fields: [organizerProfileId], references: [id], onDelete: Cascade)
+  event              Event?           @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  orders             Order[]
+
+  @@index([organizerProfileId])
+  @@index([code])
+}
+
 model Order {
   id                    String      @id @default(cuid())
   eventId               String
@@ -331,19 +363,38 @@ model Order {
   platformFee           Decimal     @db.Decimal(10, 2)
   gst                   Decimal     @db.Decimal(10, 2)
   total                 Decimal     @db.Decimal(10, 2)
+  promoCodeId           String?
+  discountAmount        Decimal     @default(0) @db.Decimal(10, 2)
   status                OrderStatus @default(PENDING)
   paidAt                DateTime?
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
   event                 Event       @relation(fields: [eventId], references: [id])
   attendeeProfile       AttendeeProfile? @relation(fields: [attendeeUserId], references: [id])
+  promoCode             PromoCode?  @relation(fields: [promoCodeId], references: [id])
   items                 OrderItem[]
   tickets               QRTicket[]
+  cancellationRequest   CancellationRequest?
 
   @@index([eventId])
   @@index([attendeeUserId])
   @@index([buyerEmail])
   @@index([stripePaymentIntentId])
+  @@index([promoCodeId])
+}
+
+model CancellationRequest {
+  id              String                    @id @default(cuid())
+  orderId         String                    @unique
+  attendeeUserId  String
+  reason          String?
+  status          CancellationRequestStatus @default(PENDING)
+  adminNote       String?
+  resolvedAt      DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  order           Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  attendeeProfile AttendeeProfile           @relation(fields: [attendeeUserId], references: [id], onDelete: Cascade)
 }
 
 model OrderItem {

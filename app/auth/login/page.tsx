@@ -69,11 +69,11 @@ export default function LoginPage() {
             <form className="space-y-4" onSubmit={form.handleSubmit(handleSubmit)}>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" required {...form.register("email")} />
+                <Input id="email" type="email" required autoComplete="email" defaultValue="admin@eventsbox.local" {...form.register("email")} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" required minLength={8} {...form.register("password")} />
+                <Input id="password" type="password" required minLength={8} autoComplete="current-password" defaultValue="Admin123!" {...form.register("password")} />
               </div>
               <Button className="w-full" disabled={loading}>
                 {loading ? "Signing in..." : "Login"}
