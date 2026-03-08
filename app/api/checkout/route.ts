@@ -3,6 +3,7 @@ import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
 import { getStripeClient } from "@/src/lib/stripe/client";
 import { checkoutIntentSchema } from "@/src/lib/validators/event";
+import { getServerSession } from "@/src/lib/auth/server-auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -76,6 +77,20 @@ export async function POST(req: NextRequest) {
       },
       include: { items: true },
     });
+
+    // Link order to attendee account if logged in
+    const session = await getServerSession();
+    if (session && session.user.role === "ATTENDEE") {
+      const attendeeProfile = await prisma.attendeeProfile.findUnique({
+        where: { userId: session.user.id },
+      });
+      if (attendeeProfile) {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { attendeeUserId: attendeeProfile.id },
+        });
+      }
+    }
 
     // Create Stripe payment intent
     const stripe = getStripeClient();
