@@ -233,6 +233,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <a href={`/api/organizer/events/${id}/attendees/export`}>
               <Button variant="outline" size="sm">Export Attendees</Button>
             </a>
+            <Link href={`/organizer/events/${id}/attendees`}>
+              <Button variant="outline" size="sm">View Attendees</Button>
+            </Link>
             {canEdit && (
               <Link href={`/organizer/events/${id}/edit`}>
                 <Button variant="outline" size="sm">Edit Event</Button>
