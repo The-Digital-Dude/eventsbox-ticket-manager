@@ -13,6 +13,8 @@
   - Added `.nvmrc` (`20`) for local Node alignment
   - Added `.npmrc` with `engine-strict=true` to fail early on version mismatch
   - Added `postinstall` Prisma client generation and made Husky prepare script CI-safe
+  - Fixed Prisma schema back-relations for `PromoCode` and `CancellationRequest` to unblock `prisma generate` during Vercel install
+  - Synced `DATABASE_URL` + `DIRECT_DATABASE_URL` to the same production Neon DB URL across Vercel Production/Preview/Development and local `.env`
 
 ### Maintenance Validation Snapshot
 
