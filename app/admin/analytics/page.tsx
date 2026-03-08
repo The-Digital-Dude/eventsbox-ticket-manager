@@ -98,7 +98,7 @@ export default async function AdminAnalyticsPage() {
   const maxRevenue = Math.max(...monthly.map((m) => m.revenue), 1);
 
   // Per-event computed stats
-  const eventRows = topEvents.map((e) => {
+  const eventRows = topEvents.map((e: typeof topEvents[number]) => {
     const gross = e.orders.reduce((s, o) => s + Number(o.total), 0);
     const fees = e.orders.reduce((s, o) => s + Number(o.platformFee), 0);
     const orgName = e.organizerProfile.brandName ?? e.organizerProfile.companyName ?? e.organizerProfile.user.email;
