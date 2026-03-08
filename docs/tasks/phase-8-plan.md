@@ -1,6 +1,6 @@
 # Phase 8 Plan — Waitlist, Discovery & Advanced Organizer Tools
 
-**Status:** TODO
+**Status:** DONE
 **Depends on:** Phase 7 complete ✅
 **Goal:** Add sold-out waitlist with auto-notify, improve public event discovery, give organizers an attendee roster view, and let admins feature-highlight events on the landing page.
 
@@ -224,15 +224,15 @@ Commit: `docs: phase 8 release notes and plan completion`
 
 | Task | Description | Status |
 |------|-------------|--------|
-| 1 | Schema migration (Waitlist + isFeatured) | TODO |
-| 2 | Public waitlist join API + event page UI | TODO |
-| 3 | Waitlist auto-notify on ticket availability | TODO |
-| 4 | Event discovery date range filter | TODO |
-| 5 | Admin feature events on landing page | TODO |
-| 6 | Organizer attendee roster page | TODO |
-| 7 | Organizer waitlist view | TODO |
-| 8 | Integration tests | TODO |
-| 9 | Release notes | TODO |
+| 1 | Schema migration (Waitlist + isFeatured) | DONE |
+| 2 | Public waitlist join API + event page UI | DONE |
+| 3 | Waitlist auto-notify on ticket availability | DONE |
+| 4 | Event discovery date range filter | DONE |
+| 5 | Admin feature events on landing page | DONE |
+| 6 | Organizer attendee roster page | DONE |
+| 7 | Organizer waitlist view | DONE |
+| 8 | Integration tests | DONE |
+| 9 | Release notes | DONE |
 
 ---
 
