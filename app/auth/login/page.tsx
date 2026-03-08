@@ -37,7 +37,7 @@ export default function LoginPage() {
 
     toast.success("Welcome back");
     if (payload.data.role === "SUPER_ADMIN") {
-      router.push("/admin/organizers");
+      router.push("/admin/dashboard");
     } else {
       router.push("/organizer/status");
     }
