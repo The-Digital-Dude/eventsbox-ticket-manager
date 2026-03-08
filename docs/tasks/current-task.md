@@ -1,7 +1,7 @@
 # Current Task
 
 ## Active Task
-**Phase 3 in progress — mobile scanner responsiveness and merge prep**
+**Phase 3 in progress — merge prep**
 
 ---
 
@@ -52,6 +52,9 @@
 
 ## Phase 3 Progress
 
+- Organizer scanner page redesigned for mobile-first check-in ergonomics
+- Sticky mobile action bar added for camera/check-in controls
+- Scanner history and result cards optimized for phone/tablet readability
 - Analytics dashboard upgraded with period filters (3/6/12/24 months)
 - Monthly ticket sales chart added alongside monthly revenue chart
 - Top-performing events and period snapshot metrics added
@@ -85,5 +88,4 @@
 ---
 
 ## Next Actions (Phase 3)
-1. **Mobile-responsive improvements** — Scanner page optimized for phone use
-2. **Merge `sleep-mode` → `main`** — PR review and merge
+1. **Merge `sleep-mode` → `main`** — PR review and merge
