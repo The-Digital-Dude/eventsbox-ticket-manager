@@ -27,6 +27,16 @@ export function PublicNav() {
             Browse Events
           </Link>
           <Link
+            href="/tickets"
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+              pathname === "/tickets"
+                ? "bg-[rgb(var(--theme-accent-rgb)/0.1)] text-[var(--theme-accent)]"
+                : "text-neutral-600 hover:bg-neutral-100"
+            }`}
+          >
+            My Tickets
+          </Link>
+          <Link
             href="/auth/login"
             className="ml-2 rounded-lg bg-[var(--theme-accent)] px-4 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
           >
