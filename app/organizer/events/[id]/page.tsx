@@ -45,7 +45,7 @@ type EventDetail = {
   category: { id: string; name: string } | null;
   venue: { id: string; name: string; addressLine1: string } | null;
   ticketTypes: TicketType[];
-  _count: { orders: number };
+  _count: { orders: number; waitlist: number };
   orders: Array<{ total: number | string; platformFee: number | string; gst: number | string }>;
   auditLogs: Array<{
     id: string;
@@ -227,6 +227,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <Badge className={`mb-2 ${statusBadgeClass(event.status)}`}>{event.status.replace("_", " ")}</Badge>
+            {event._count.waitlist > 0 && (
+              <Badge className="mb-2 ml-2 border-transparent bg-amber-100 text-amber-700">
+                Waitlist {event._count.waitlist}
+              </Badge>
+            )}
             <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">{event.title}</h1>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -236,6 +241,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <Link href={`/organizer/events/${id}/attendees`}>
               <Button variant="outline" size="sm">View Attendees</Button>
             </Link>
+            {event._count.waitlist > 0 && (
+              <Link href={`/organizer/events/${id}/waitlist`}>
+                <Button variant="outline" size="sm">Waitlist ({event._count.waitlist})</Button>
+              </Link>
+            )}
             {canEdit && (
               <Link href={`/organizer/events/${id}/edit`}>
                 <Button variant="outline" size="sm">Edit Event</Button>
@@ -293,11 +303,18 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           </div>
           <p className="text-4xl font-semibold tracking-tight text-neutral-900">{event._count.orders}</p>
           <p className="text-sm text-neutral-500">paid order{event._count.orders !== 1 ? "s" : ""}</p>
-          {event._count.orders > 0 && (
-            <Link href={`/organizer/events/${id}/orders`} className="mt-2 inline-block text-xs text-[var(--theme-accent)] underline underline-offset-4">
-              View orders →
-            </Link>
-          )}
+          <div className="mt-2 flex flex-wrap gap-3">
+            {event._count.orders > 0 && (
+              <Link href={`/organizer/events/${id}/orders`} className="inline-block text-xs text-[var(--theme-accent)] underline underline-offset-4">
+                View orders →
+              </Link>
+            )}
+            {event._count.waitlist > 0 && (
+              <Link href={`/organizer/events/${id}/waitlist`} className="inline-block text-xs text-[var(--theme-accent)] underline underline-offset-4">
+                View waitlist →
+              </Link>
+            )}
+          </div>
         </div>
         <div className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-neutral-600">
