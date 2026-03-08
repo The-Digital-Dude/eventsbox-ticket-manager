@@ -298,3 +298,27 @@ export async function sendCancellationRejectedEmail(input: {
 
   return sendEmail({ to: input.to, subject, text, html });
 }
+
+export async function sendWaitlistConfirmationEmail(input: {
+  to: string;
+  name?: string | null;
+  ticketName: string;
+  eventTitle: string;
+}) {
+  const recipient = input.name?.trim() || "there";
+  const subject = `You're on the waitlist: ${input.eventTitle}`;
+  const text = [
+    `Hi ${recipient},`,
+    "",
+    `You're on the waitlist for ${input.ticketName} at ${input.eventTitle}.`,
+    "We'll notify you if tickets become available.",
+  ].join("\n");
+
+  const html = `
+    <p>Hi ${recipient},</p>
+    <p>You're on the waitlist for <strong>${input.ticketName}</strong> at <strong>${input.eventTitle}</strong>.</p>
+    <p>We'll notify you if tickets become available.</p>
+  `;
+
+  return sendEmail({ to: input.to, subject, text, html });
+}

@@ -78,6 +78,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ slug: st
   const [promoError, setPromoError] = useState("");
   const [promoSuccess, setPromoSuccess] = useState("");
   const [applyingPromo, setApplyingPromo] = useState(false);
+  const [waitlistOpenTicketId, setWaitlistOpenTicketId] = useState<string | null>(null);
+  const [waitlistEmail, setWaitlistEmail] = useState("");
+  const [waitlistName, setWaitlistName] = useState("");
+  const [waitlistSubmittingFor, setWaitlistSubmittingFor] = useState<string | null>(null);
+  const [waitlistMessageByTicket, setWaitlistMessageByTicket] = useState<Record<string, string>>({});
+  const [waitlistErrorByTicket, setWaitlistErrorByTicket] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch(`/api/public/events/${slug}`)
@@ -170,6 +176,42 @@ export default function EventDetailPage({ params }: { params: Promise<{ slug: st
     });
     setPromoSuccess(`Promo applied: ${promoData.discountType === "PERCENTAGE" ? `${promoData.discountValue}%` : `$${Number(promoData.discountValue).toFixed(2)}`} off`);
     setPromoError("");
+  }
+
+  async function joinWaitlist(ticketTypeId: string) {
+    if (!waitlistEmail.trim()) {
+      setWaitlistErrorByTicket((prev) => ({ ...prev, [ticketTypeId]: "Email is required" }));
+      return;
+    }
+
+    setWaitlistSubmittingFor(ticketTypeId);
+    setWaitlistErrorByTicket((prev) => ({ ...prev, [ticketTypeId]: "" }));
+    const res = await fetch(`/api/events/${slug}/waitlist`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: waitlistEmail.trim(),
+        name: waitlistName.trim() || undefined,
+        ticketTypeId,
+      }),
+    });
+    const payload = await res.json();
+    setWaitlistSubmittingFor(null);
+
+    if (!res.ok) {
+      setWaitlistErrorByTicket((prev) => ({ ...prev, [ticketTypeId]: payload?.error?.message ?? "Unable to join waitlist" }));
+      return;
+    }
+
+    if (payload?.data?.alreadyJoined) {
+      setWaitlistMessageByTicket((prev) => ({ ...prev, [ticketTypeId]: "You're already on the waitlist." }));
+    } else {
+      setWaitlistMessageByTicket((prev) => ({ ...prev, [ticketTypeId]: "You're on the waitlist!" }));
+    }
+
+    setWaitlistOpenTicketId(null);
+    setWaitlistName("");
+    setWaitlistErrorByTicket((prev) => ({ ...prev, [ticketTypeId]: "" }));
   }
 
   async function checkout() {
@@ -372,6 +414,66 @@ export default function EventDetailPage({ params }: { params: Promise<{ slug: st
                               className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-neutral-700 hover:bg-neutral-100 transition"
                             >+</button>
                             <span className="text-xs text-neutral-400">Max {tt.maxPerOrder} per order</span>
+                          </div>
+                        )}
+
+                        {isSoldOut && (
+                          <div className="mt-3 space-y-2">
+                            {waitlistMessageByTicket[tt.id] ? (
+                              <p className="text-xs font-medium text-emerald-700">{waitlistMessageByTicket[tt.id]}</p>
+                            ) : (
+                              <>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setWaitlistOpenTicketId((prev) => (prev === tt.id ? null : tt.id));
+                                    setWaitlistEmail((prev) => prev || buyerEmail.trim());
+                                    setWaitlistName("");
+                                    setWaitlistErrorByTicket((prev) => ({ ...prev, [tt.id]: "" }));
+                                  }}
+                                >
+                                  Join Waitlist
+                                </Button>
+                                {waitlistOpenTicketId === tt.id && (
+                                  <div className="space-y-2 rounded-lg border border-[var(--border)] bg-white p-3">
+                                    <Input
+                                      type="email"
+                                      value={waitlistEmail}
+                                      onChange={(event) => setWaitlistEmail(event.target.value)}
+                                      placeholder="Your email"
+                                    />
+                                    <Input
+                                      value={waitlistName}
+                                      onChange={(event) => setWaitlistName(event.target.value)}
+                                      placeholder="Your name (optional)"
+                                    />
+                                    {waitlistErrorByTicket[tt.id] && (
+                                      <p className="text-xs text-red-600">{waitlistErrorByTicket[tt.id]}</p>
+                                    )}
+                                    <div className="flex gap-2">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        onClick={() => void joinWaitlist(tt.id)}
+                                        disabled={waitlistSubmittingFor === tt.id}
+                                      >
+                                        {waitlistSubmittingFor === tt.id ? "Joining..." : "Confirm"}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setWaitlistOpenTicketId(null)}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
