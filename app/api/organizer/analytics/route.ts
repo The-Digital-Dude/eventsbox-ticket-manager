@@ -4,9 +4,17 @@ import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
 
+function parseMonths(raw: string | null) {
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return 12;
+  if ([3, 6, 12, 24].includes(value)) return value;
+  return 12;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireRole(req, Role.ORGANIZER);
+    const months = parseMonths(req.nextUrl.searchParams.get("months"));
 
     const profile = await prisma.organizerProfile.findUnique({
       where: { userId: auth.sub },
@@ -34,7 +42,6 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: { startAt: "desc" },
-      take: 20,
     });
 
     // Compute per-event row
@@ -64,34 +71,35 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // Monthly revenue (last 12 months) — compute from orders
-    const twelveMonthsAgo = new Date();
-    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
-    twelveMonthsAgo.setDate(1);
-    twelveMonthsAgo.setHours(0, 0, 0, 0);
+    // Monthly revenue/ticket sales in selected period
+    const periodStart = new Date();
+    periodStart.setMonth(periodStart.getMonth() - (months - 1));
+    periodStart.setDate(1);
+    periodStart.setHours(0, 0, 0, 0);
 
     const recentOrders = await prisma.order.findMany({
       where: {
         status: "PAID",
-        paidAt: { gte: twelveMonthsAgo },
+        paidAt: { gte: periodStart },
         event: { organizerProfileId: profile.id },
       },
-      select: { total: true, paidAt: true },
+      select: { total: true, paidAt: true, items: { select: { quantity: true } } },
     });
 
     // Group by YYYY-MM
-    const monthMap: Record<string, { revenue: number; count: number }> = {};
+    const monthMap: Record<string, { revenue: number; count: number; tickets: number }> = {};
     for (const order of recentOrders) {
       if (!order.paidAt) continue;
       const key = `${order.paidAt.getFullYear()}-${String(order.paidAt.getMonth() + 1).padStart(2, "0")}`;
-      if (!monthMap[key]) monthMap[key] = { revenue: 0, count: 0 };
+      if (!monthMap[key]) monthMap[key] = { revenue: 0, count: 0, tickets: 0 };
       monthMap[key].revenue += Number(order.total);
       monthMap[key].count += 1;
+      monthMap[key].tickets += order.items.reduce((sum, item) => sum + item.quantity, 0);
     }
 
-    // Fill all 12 months (even empty ones)
-    const monthly: Array<{ month: string; label: string; revenue: number; count: number }> = [];
-    for (let i = 11; i >= 0; i--) {
+    // Fill selected period (even empty months)
+    const monthly: Array<{ month: string; label: string; revenue: number; count: number; tickets: number }> = [];
+    for (let i = months - 1; i >= 0; i--) {
       const d = new Date();
       d.setMonth(d.getMonth() - i);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -101,10 +109,30 @@ export async function GET(req: NextRequest) {
         label,
         revenue: parseFloat((monthMap[key]?.revenue ?? 0).toFixed(2)),
         count: monthMap[key]?.count ?? 0,
+        tickets: monthMap[key]?.tickets ?? 0,
       });
     }
 
-    return ok({ events: eventRows, monthly });
+    const totalGross = eventRows.reduce((sum, event) => sum + event.grossRevenue, 0);
+    const totalNet = eventRows.reduce((sum, event) => sum + event.netRevenue, 0);
+    const totalTicketsSold = eventRows.reduce((sum, event) => sum + event.totalSold, 0);
+    const totalPaidOrders = eventRows.reduce((sum, event) => sum + event.paidOrders, 0);
+    const topEvents = [...eventRows]
+      .sort((a, b) => b.grossRevenue - a.grossRevenue)
+      .slice(0, 5);
+
+    return ok({
+      period: { months },
+      summary: {
+        totalGross: parseFloat(totalGross.toFixed(2)),
+        totalNet: parseFloat(totalNet.toFixed(2)),
+        totalTicketsSold,
+        totalPaidOrders,
+      },
+      monthly,
+      topEvents,
+      events: eventRows.slice(0, 20),
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
     if (msg === "UNAUTHENTICATED") return fail(401, { code: "UNAUTHENTICATED", message: "Login required" });

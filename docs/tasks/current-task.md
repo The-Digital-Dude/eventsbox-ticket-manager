@@ -1,7 +1,7 @@
 # Current Task
 
 ## Active Task
-**Phase 3 in progress — event image upload + analytics/mobile improvements pending**
+**Phase 3 in progress — mobile scanner responsiveness and merge prep**
 
 ---
 
@@ -52,6 +52,10 @@
 
 ## Phase 3 Progress
 
+- Analytics dashboard upgraded with period filters (3/6/12/24 months)
+- Monthly ticket sales chart added alongside monthly revenue chart
+- Top-performing events and period snapshot metrics added
+- Organizer analytics API extended with periodized revenue/order/ticket aggregates
 - Cloudinary image upload endpoint added: `POST /api/organizer/uploads/event-image`
 - Organizer event create/edit flows now support hero image upload and URL fallback
 - Public events list and event detail pages now render hero images when available
@@ -70,6 +74,7 @@
 - Admin event detail paid orders table supports refund action for cancelled events
 - Cancel status badge style added on organizer/admin event detail pages
 - Integration tests added:
+  - `src/tests/integration/organizer-analytics.test.ts`
   - `src/tests/integration/organizer-event-image-upload.test.ts`
   - `src/tests/integration/admin-event-decision-notify.test.ts`
   - `src/tests/integration/organizer-event-cancel.test.ts`
@@ -80,6 +85,5 @@
 ---
 
 ## Next Actions (Phase 3)
-1. **Analytics dashboard** — Revenue charts, ticket sales over time
-2. **Mobile-responsive improvements** — Scanner page optimized for phone use
-3. **Merge `sleep-mode` → `main`** — PR review and merge
+1. **Mobile-responsive improvements** — Scanner page optimized for phone use
+2. **Merge `sleep-mode` → `main`** — PR review and merge
