@@ -22,8 +22,14 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Pin npm version
+        run: |
+          corepack enable
+          corepack prepare npm@10.8.2 --activate
+          npm --version
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --include=dev
 
       - name: Lint
         run: npm run lint

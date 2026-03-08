@@ -2,5 +2,5 @@
   "framework": "nextjs",
   "regions": ["syd1"],
   "buildCommand": "npm run build",
-  "installCommand": "npm ci"
+  "installCommand": "corepack enable && corepack prepare npm@10.8.2 --activate && npm ci --include=dev"
 }

@@ -2,6 +2,7 @@
   "name": "client_side",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@10.8.2",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -17,7 +18,12 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev --name init",
     "db:seed": "tsx prisma/seed.ts",
-    "prepare": "husky"
+    "postinstall": "prisma generate",
+    "prepare": "husky || true"
+  },
+  "engines": {
+    "node": "20.x",
+    "npm": "10.x"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

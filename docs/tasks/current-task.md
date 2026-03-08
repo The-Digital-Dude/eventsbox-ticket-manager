@@ -3,6 +3,22 @@
 ## Active Task
 **Phase 4 complete — implemented, validated, and pushed**
 
+## Maintenance Update (2026-03-09)
+
+- Added deployment toolchain parity guardrails to reduce local vs Vercel mismatch:
+  - Node pinned to `20.x` and npm pinned to `10.x` in `package.json` engines
+  - npm pinned to `10.8.2` via `packageManager`
+  - Vercel install command now activates pinned npm and installs with `npm ci --include=dev`
+  - CI pipeline now activates pinned npm and installs with `npm ci --include=dev`
+  - Added `.nvmrc` (`20`) for local Node alignment
+  - Added `.npmrc` with `engine-strict=true` to fail early on version mismatch
+  - Added `postinstall` Prisma client generation and made Husky prepare script CI-safe
+
+### Maintenance Validation Snapshot
+
+- `npm run lint` ✅
+- `npm run typecheck` ✅
+
 ---
 
 ## Phase 4 Scope
