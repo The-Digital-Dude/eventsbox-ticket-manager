@@ -173,6 +173,54 @@ export async function notifyAttendeesOfEventCancellation(eventId: string) {
   return { recipients: recipients.size, sent };
 }
 
+export async function sendPasswordResetEmail(input: {
+  to: string;
+  resetUrl: string;
+}) {
+  const subject = "Reset your EventsBox password";
+  const text = [
+    "Hello,",
+    "",
+    "We received a request to reset your EventsBox password.",
+    `Click the link below to set a new password (valid for 30 minutes):`,
+    input.resetUrl,
+    "",
+    "If you did not request this, ignore this email.",
+  ].join("\n");
+
+  const html = `
+    <p>Hello,</p>
+    <p>We received a request to reset your EventsBox password.</p>
+    <p><a href="${input.resetUrl}">Reset my password</a></p>
+    <p>This link expires in 30 minutes. If you did not request this, ignore this email.</p>
+  `;
+
+  return sendEmail({ to: input.to, subject, text, html });
+}
+
+export async function sendWelcomeEmail(input: {
+  to: string;
+  verifyUrl: string;
+}) {
+  const subject = "Welcome to EventsBox — verify your email";
+  const text = [
+    "Welcome to EventsBox!",
+    "",
+    "Please verify your email address to activate your organizer account:",
+    input.verifyUrl,
+    "",
+    "If you did not create an account, ignore this email.",
+  ].join("\n");
+
+  const html = `
+    <p>Welcome to EventsBox!</p>
+    <p>Please <a href="${input.verifyUrl}">verify your email address</a> to activate your organizer account.</p>
+    <p>If you did not create an account, ignore this email.</p>
+  `;
+
+  return sendEmail({ to: input.to, subject, text, html });
+}
+
 export async function sendOrderRefundedEmail(input: {
   to: string;
   buyerName: string;

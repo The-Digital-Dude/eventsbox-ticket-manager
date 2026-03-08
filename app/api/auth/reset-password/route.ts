@@ -3,6 +3,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
 import { resetPasswordSchema } from "@/src/lib/validators/auth";
+import { env } from "@/src/lib/env";
+import { sendPasswordResetEmail } from "@/src/lib/services/notifications";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,6 +26,9 @@ export async function POST(req: NextRequest) {
         expiresAt: new Date(Date.now() + 30 * 60 * 1000),
       },
     });
+
+    const resetUrl = `${env.APP_URL}/auth/reset-password?token=${token}`;
+    await sendPasswordResetEmail({ to: user.email, resetUrl });
 
     return ok({ sent: true, resetTokenDev: token });
   } catch {

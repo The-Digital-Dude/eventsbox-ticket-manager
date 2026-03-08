@@ -6,6 +6,8 @@ import { fail, ok } from "@/src/lib/http/response";
 import { registerSchema } from "@/src/lib/validators/auth";
 import { hashPassword } from "@/src/lib/auth/password";
 import { rateLimit } from "@/src/lib/http/rate-limit";
+import { env } from "@/src/lib/env";
+import { sendWelcomeEmail } from "@/src/lib/services/notifications";
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,6 +48,9 @@ export async function POST(req: NextRequest) {
         expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
       },
     });
+
+    const verifyUrl = `${env.APP_URL}/auth/verify-email?token=${verifyToken}`;
+    await sendWelcomeEmail({ to: user.email, verifyUrl });
 
     return ok({ userId: user.id, email: user.email, verifyTokenDev: verifyToken }, 201);
   } catch {
