@@ -1,103 +1,267 @@
 # Current Task
 
 ## Active Task
-**Phase 3 complete — merged to `main` and pushed**
+**Phase 4 — Secondary Features, UX Polish, and Production Hardening**
 
 ---
 
-## Phase 2 Completion Summary
+## Phase 4 Scope
 
-| Feature | Files | Status |
-|---------|-------|--------|
-| Prisma schema (Event, TicketType, Order, OrderItem, QRTicket) | `prisma/schema.prisma` + migration | ✅ DONE |
-| Zod validators (event, ticket, checkout) | `src/lib/validators/event.ts` | ✅ DONE |
-| Slug utility | `src/lib/utils/slug.ts` | ✅ DONE |
-| Organizer event CRUD API | `app/api/organizer/events/[id]/route.ts` | ✅ DONE |
-| Organizer ticket type CRUD API | `app/api/organizer/events/[id]/tickets/*` | ✅ DONE |
-| Organizer submit-for-approval | `app/api/organizer/events/[id]/submit/route.ts` | ✅ DONE |
-| Organizer orders list API | `app/api/organizer/events/[id]/orders/route.ts` | ✅ DONE |
-| Admin event governance API | `app/api/admin/events/*` | ✅ DONE |
-| Admin event detail API | `app/api/admin/events/[id]/route.ts` | ✅ DONE |
-| Public events listing API (SSR) | `app/api/public/events/route.ts` | ✅ DONE |
-| Public event detail API | `app/api/public/events/[slug]/route.ts` | ✅ DONE |
-| Checkout API + Stripe PaymentIntent | `app/api/checkout/route.ts` | ✅ DONE |
-| Stripe webhook (PAID → QRTickets) | `app/api/webhooks/stripe/route.ts` | ✅ DONE |
-| Order confirmation API | `app/api/orders/[id]/route.ts` | ✅ DONE |
-| Check-in API | `app/api/organizer/checkin/route.ts` | ✅ DONE |
-| Organizer events list page | `app/organizer/events/page.tsx` | ✅ DONE |
-| Organizer new event page | `app/organizer/events/new/page.tsx` | ✅ DONE |
-| Organizer event detail + tickets | `app/organizer/events/[id]/page.tsx` | ✅ DONE |
-| Organizer event edit page | `app/organizer/events/[id]/edit/page.tsx` | ✅ DONE |
-| Organizer event orders page | `app/organizer/events/[id]/orders/page.tsx` | ✅ DONE |
-| Organizer ticket scanner page | `app/organizer/scanner/page.tsx` | ✅ DONE |
-| Admin events governance page | `app/admin/events/page.tsx` | ✅ DONE |
-| Admin event detail page (check-in report) | `app/admin/events/[id]/page.tsx` | ✅ DONE |
-| Public events listing page (SSR) | `app/events/page.tsx` | ✅ DONE |
-| Public event detail + checkout | `app/events/[slug]/page.tsx` | ✅ DONE |
-| Order confirmation + QR display | `app/orders/[id]/page.tsx` | ✅ DONE |
-| Public nav header | `src/components/shared/public-nav.tsx` | ✅ DONE |
-| Public landing page | `app/page.tsx` | ✅ DONE |
-| Organizer dashboard event stats | `app/organizer/dashboard/page.tsx` | ✅ DONE |
-| All nav arrays updated | All organizer/admin pages | ✅ DONE |
+Phase 4 closes the remaining product gaps identified after Phase 3 closeout. It is split into three tracks:
+
+- **Track A: Missing Features** — functionality that is planned but not yet implemented
+- **Track B: UX & Polish** — improvements to existing pages that affect usability
+- **Track C: Production Hardening** — infra-level quality and reliability work
+
+All tasks must pass `npm run lint`, `npm run typecheck`, and `npm run test:integration` before commit.
 
 ---
 
-## Validation
+## Track A — Missing Features
 
-- `npm run lint` ✅ clean
-- `npm run typecheck` ✅ clean
-- `npm run test:integration` ✅ clean (32/32 passing)
-- Git branches: `main` and `sleep-mode` pushed to GitHub
+### A1: Admin Orders Page
+**Priority:** High
+**Why:** Admins currently have no way to view or search across all platform orders. This is a basic governance need.
 
----
+**Acceptance Criteria:**
+- `GET /api/admin/orders` returns paginated orders with `?page=`, `?status=`, `?q=` (buyer email search)
+- `app/admin/orders/page.tsx` (SSR) shows table: Order ID, Buyer Email, Event Title, Amount, Status, Date
+- Status badge colors match existing pattern (PAID=green, PENDING=amber, REFUNDED=orange)
+- Pagination via `?page=` query param (page size: 20)
+- Add `{ href: "/admin/orders", label: "Orders" }` to all admin `nav` arrays (all 12 admin pages)
 
-## Phase 3 Progress
+**Files:**
+- `app/api/admin/orders/route.ts` — new GET handler, `requireRole(SUPER_ADMIN)`
+- `app/admin/orders/page.tsx` — new SSR page
+- All files under `app/admin/**/page.tsx` — add Orders to nav (12 files)
 
-- Organizer scanner page redesigned for mobile-first check-in ergonomics
-- Sticky mobile action bar added for camera/check-in controls
-- Scanner history and result cards optimized for phone/tablet readability
-- Analytics dashboard upgraded with period filters (3/6/12/24 months)
-- Monthly ticket sales chart added alongside monthly revenue chart
-- Top-performing events and period snapshot metrics added
-- Organizer analytics API extended with periodized revenue/order/ticket aggregates
-- Cloudinary image upload endpoint added: `POST /api/organizer/uploads/event-image`
-- Organizer event create/edit flows now support hero image upload and URL fallback
-- Public events list and event detail pages now render hero images when available
-- Resend email service integrated with env-based graceful fallback
-- Order confirmation email wired on successful payment webhook
-- Organizer status email wired for admin publish/reject/cancel event actions
-- Event cancellation attendee notification emails wired (organizer/admin cancel routes)
-- Refund confirmation email wired when paid order refund completes
-- Organizer cancel endpoint added: `POST /api/organizer/events/:id/cancel`
-- Admin cancel endpoint added: `POST /api/admin/events/:id/cancel`
-- Organizer order refund endpoint added: `POST /api/organizer/events/:id/orders/:orderId/refund`
-- Admin order refund endpoint added: `POST /api/admin/events/:id/orders/:orderId/refund`
-- Organizer event detail UI now supports cancel action for published events
-- Admin event detail UI now supports cancel action for published events
-- Organizer event orders page supports refund action for cancelled events
-- Admin event detail paid orders table supports refund action for cancelled events
-- Cancel status badge style added on organizer/admin event detail pages
-- Register route welcome email dispatch is now non-blocking (does not delay response path)
-- Integration timeout stability updates:
-  - `src/tests/integration/auth-flow.test.ts` timeout set to `15_000`
-  - `src/tests/integration/venue-seating-flow.test.ts` timeout set to `15_000`
-- Release notes drafted: `docs/releases/phase-3-release-notes.md`
-- Deployment checklist drafted: `docs/releases/phase-3-deployment-checklist.md`
-- Integration tests added:
-  - `src/tests/integration/organizer-analytics.test.ts`
-  - `src/tests/integration/organizer-event-image-upload.test.ts`
-  - `src/tests/integration/admin-event-decision-notify.test.ts`
-  - `src/tests/integration/organizer-event-cancel.test.ts`
-  - `src/tests/integration/admin-event-cancel.test.ts`
-  - `src/tests/integration/organizer-order-refund.test.ts`
-  - `src/tests/integration/admin-order-refund.test.ts`
+**Out of scope:** Order detail drilldown page, manual order creation.
 
 ---
 
-## Next Actions (Phase 3)
-1. **Phase 4 planning** — Prioritize next feature set and define acceptance criteria
+### A2: Organizer Analytics CSV Export
+**Priority:** Medium
+**Why:** Organizers need to export data for accountants and reporting.
 
-## Release Prep Artifacts
+**Acceptance Criteria:**
+- `GET /api/organizer/analytics/export` returns a CSV file with headers:
+  `Event Title, Status, Start Date, Tickets Sold, Revenue (AUD), Platform Fee, Check-in Rate`
+- Response has `Content-Type: text/csv` and `Content-Disposition: attachment; filename=analytics.csv`
+- Existing `?months=` param respected (defaults to 12)
+- "Export CSV" button added to `app/organizer/analytics/page.tsx` — triggers a `window.location.href` download
 
-- Release notes: `docs/releases/phase-3-release-notes.md`
-- Deployment checklist: `docs/releases/phase-3-deployment-checklist.md`
+**Files:**
+- `app/api/organizer/analytics/export/route.ts` — new GET handler
+- `app/organizer/analytics/page.tsx` — add Export CSV button (client component wrapper needed)
+
+**Out of scope:** Admin analytics CSV, scheduled email reports.
+
+---
+
+### A3: Organizer Dashboard Notification Banners
+**Priority:** Medium
+**Why:** Organizers don't know when events are rejected or stuck in approval without navigating to each event.
+
+**Acceptance Criteria:**
+- At top of `app/organizer/dashboard/page.tsx`, query events by organizer with `status: REJECTED` or `status: PENDING_APPROVAL`
+- If any REJECTED events: show red banner "X event(s) were rejected by admin. Review and resubmit."
+- If any PENDING_APPROVAL events: show amber banner "X event(s) are pending admin approval."
+- Banners link to `/organizer/events` for full list
+- No new API route needed — query runs server-side in the existing page component
+
+**Files:**
+- `app/organizer/dashboard/page.tsx` — add Prisma queries + banner JSX
+
+**Out of scope:** Per-event notification inbox, push notifications.
+
+---
+
+### A4: Login Rate Limit by Email
+**Priority:** Medium
+**Why:** Current IP-only rate limit can be bypassed from different IPs; email-keyed limit prevents credential stuffing on a specific account.
+
+**Acceptance Criteria:**
+- In `app/api/auth/login/route.ts`, after IP rate limit check, add a second check:
+  `rateLimit(\`login:email:${parsed.data.email}\`, 10, 300_000)` (10 attempts / 5 min per email)
+- Returns same `429 RATE_LIMITED` response if exceeded
+- Email rate limit checked only after schema validation passes (email is known)
+
+**Files:**
+- `app/api/auth/login/route.ts` — add second rateLimit call
+
+**Out of scope:** Lockout notifications, account unlock UI.
+
+---
+
+### A5: Public Event Share Button
+**Priority:** Low
+**Why:** Attendees want to share events via mobile share sheet or clipboard.
+
+**Acceptance Criteria:**
+- In `app/events/[slug]/page.tsx`, add a Share button near event title
+- On click: call `navigator.share({ title, url })` if supported; otherwise copy `window.location.href` to clipboard
+- Show a brief "Link copied!" toast on clipboard fallback (use existing `sonner` toast)
+- Button uses existing `Button` component variant `outline`
+
+**Files:**
+- `app/events/[slug]/page.tsx` — add ShareButton client component inline
+
+**Out of scope:** Social share links (Twitter/Facebook), QR code share modal.
+
+---
+
+## Track B — UX & Polish
+
+### B1: Dark Mode Sidebar Fix
+**Priority:** Medium
+**Why:** Sidebar background is hardcoded `bg-white` — dark mode toggle doesn't affect it, breaking visual consistency.
+
+**Acceptance Criteria:**
+- Replace `bg-white` with `bg-[var(--sidebar-bg)]` in `src/components/shared/sidebar-layout.tsx`
+- Add `--sidebar-bg` token to `:root` (white) and `.theme-dark` (dark neutral) in `app/globals.css`
+- Nav link text colors adjusted to use neutral tokens that respond to dark mode
+- Mobile nav bar also updated
+
+**Files:**
+- `src/components/shared/sidebar-layout.tsx`
+- `app/globals.css`
+
+---
+
+### B2: Event Search & Filter on Public Listing
+**Priority:** Medium
+**Why:** `/events` page has no filtering — as events grow, discoverability breaks.
+
+**Acceptance Criteria:**
+- Add `?q=`, `?category=`, `?state=` query params to `app/events/page.tsx`
+- Filter UI: text search input + category dropdown + state dropdown (all SSR-driven, no client JS needed)
+- Prisma query uses `where: { title: { contains: q }, categoryId, stateId }`
+- Existing pagination works correctly with active filters (page resets to 1 on filter change)
+
+**Files:**
+- `app/events/page.tsx` — add filter UI + extend Prisma query
+- `app/api/public/events/route.ts` — add `q`, `category`, `state` query params
+
+---
+
+### B3: Organizer Event Status Timeline
+**Priority:** Low
+**Why:** Organizers can't see a history of state transitions (submitted → rejected → resubmitted). This helps with support.
+
+**Acceptance Criteria:**
+- In `app/organizer/events/[id]/page.tsx`, show a simple vertical timeline of AuditLog entries for the event
+- Entries show: action label, actor role, timestamp
+- Uses existing `prisma.auditLog.findMany({ where: { entityType: "Event", entityId: id } })`
+- Server-side, no new API needed
+
+**Files:**
+- `app/organizer/events/[id]/page.tsx`
+
+---
+
+## Track C — Production Hardening
+
+### C1: E2E Test Coverage (Playwright)
+**Priority:** High
+**Why:** Integration tests cover API routes but no browser-level user journey is tested.
+
+**Acceptance Criteria:**
+- `src/tests/e2e/checkout-flow.spec.ts` — attendee browses event, selects ticket, completes checkout (mocked Stripe), lands on order confirmation
+- `src/tests/e2e/auth-flow.spec.ts` — register, verify email link, login, logout
+- `src/tests/e2e/organizer-event.spec.ts` — organizer creates event, adds ticket type, submits for approval
+- All tests pass with `npm run test:e2e`
+- Playwright config already exists — extend it
+
+**Files:**
+- `src/tests/e2e/*.spec.ts` — new test files
+
+---
+
+### C2: Improved API Error Observability
+**Priority:** Medium
+**Why:** `catch {}` blocks swallow errors entirely. Production debugging requires structured logging.
+
+**Acceptance Criteria:**
+- Replace bare `catch {}` with `catch (error) { console.error("[route-name]", error); }` in all route handlers
+- No behavior change — still returns `fail(500, ...)` to clients
+- Affects all `app/api/**/route.ts` files with bare catch blocks
+
+**Files:**
+- All route handlers with bare `catch {}` — grep for `} catch {` pattern
+
+---
+
+### C3: Update Docs
+**Priority:** Low (but required before phase closeout)
+
+**Acceptance Criteria:**
+- `docs/tasks/current-task.md` updated with completion status as tasks land
+- `docs/releases/phase-4-release-notes.md` created at phase closeout
+- `docs/architecture/overview.md` updated with any new technical debt introduced
+
+---
+
+## Execution Order
+
+```
+A4 (login rate limit)      → small, do first, no deps
+A3 (dashboard banners)     → small, no deps
+A5 (share button)          → small, no deps
+A1 (admin orders page)     → medium, needs nav updates across 12 files
+A2 (analytics CSV export)  → medium, depends on analytics API shape
+B1 (dark mode sidebar)     → CSS-only, safe
+B2 (event search/filter)   → medium, touches public listing
+B3 (event status timeline) → small, reads existing audit log
+C1 (E2E tests)             → after features land
+C2 (error observability)   → grep + replace pass, low risk
+C3 (docs)                  → last
+```
+
+---
+
+## Acceptance Gate (per task)
+
+- `npm run lint` — zero errors
+- `npm run typecheck` — zero errors
+- `npm run test:integration` — 32/32 passing (or more if new tests added)
+- Behavior matches acceptance criteria above
+
+---
+
+## Out of Scope for Phase 4
+
+- Attendee self-registration (separate account type, requires schema migration)
+- Redis-backed rate limiting (requires infrastructure provisioning)
+- Background job queue (requires worker setup)
+- Staging/production deployment (tracked separately in deployment checklist)
+- Admin user ban/suspend flow
+- Social login (Google/GitHub)
+
+---
+
+## Status Tracking
+
+| Task | Status |
+|------|--------|
+| A1 — Admin Orders Page | TODO |
+| A2 — Analytics CSV Export | TODO |
+| A3 — Dashboard Banners | TODO |
+| A4 — Login Rate Limit by Email | TODO |
+| A5 — Share Button | TODO |
+| B1 — Dark Mode Sidebar | TODO |
+| B2 — Event Search & Filter | TODO |
+| B3 — Event Status Timeline | TODO |
+| C1 — E2E Tests | TODO |
+| C2 — Error Observability | TODO |
+| C3 — Docs Update | TODO |
+
+---
+
+## Phase 3 Completion Summary
+
+See `docs/releases/phase-3-release-notes.md` and `docs/releases/phase-3-deployment-checklist.md` for full Phase 3 record.
+
+- `npm run lint` ✅
+- `npm run typecheck` ✅
+- `npm run test:integration` ✅ (32/32)
+- Pushed to `origin/main` and `origin/sleep-mode` ✅
