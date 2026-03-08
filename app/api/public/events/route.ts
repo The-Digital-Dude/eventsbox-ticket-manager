@@ -12,12 +12,27 @@ export async function GET(req: NextRequest) {
     req.nextUrl.searchParams.get("state") ||
     req.nextUrl.searchParams.get("stateId") ||
     undefined;
+  const from = req.nextUrl.searchParams.get("from")?.trim() || undefined;
+  const to = req.nextUrl.searchParams.get("to")?.trim() || undefined;
+
+  const fromDate = from ? new Date(from) : undefined;
+  const toDate = to ? new Date(`${to}T23:59:59Z`) : undefined;
+  const hasValidFrom = Boolean(fromDate && !Number.isNaN(fromDate.getTime()));
+  const hasValidTo = Boolean(toDate && !Number.isNaN(toDate.getTime()));
 
   const events = await prisma.event.findMany({
     where: {
       status: "PUBLISHED",
       ...(categoryId ? { categoryId } : {}),
       ...(stateId ? { stateId } : {}),
+      ...(hasValidFrom || hasValidTo
+        ? {
+            startAt: {
+              ...(hasValidFrom ? { gte: fromDate } : {}),
+              ...(hasValidTo ? { lte: toDate } : {}),
+            },
+          }
+        : {}),
       ...(q ? {
         OR: [
           { title: { contains: q, mode: "insensitive" } },

@@ -7,11 +7,36 @@ export const revalidate = 60;
 
 const PAGE_SIZE = 12;
 
-async function getPublishedEvents(q?: string, categoryId?: string, stateId?: string, page = 1) {
+function parseDateInput(input?: string) {
+  if (!input) return undefined;
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date;
+}
+
+async function getPublishedEvents(
+  q?: string,
+  categoryId?: string,
+  stateId?: string,
+  from?: string,
+  to?: string,
+  page = 1,
+) {
+  const fromDate = parseDateInput(from);
+  const toDate = to ? parseDateInput(`${to}T23:59:59Z`) : undefined;
+
   const where = {
     status: "PUBLISHED" as const,
     ...(categoryId ? { categoryId } : {}),
     ...(stateId ? { stateId } : {}),
+    ...(fromDate || toDate
+      ? {
+          startAt: {
+            ...(fromDate ? { gte: fromDate } : {}),
+            ...(toDate ? { lte: toDate } : {}),
+          },
+        }
+      : {}),
     ...(q ? {
       OR: [
         { title: { contains: q, mode: "insensitive" as const } },
@@ -60,12 +85,12 @@ function formatDate(iso: Date | string) {
 export default async function PublicEventsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string; state?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; category?: string; state?: string; from?: string; to?: string; page?: string }>;
 }) {
   const sp = await searchParams;
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
   const [{ events, total, pages }, categories, states] = await Promise.all([
-    getPublishedEvents(sp.q, sp.category, sp.state, page),
+    getPublishedEvents(sp.q, sp.category, sp.state, sp.from, sp.to, page),
     getCategories(),
     getStates(),
   ]);
@@ -101,6 +126,18 @@ export default async function PublicEventsPage({
             <option value="">All locations</option>
             {states.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
+          <input
+            name="from"
+            type="date"
+            defaultValue={sp.from}
+            className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+          />
+          <input
+            name="to"
+            type="date"
+            defaultValue={sp.to}
+            className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+          />
           <button
             type="submit"
             className="h-12 rounded-xl bg-[var(--theme-accent)] px-6 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
@@ -108,6 +145,42 @@ export default async function PublicEventsPage({
             Search
           </button>
         </form>
+        {(sp.from || sp.to) && (
+          <div className="mx-auto mt-3 flex max-w-2xl flex-wrap justify-center gap-2">
+            {sp.from && (
+              <Link
+                href={{
+                  query: {
+                    ...(sp.q ? { q: sp.q } : {}),
+                    ...(sp.category ? { category: sp.category } : {}),
+                    ...(sp.state ? { state: sp.state } : {}),
+                    ...(sp.to ? { to: sp.to } : {}),
+                  },
+                }}
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs text-neutral-700"
+              >
+                From: {sp.from}
+                <span aria-hidden>×</span>
+              </Link>
+            )}
+            {sp.to && (
+              <Link
+                href={{
+                  query: {
+                    ...(sp.q ? { q: sp.q } : {}),
+                    ...(sp.category ? { category: sp.category } : {}),
+                    ...(sp.state ? { state: sp.state } : {}),
+                    ...(sp.from ? { from: sp.from } : {}),
+                  },
+                }}
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs text-neutral-700"
+              >
+                To: {sp.to}
+                <span aria-hidden>×</span>
+              </Link>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Events grid */}
@@ -188,7 +261,7 @@ export default async function PublicEventsPage({
               <div className="mt-10 flex items-center justify-center gap-2">
                 {page > 1 && (
                   <Link
-                    href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.category ? { category: sp.category } : {}), ...(sp.state ? { state: sp.state } : {}), page: page - 1 } }}
+                    href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.category ? { category: sp.category } : {}), ...(sp.state ? { state: sp.state } : {}), ...(sp.from ? { from: sp.from } : {}), ...(sp.to ? { to: sp.to } : {}), page: page - 1 } }}
                     className="rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 transition"
                   >
                     ← Previous
@@ -203,7 +276,7 @@ export default async function PublicEventsPage({
                       )}
                       <Link
                         key={p}
-                        href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.category ? { category: sp.category } : {}), ...(sp.state ? { state: sp.state } : {}), page: p } }}
+                        href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.category ? { category: sp.category } : {}), ...(sp.state ? { state: sp.state } : {}), ...(sp.from ? { from: sp.from } : {}), ...(sp.to ? { to: sp.to } : {}), page: p } }}
                         className={`rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition ${
                           p === page
                             ? "border-[var(--theme-accent)] bg-[var(--theme-accent)] text-white"
@@ -217,7 +290,7 @@ export default async function PublicEventsPage({
                 }
                 {page < pages && (
                   <Link
-                    href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.category ? { category: sp.category } : {}), ...(sp.state ? { state: sp.state } : {}), page: page + 1 } }}
+                    href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.category ? { category: sp.category } : {}), ...(sp.state ? { state: sp.state } : {}), ...(sp.from ? { from: sp.from } : {}), ...(sp.to ? { to: sp.to } : {}), page: page + 1 } }}
                     className="rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 transition"
                   >
                     Next →
