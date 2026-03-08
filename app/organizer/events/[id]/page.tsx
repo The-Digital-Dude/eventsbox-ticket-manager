@@ -47,6 +47,12 @@ type EventDetail = {
   ticketTypes: TicketType[];
   _count: { orders: number };
   orders: Array<{ total: number | string; platformFee: number | string; gst: number | string }>;
+  auditLogs: Array<{
+    id: string;
+    action: string;
+    createdAt: string;
+    actor: { role: string; email: string };
+  }>;
 };
 
 const nav = [
@@ -73,6 +79,10 @@ function formatDateTime(iso: string) {
     day: "numeric", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+}
+
+function formatAuditAction(action: string) {
+  return action.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -291,6 +301,28 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           <p className="text-sm text-neutral-500">gross (incl. fees)</p>
         </div>
       </div>
+
+      {/* Event status timeline */}
+      <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold text-neutral-900">Status Timeline</h2>
+        {event.auditLogs.length === 0 ? (
+          <p className="text-sm text-neutral-500">No timeline entries yet.</p>
+        ) : (
+          <ol className="space-y-3">
+            {event.auditLogs.map((entry) => (
+              <li key={entry.id} className="flex gap-3">
+                <div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--theme-accent)]" />
+                <div className="min-w-0 rounded-xl border border-[var(--border)] bg-neutral-50 px-3 py-2">
+                  <p className="text-sm font-medium text-neutral-900">{formatAuditAction(entry.action)}</p>
+                  <p className="text-xs text-neutral-500">
+                    {entry.actor.role.replaceAll("_", " ")} · {formatDateTime(entry.createdAt)}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
 
       {/* Ticket Types */}
       <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">

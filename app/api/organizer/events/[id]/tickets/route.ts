@@ -25,7 +25,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
 
     return ok(tickets);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/events/[id]/tickets/route.ts]", error);
     return fail(403, { code: "FORBIDDEN", message: "Organizer only" });
   }
 }
@@ -62,7 +63,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     return ok(ticket, 201);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/events/[id]/tickets/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Failed to create ticket type" });
   }
 }

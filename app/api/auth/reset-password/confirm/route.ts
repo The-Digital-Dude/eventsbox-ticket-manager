@@ -31,7 +31,8 @@ export async function POST(req: NextRequest) {
     ]);
 
     return ok({ reset: true });
-  } catch {
+  } catch (error) {
+    console.error("[app/api/auth/reset-password/confirm/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Password reset failed" });
   }
 }

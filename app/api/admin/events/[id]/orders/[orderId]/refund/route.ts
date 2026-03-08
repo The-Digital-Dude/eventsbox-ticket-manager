@@ -31,7 +31,8 @@ export async function POST(
     }
 
     return ok(refunded.data);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/events/[id]/orders/[orderId]/refund/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Failed to refund order" });
   }
 }

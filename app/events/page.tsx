@@ -60,12 +60,12 @@ function formatDate(iso: Date | string) {
 export default async function PublicEventsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; categoryId?: string; stateId?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; category?: string; state?: string; page?: string }>;
 }) {
   const sp = await searchParams;
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
   const [{ events, total, pages }, categories, states] = await Promise.all([
-    getPublishedEvents(sp.q, sp.categoryId, sp.stateId, page),
+    getPublishedEvents(sp.q, sp.category, sp.state, page),
     getCategories(),
     getStates(),
   ]);
@@ -86,16 +86,16 @@ export default async function PublicEventsPage({
             className="h-12 flex-1 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--theme-accent-rgb)/0.3)]"
           />
           <select
-            name="categoryId"
-            defaultValue={sp.categoryId}
+            name="category"
+            defaultValue={sp.category}
             className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
           >
             <option value="">All categories</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <select
-            name="stateId"
-            defaultValue={sp.stateId}
+            name="state"
+            defaultValue={sp.state}
             className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
           >
             <option value="">All locations</option>
@@ -188,7 +188,7 @@ export default async function PublicEventsPage({
               <div className="mt-10 flex items-center justify-center gap-2">
                 {page > 1 && (
                   <Link
-                    href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.categoryId ? { categoryId: sp.categoryId } : {}), ...(sp.stateId ? { stateId: sp.stateId } : {}), page: page - 1 } }}
+                    href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.category ? { category: sp.category } : {}), ...(sp.state ? { state: sp.state } : {}), page: page - 1 } }}
                     className="rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 transition"
                   >
                     ← Previous
@@ -203,7 +203,7 @@ export default async function PublicEventsPage({
                       )}
                       <Link
                         key={p}
-                        href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.categoryId ? { categoryId: sp.categoryId } : {}), ...(sp.stateId ? { stateId: sp.stateId } : {}), page: p } }}
+                        href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.category ? { category: sp.category } : {}), ...(sp.state ? { state: sp.state } : {}), page: p } }}
                         className={`rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition ${
                           p === page
                             ? "border-[var(--theme-accent)] bg-[var(--theme-accent)] text-white"
@@ -217,7 +217,7 @@ export default async function PublicEventsPage({
                 }
                 {page < pages && (
                   <Link
-                    href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.categoryId ? { categoryId: sp.categoryId } : {}), ...(sp.stateId ? { stateId: sp.stateId } : {}), page: page + 1 } }}
+                    href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.category ? { category: sp.category } : {}), ...(sp.state ? { state: sp.state } : {}), page: page + 1 } }}
                     className="rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 transition"
                   >
                     Next →

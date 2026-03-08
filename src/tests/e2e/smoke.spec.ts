@@ -60,7 +60,7 @@ test("organizer onboarding + admin approval + venue approval", async ({ baseURL 
 
   res = await organizer.get("/organizer/dashboard");
   expect(res.ok()).toBeTruthy();
-  await expect(await res.text()).toContain("Phase 0/1 Access Enabled");
+  await expect(await res.text()).toContain("Organizer tools are now active");
 
   res = await organizer.get("/api/public/locations");
   const locations = (await res.json()).data as Array<{ id: string; cities: Array<{ id: string }> }>;

@@ -31,7 +31,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     return ok(updated);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/events/[id]/submit/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Failed to submit event" });
   }
 }

@@ -4,8 +4,14 @@ import { ok } from "@/src/lib/http/response";
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim() || undefined;
-  const categoryId = req.nextUrl.searchParams.get("categoryId") || undefined;
-  const stateId = req.nextUrl.searchParams.get("stateId") || undefined;
+  const categoryId =
+    req.nextUrl.searchParams.get("category") ||
+    req.nextUrl.searchParams.get("categoryId") ||
+    undefined;
+  const stateId =
+    req.nextUrl.searchParams.get("state") ||
+    req.nextUrl.searchParams.get("stateId") ||
+    undefined;
 
   const events = await prisma.event.findMany({
     where: {

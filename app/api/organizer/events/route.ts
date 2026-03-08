@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
     });
 
     return ok(events);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/events/route.ts]", error);
     return fail(403, { code: "FORBIDDEN", message: "Organizer only" });
   }
 }
@@ -69,7 +70,8 @@ export async function POST(req: NextRequest) {
     });
 
     return ok(event, 201);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/events/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Failed to create event" });
   }
 }

@@ -10,7 +10,8 @@ export async function GET(req: NextRequest) {
     const auth = await requireRole(req, Role.SUPER_ADMIN);
     const row = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
     return ok({ ...row, viewerRole: auth.role });
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/config/route.ts]", error);
     return fail(403, { code: "FORBIDDEN", message: "Admin only" });
   }
 }
@@ -30,7 +31,8 @@ export async function PUT(req: NextRequest) {
     });
 
     return ok(row);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/config/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to update config" });
   }
 }

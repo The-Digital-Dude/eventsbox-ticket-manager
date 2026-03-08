@@ -23,7 +23,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
 
     return ok(orders);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/events/[id]/orders/route.ts]", error);
     return fail(403, { code: "FORBIDDEN", message: "Organizer only" });
   }
 }

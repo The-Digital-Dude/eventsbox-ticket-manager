@@ -47,7 +47,8 @@ export async function GET(req: NextRequest) {
       );
     }
     return ok(rows);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/venues/route.ts]", error);
     return fail(403, { code: "FORBIDDEN", message: "Admin only" });
   }
 }

@@ -35,7 +35,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
 
     return ok(updated);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/events/[id]/tickets/[ticketId]/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Failed to update ticket type" });
   }
 }
@@ -59,7 +60,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     await prisma.ticketType.delete({ where: { id: ticketId } });
     return ok({ deleted: true });
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/events/[id]/tickets/[ticketId]/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Failed to delete ticket type" });
   }
 }

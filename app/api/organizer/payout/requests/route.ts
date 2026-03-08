@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
     });
 
     return ok(requests);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/payout/requests/route.ts]", error);
     return fail(401, { code: "UNAUTHORIZED", message: "Unauthorized" });
   }
 }
@@ -72,7 +73,8 @@ export async function POST(req: NextRequest) {
     });
 
     return ok(created, 201);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/payout/requests/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to create payout request" });
   }
 }

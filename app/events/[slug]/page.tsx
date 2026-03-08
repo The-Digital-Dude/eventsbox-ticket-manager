@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, MapPin, Building2, Mail, Phone } from "lucide-react";
+import { CalendarDays, MapPin, Building2, Mail, Phone, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -128,6 +128,25 @@ export default function EventDetailPage({ params }: { params: Promise<{ slug: st
     router.push(`/checkout/${orderId}?cs=${encodeURIComponent(clientSecret)}`);
   }
 
+  async function shareEvent() {
+    const shareUrl = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: event?.title ?? "Event", url: shareUrl });
+        return;
+      } catch {
+        // User may cancel the native share dialog; fall through to clipboard only when needed.
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Link copied!");
+    } catch {
+      toast.error("Unable to copy link");
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--page-bg,#f8f8f8)]">
@@ -168,7 +187,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ slug: st
             )}
             <div>
               {event.category && <Badge className="mb-3">{event.category.name}</Badge>}
-              <h1 className="text-3xl font-bold tracking-tight text-neutral-900">{event.title}</h1>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h1 className="text-3xl font-bold tracking-tight text-neutral-900">{event.title}</h1>
+                <Button type="button" variant="outline" onClick={shareEvent}>
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Share
+                </Button>
+              </div>
 
               <div className="mt-4 space-y-2 text-sm text-neutral-600">
                 <div className="flex items-center gap-2">

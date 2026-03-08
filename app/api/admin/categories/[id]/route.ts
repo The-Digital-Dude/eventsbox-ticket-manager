@@ -17,7 +17,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const row = await prisma.category.update({ where: { id }, data: parsed.data });
     return ok(row);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/categories/[id]/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to update category" });
   }
 }
@@ -28,7 +29,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const { id } = await params;
     await prisma.category.delete({ where: { id } });
     return ok({ deleted: true });
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/categories/[id]/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to delete category" });
   }
 }

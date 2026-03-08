@@ -32,8 +32,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const event = await getOwnEvent(id, profile.id);
     if (!event) return fail(404, { code: "NOT_FOUND", message: "Event not found" });
 
-    return ok(event);
-  } catch {
+    const auditLogs = await prisma.auditLog.findMany({
+      where: { entityType: "Event", entityId: id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        action: true,
+        createdAt: true,
+        actor: {
+          select: {
+            role: true,
+            email: true,
+          },
+        },
+      },
+      take: 25,
+    });
+
+    return ok({
+      ...event,
+      auditLogs,
+    });
+  } catch (error) {
+    console.error("[app/api/organizer/events/[id]/route.ts]", error);
     return fail(403, { code: "FORBIDDEN", message: "Organizer only" });
   }
 }
@@ -72,7 +93,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
 
     return ok(event);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/events/[id]/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Failed to update event" });
   }
 }
@@ -93,7 +115,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     await prisma.event.delete({ where: { id } });
     return ok({ deleted: true });
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/events/[id]/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Failed to delete event" });
   }
 }

@@ -31,7 +31,8 @@ export async function POST(req: NextRequest) {
     await sendPasswordResetEmail({ to: user.email, resetUrl });
 
     return ok({ sent: true, resetTokenDev: token });
-  } catch {
+  } catch (error) {
+    console.error("[app/api/auth/reset-password/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to create reset token" });
   }
 }

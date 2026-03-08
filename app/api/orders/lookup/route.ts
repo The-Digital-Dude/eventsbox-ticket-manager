@@ -52,7 +52,8 @@ export async function POST(req: NextRequest) {
     });
 
     return ok(orders);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/orders/lookup/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Lookup failed" });
   }
 }

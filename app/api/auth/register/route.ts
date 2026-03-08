@@ -55,7 +55,8 @@ export async function POST(req: NextRequest) {
     });
 
     return ok({ userId: user.id, email: user.email, verifyTokenDev: verifyToken }, 201);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/auth/register/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to register" });
   }
 }

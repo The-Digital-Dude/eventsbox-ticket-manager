@@ -19,6 +19,11 @@ export async function POST(req: NextRequest) {
       return fail(400, { code: "VALIDATION_ERROR", message: "Invalid input", details: parsed.error.flatten() });
     }
 
+    const emailRl = rateLimit(`login:email:${parsed.data.email}`, 10, 300_000);
+    if (emailRl.limited) {
+      return fail(429, { code: "RATE_LIMITED", message: "Too many attempts" });
+    }
+
     const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
     if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
       return fail(401, { code: "INVALID_CREDENTIALS", message: "Invalid email or password" });
@@ -31,7 +36,8 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({ success: true, data: { role: user.role, emailVerified: user.emailVerified } });
     await issueSession({ id: user.id, email: user.email, role: user.role }, response);
     return response;
-  } catch {
+  } catch (error) {
+    console.error("[app/api/auth/login/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to login" });
   }
 }

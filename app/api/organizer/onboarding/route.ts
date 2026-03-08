@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
     const auth = await requireRole(req, Role.ORGANIZER);
     const profile = await prisma.organizerProfile.findUnique({ where: { userId: auth.sub } });
     return ok(profile);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/onboarding/route.ts]", error);
     return fail(401, { code: "UNAUTHORIZED", message: "Unauthorized" });
   }
 }
@@ -55,7 +56,8 @@ export async function POST(req: NextRequest) {
     });
 
     return ok(profile);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/onboarding/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to save onboarding" });
   }
 }

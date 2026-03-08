@@ -20,7 +20,8 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
     return ok(venues);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/venues/route.ts]", error);
     return fail(401, { code: "UNAUTHORIZED", message: "Unauthorized" });
   }
 }

@@ -17,6 +17,7 @@ import {
   MapPin,
   Moon,
   ScanLine,
+  ReceiptText,
   Settings,
   Store,
   Sun,
@@ -49,6 +50,7 @@ export function SidebarLayout({
     venues: Store,
     organizers: Building2,
     events: CalendarDays,
+    orders: ReceiptText,
     scanner: ScanLine,
     "platform config": Settings,
     categories: Compass,
@@ -83,13 +85,13 @@ export function SidebarLayout({
   return (
     <div className="min-h-screen bg-[var(--page-bg)]">
       <div className="flex min-h-screen w-full">
-        <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 self-start flex-col overflow-y-auto border-r border-[var(--border)] bg-white px-5 py-6 lg:flex">
+        <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 self-start flex-col overflow-y-auto border-r border-[var(--border)] bg-[var(--sidebar-bg)] px-5 py-6 lg:flex">
           <div className="mb-8">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-xl font-semibold tracking-tight text-neutral-900">{title}</p>
+              <p className="text-xl font-semibold tracking-tight text-[var(--sidebar-text)]">{title}</p>
               <Badge className="capitalize">{role}</Badge>
             </div>
-            <p className="text-sm text-neutral-600">{titleLabel}</p>
+            <p className="text-sm text-[var(--sidebar-muted)]">{titleLabel}</p>
           </div>
           <nav className="space-y-1">
             {items.map((item) => {
@@ -103,7 +105,7 @@ export function SidebarLayout({
                   className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
                     isActive
                       ? "bg-[rgb(var(--theme-accent-rgb)/0.1)] font-medium text-[var(--theme-accent)]"
-                      : "text-neutral-700 hover:bg-neutral-100"
+                      : "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)]"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -115,9 +117,9 @@ export function SidebarLayout({
           <div className="mt-auto rounded-2xl border border-[var(--border)] bg-[rgb(var(--theme-accent-rgb)/0.04)] p-4">
             <div className="flex items-center gap-2">
               <LifeBuoy className="h-4 w-4 text-[var(--theme-accent)]" />
-              <p className="text-sm font-medium text-neutral-900">Need help?</p>
+              <p className="text-sm font-medium text-[var(--sidebar-text)]">Need help?</p>
             </div>
-            <p className="mt-1 text-xs leading-relaxed text-neutral-600">
+            <p className="mt-1 text-xs leading-relaxed text-[var(--sidebar-muted)]">
               Keep data updated and submit requests from the pages in this menu.
             </p>
           </div>
@@ -143,7 +145,7 @@ export function SidebarLayout({
         </aside>
 
         <div className="min-w-0 flex-1 px-4 pb-8 pt-4 md:px-8 md:pt-7">
-          <div className="mb-6 flex items-center gap-2 overflow-x-auto rounded-2xl border border-[var(--border)] bg-white p-2 lg:hidden">
+          <div className="mb-6 flex items-center gap-2 overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--sidebar-mobile-bg)] p-2 lg:hidden">
             {items.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
@@ -153,7 +155,7 @@ export function SidebarLayout({
                   className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition ${
                     isActive
                       ? "bg-[var(--theme-accent)] text-white"
-                      : "text-neutral-700 hover:bg-neutral-100"
+                      : "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)]"
                   }`}
                 >
                   {item.label}

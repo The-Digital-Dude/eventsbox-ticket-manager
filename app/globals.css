@@ -11,6 +11,11 @@
   --theme-secondary: #0f38bf;
   --theme-secondary-rgb: 15 56 191;
   --page-bg: #f5f7fc;
+  --sidebar-bg: #ffffff;
+  --sidebar-text: #1f2937;
+  --sidebar-muted: #4b5563;
+  --sidebar-hover-bg: #f3f4f6;
+  --sidebar-mobile-bg: #ffffff;
 }
 
 html.theme-dark {
@@ -25,6 +30,11 @@ html.theme-dark {
   --theme-secondary: #5fd7cc;
   --theme-secondary-rgb: 95 215 204;
   --page-bg: #090f1f;
+  --sidebar-bg: #0f1930;
+  --sidebar-text: #e8eeff;
+  --sidebar-muted: #afbddf;
+  --sidebar-hover-bg: #1b2b4f;
+  --sidebar-mobile-bg: #101a31;
 }
 
 body {

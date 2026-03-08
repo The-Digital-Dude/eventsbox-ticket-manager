@@ -48,7 +48,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     });
 
     return ok(updated);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/venues/[id]/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to update venue seating" });
   }
 }

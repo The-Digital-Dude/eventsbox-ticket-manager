@@ -9,7 +9,8 @@ export async function GET(req: NextRequest) {
     const auth = await requireRole(req, Role.ORGANIZER);
     const profile = await prisma.organizerProfile.findUnique({ where: { userId: auth.sub } });
     return ok({ status: profile?.approvalStatus ?? "DRAFT", reason: profile?.rejectionReason ?? null });
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/status/route.ts]", error);
     return fail(401, { code: "UNAUTHORIZED", message: "Unauthorized" });
   }
 }

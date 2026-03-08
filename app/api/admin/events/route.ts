@@ -35,7 +35,8 @@ export async function GET(req: NextRequest) {
     });
 
     return ok(events);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/events/route.ts]", error);
     return fail(403, { code: "FORBIDDEN", message: "Admin only" });
   }
 }

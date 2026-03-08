@@ -10,7 +10,8 @@ export async function GET(req: NextRequest) {
     await requireRole(req, Role.SUPER_ADMIN);
     const rows = await prisma.state.findMany({ include: { cities: true }, orderBy: { name: "asc" } });
     return ok(rows);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/locations/states/route.ts]", error);
     return fail(403, { code: "FORBIDDEN", message: "Admin only" });
   }
 }
@@ -25,7 +26,8 @@ export async function POST(req: NextRequest) {
 
     const row = await prisma.state.create({ data: parsed.data });
     return ok(row, 201);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/locations/states/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to create state" });
   }
 }

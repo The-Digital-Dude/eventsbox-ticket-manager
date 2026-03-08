@@ -43,7 +43,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await notifyAttendeesOfEventCancellation(id);
 
     return ok({ ...updated, paidOrdersCount });
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/events/[id]/cancel/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Failed to cancel event" });
   }
 }

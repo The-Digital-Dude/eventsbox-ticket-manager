@@ -64,6 +64,8 @@ export default async function OrganizerDashboardPage() {
   const rejectedVenues = profile.venues.filter((venue) => venue.status === VenueStatus.REJECTED).length;
   const totalEvents = profile.events.length;
   const publishedEvents = profile.events.filter((e) => e.status === "PUBLISHED").length;
+  const rejectedEvents = profile.events.filter((e) => e.status === "REJECTED").length;
+  const pendingApprovalEvents = profile.events.filter((e) => e.status === "PENDING_APPROVAL").length;
   const totalTicketsSold = profile.events.reduce((sum, e) => sum + e.ticketTypes.reduce((s, t) => s + t.sold, 0), 0);
   const totalRevenue = profile.events.reduce(
     (sum, e) => sum + e.orders.reduce((s, o) => s + Number(o.total), 0),
@@ -82,6 +84,29 @@ export default async function OrganizerDashboardPage() {
         title="Home"
         subtitle="Track onboarding completion, venue approvals, and payout readiness in one place."
       />
+
+      {(rejectedEvents > 0 || pendingApprovalEvents > 0) && (
+        <section className="space-y-3">
+          {rejectedEvents > 0 && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              {rejectedEvents} event{rejectedEvents !== 1 ? "s" : ""} were rejected by admin.{" "}
+              <Link href="/organizer/events" className="font-semibold underline underline-offset-4">
+                Review and resubmit
+              </Link>
+              .
+            </div>
+          )}
+          {pendingApprovalEvents > 0 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {pendingApprovalEvents} event{pendingApprovalEvents !== 1 ? "s" : ""} are pending admin approval.{" "}
+              <Link href="/organizer/events" className="font-semibold underline underline-offset-4">
+                View events
+              </Link>
+              .
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.25)] bg-[rgb(var(--theme-accent-rgb)/0.08)] p-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

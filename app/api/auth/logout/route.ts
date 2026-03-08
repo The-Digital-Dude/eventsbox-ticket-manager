@@ -8,7 +8,8 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({ success: true, data: { loggedOut: true } });
     await destroySession(response, payload.sub);
     return response;
-  } catch {
+  } catch (error) {
+    console.error("[app/api/auth/logout/route.ts]", error);
     const response = NextResponse.json({ success: true, data: { loggedOut: true } });
     await destroySession(response);
     return response;

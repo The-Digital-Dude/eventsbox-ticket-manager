@@ -48,7 +48,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ]);
 
     return ok({ ...row, state, city });
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/organizers/[id]/route.ts]", error);
     return fail(403, { code: "FORBIDDEN", message: "Admin only" });
   }
 }
@@ -79,7 +80,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     ]);
 
     return ok({ ...row, state, city });
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/organizers/[id]/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to update organizer profile" });
   }
 }

@@ -171,24 +171,32 @@ export default async function OrganizerAnalyticsPage({
       <PageHeader title="Analytics" subtitle="Revenue and ticket sales trends across your event portfolio." />
 
       <section className="rounded-2xl border border-[var(--border)] bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="mr-1 text-sm text-neutral-500">Period:</p>
-          {[3, 6, 12, 24].map((period) => {
-            const active = months === period;
-            return (
-              <Link
-                key={period}
-                href={`/organizer/analytics?months=${period}`}
-                className={`rounded-lg px-3 py-1.5 text-sm transition ${
-                  active
-                    ? "bg-[var(--theme-accent)] text-white"
-                    : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
-                }`}
-              >
-                Last {period}m
-              </Link>
-            );
-          })}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="mr-1 text-sm text-neutral-500">Period:</p>
+            {[3, 6, 12, 24].map((period) => {
+              const active = months === period;
+              return (
+                <Link
+                  key={period}
+                  href={`/organizer/analytics?months=${period}`}
+                  className={`rounded-lg px-3 py-1.5 text-sm transition ${
+                    active
+                      ? "bg-[var(--theme-accent)] text-white"
+                      : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+                  }`}
+                >
+                  Last {period}m
+                </Link>
+              );
+            })}
+          </div>
+          <Link
+            href={`/api/organizer/analytics/export?months=${months}`}
+            className="inline-flex items-center rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+          >
+            Export CSV
+          </Link>
         </div>
       </section>
 

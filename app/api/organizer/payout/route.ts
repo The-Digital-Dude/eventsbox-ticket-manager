@@ -43,7 +43,8 @@ export async function GET(req: NextRequest) {
     }
 
     return ok(settings);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/payout/route.ts]", error);
     return fail(401, { code: "UNAUTHORIZED", message: "Unauthorized" });
   }
 }
@@ -75,7 +76,8 @@ export async function POST(req: NextRequest) {
     });
 
     return ok(row);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/organizer/payout/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to update payout settings" });
   }
 }

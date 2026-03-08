@@ -12,7 +12,8 @@ export async function POST() {
     const response = NextResponse.json({ success: true, data: { rotated: true } });
     await rotateRefreshToken(refreshToken, response);
     return response;
-  } catch {
+  } catch (error) {
+    console.error("[app/api/auth/refresh/route.ts]", error);
     return fail(401, { code: "INVALID_REFRESH_TOKEN", message: "Unable to refresh session" });
   }
 }

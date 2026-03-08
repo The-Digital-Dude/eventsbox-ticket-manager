@@ -1,7 +1,7 @@
 # Current Task
 
 ## Active Task
-**Phase 4 — Secondary Features, UX Polish, and Production Hardening**
+**Phase 4 complete — implemented, validated, and pushed**
 
 ---
 
@@ -226,6 +226,13 @@ C3 (docs)                  → last
 - `npm run test:integration` — 32/32 passing (or more if new tests added)
 - Behavior matches acceptance criteria above
 
+### Validation Snapshot
+
+- `npm run lint` ✅
+- `npm run typecheck` ✅
+- `npm run test:integration` ✅ (32/32)
+- `npm run test:e2e` ✅ (4/4)
+
 ---
 
 ## Out of Scope for Phase 4
@@ -243,25 +250,30 @@ C3 (docs)                  → last
 
 | Task | Status |
 |------|--------|
-| A1 — Admin Orders Page | TODO |
-| A2 — Analytics CSV Export | TODO |
-| A3 — Dashboard Banners | TODO |
-| A4 — Login Rate Limit by Email | TODO |
-| A5 — Share Button | TODO |
-| B1 — Dark Mode Sidebar | TODO |
-| B2 — Event Search & Filter | TODO |
-| B3 — Event Status Timeline | TODO |
-| C1 — E2E Tests | TODO |
-| C2 — Error Observability | TODO |
-| C3 — Docs Update | TODO |
+| A1 — Admin Orders Page | DONE |
+| A2 — Analytics CSV Export | DONE |
+| A3 — Dashboard Banners | DONE |
+| A4 — Login Rate Limit by Email | DONE |
+| A5 — Share Button | DONE |
+| B1 — Dark Mode Sidebar | DONE |
+| B2 — Event Search & Filter | DONE |
+| B3 — Event Status Timeline | DONE |
+| C1 — E2E Tests | DONE |
+| C2 — Error Observability | DONE |
+| C3 — Docs Update | DONE |
 
 ---
 
 ## Phase 3 Completion Summary
 
-See `docs/releases/phase-3-release-notes.md` and `docs/releases/phase-3-deployment-checklist.md` for full Phase 3 record.
+See:
+
+- `docs/releases/phase-3-release-notes.md`
+- `docs/releases/phase-3-deployment-checklist.md`
+- `docs/releases/phase-4-release-notes.md`
 
 - `npm run lint` ✅
 - `npm run typecheck` ✅
 - `npm run test:integration` ✅ (32/32)
+- `npm run test:e2e` ✅ (4/4)
 - Pushed to `origin/main` and `origin/sleep-mode` ✅

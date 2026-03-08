@@ -33,7 +33,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     return ok(updated);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/venues/[id]/decision/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to update venue" });
   }
 }

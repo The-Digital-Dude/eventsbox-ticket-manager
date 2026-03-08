@@ -30,7 +30,8 @@ export async function GET(req: NextRequest) {
     });
 
     return ok(requests);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/payouts/route.ts]", error);
     return fail(403, { code: "FORBIDDEN", message: "Admin only" });
   }
 }

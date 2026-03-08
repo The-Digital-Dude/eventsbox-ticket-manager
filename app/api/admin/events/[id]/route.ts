@@ -47,7 +47,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (!event) return fail(404, { code: "NOT_FOUND", message: "Event not found" });
     return ok(event);
-  } catch {
+  } catch (error) {
+    console.error("[app/api/admin/events/[id]/route.ts]", error);
     return fail(403, { code: "FORBIDDEN", message: "Admin only" });
   }
 }

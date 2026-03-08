@@ -21,7 +21,8 @@ export async function POST(req: NextRequest) {
     ]);
 
     return ok({ verified: true });
-  } catch {
+  } catch (error) {
+    console.error("[app/api/auth/verify-email/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to verify email" });
   }
 }
