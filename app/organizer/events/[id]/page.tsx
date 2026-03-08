@@ -181,6 +181,15 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     await load();
   }
 
+  async function duplicateEvent() {
+    if (!confirm("Duplicate this event? A new DRAFT copy will be created with all ticket types.")) return;
+    const res = await fetch(`/api/organizer/events/${id}/duplicate`, { method: "POST" });
+    const payload = await res.json();
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to duplicate event");
+    toast.success("Event duplicated! Redirecting to copy...");
+    router.push(`/organizer/events/${payload.data.id}`);
+  }
+
   const canEdit = event?.status === "DRAFT" || event?.status === "REJECTED";
   const canSubmit = canEdit && (event?.ticketTypes?.filter((t) => t.isActive).length ?? 0) > 0;
 
@@ -214,6 +223,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 <Button variant="outline" size="sm">Edit Event</Button>
               </Link>
             )}
+            <Button variant="outline" size="sm" onClick={duplicateEvent}>
+              Duplicate
+            </Button>
             {event.status === "PUBLISHED" && (
               <Button
                 variant="outline"
