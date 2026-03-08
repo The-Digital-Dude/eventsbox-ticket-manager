@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -8,22 +9,20 @@ import { Label } from "@/src/components/ui/label";
 import { PublicNav } from "@/src/components/shared/public-nav";
 
 type ApiResponse = {
-  success?: boolean;
   error?: { message?: string };
 };
 
 export default function AttendeeRegisterPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
-    setSuccessMessage(null);
     setErrorMessage(null);
 
     try {
@@ -39,10 +38,7 @@ export default function AttendeeRegisterPage() {
         return;
       }
 
-      setSuccessMessage("Account created! Check your email to verify.");
-      setEmail("");
-      setPassword("");
-      setDisplayName("");
+      router.push(`/auth/verify-email?email=${encodeURIComponent(email)}`);
     } catch {
       setErrorMessage("Registration failed");
     } finally {
@@ -96,7 +92,6 @@ export default function AttendeeRegisterPage() {
             </Button>
           </form>
 
-          {successMessage ? <p className="mt-4 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{successMessage}</p> : null}
           {errorMessage ? <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errorMessage}</p> : null}
 
           <p className="mt-4 text-sm text-neutral-600">

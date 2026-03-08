@@ -200,22 +200,28 @@ export async function sendPasswordResetEmail(input: {
 
 export async function sendWelcomeEmail(input: {
   to: string;
-  verifyUrl: string;
+  otp: string;
 }) {
-  const subject = "Welcome to EventsBox — verify your email";
+  const subject = "Welcome to EventsBox — your verification code";
   const text = [
     "Welcome to EventsBox!",
     "",
-    "Please verify your email address to activate your organizer account:",
-    input.verifyUrl,
+    `Your verification code is: ${input.otp}`,
     "",
+    "This code expires in 10 minutes.",
     "If you did not create an account, ignore this email.",
   ].join("\n");
 
   const html = `
-    <p>Welcome to EventsBox!</p>
-    <p>Please <a href="${input.verifyUrl}">verify your email address</a> to activate your organizer account.</p>
-    <p>If you did not create an account, ignore this email.</p>
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+      <p style="font-size:14px;color:#6b7280;margin-bottom:8px">Welcome to EventsBox</p>
+      <p style="font-size:16px;color:#111827;margin-bottom:24px">Enter this code to verify your email address:</p>
+      <div style="background:#f3f4f6;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px">
+        <span style="font-size:36px;font-weight:700;letter-spacing:12px;color:#1e1b4b;font-family:monospace">${input.otp}</span>
+      </div>
+      <p style="font-size:13px;color:#6b7280">This code expires in <strong>10 minutes</strong>.</p>
+      <p style="font-size:13px;color:#6b7280">If you did not create an account, ignore this email.</p>
+    </div>
   `;
 
   return sendEmail({ to: input.to, subject, text, html });

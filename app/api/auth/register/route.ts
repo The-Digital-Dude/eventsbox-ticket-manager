@@ -1,4 +1,3 @@
-import crypto from "crypto";
 import { NextRequest } from "next/server";
 import { Role } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
@@ -6,7 +5,6 @@ import { fail, ok } from "@/src/lib/http/response";
 import { registerSchema } from "@/src/lib/validators/auth";
 import { hashPassword } from "@/src/lib/auth/password";
 import { rateLimitRedis } from "@/src/lib/http/rate-limit-redis";
-import { env } from "@/src/lib/env";
 import { sendWelcomeEmail } from "@/src/lib/services/notifications";
 
 export async function POST(req: NextRequest) {
@@ -40,21 +38,20 @@ export async function POST(req: NextRequest) {
       include: { organizerProfile: true },
     });
 
-    const verifyToken = crypto.randomBytes(24).toString("hex");
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
     await prisma.emailVerificationToken.create({
       data: {
         userId: user.id,
-        token: verifyToken,
-        expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
+        token: otp,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
       },
     });
 
-    const verifyUrl = `${env.APP_URL}/auth/verify-email?token=${verifyToken}`;
-    void sendWelcomeEmail({ to: user.email, verifyUrl }).catch((error) => {
+    void sendWelcomeEmail({ to: user.email, otp }).catch((error) => {
       console.error("Welcome email dispatch failed:", error);
     });
 
-    return ok({ userId: user.id, email: user.email, verifyTokenDev: verifyToken }, 201);
+    return ok({ userId: user.id, email: user.email }, 201);
   } catch (error) {
     console.error("[app/api/auth/register/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to register" });

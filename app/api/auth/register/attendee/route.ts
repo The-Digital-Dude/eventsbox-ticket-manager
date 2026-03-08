@@ -1,9 +1,7 @@
-import crypto from "crypto";
 import { NextRequest } from "next/server";
 import { Role } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/src/lib/db";
-import { env } from "@/src/lib/env";
 import { hashPassword } from "@/src/lib/auth/password";
 import { rateLimitRedis } from "@/src/lib/http/rate-limit-redis";
 import { fail, ok } from "@/src/lib/http/response";
@@ -48,17 +46,16 @@ export async function POST(req: NextRequest) {
       include: { attendeeProfile: true },
     });
 
-    const verifyToken = crypto.randomBytes(24).toString("hex");
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
     await prisma.emailVerificationToken.create({
       data: {
         userId: user.id,
-        token: verifyToken,
-        expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
+        token: otp,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
       },
     });
 
-    const verifyUrl = `${env.APP_URL}/auth/verify-email?token=${verifyToken}`;
-    void sendWelcomeEmail({ to: user.email, verifyUrl }).catch((error) => {
+    void sendWelcomeEmail({ to: user.email, otp }).catch((error) => {
       console.error("Welcome email dispatch failed:", error);
     });
 

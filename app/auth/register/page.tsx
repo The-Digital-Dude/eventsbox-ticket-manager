@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,8 +13,8 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [verifyToken, setVerifyToken] = useState<string | null>(null);
   const form = useForm<{ email: string; password: string }>({
     resolver: zodResolver(z.object({ email: z.email(), password: z.string().min(8) })),
   });
@@ -34,8 +35,7 @@ export default function RegisterPage() {
       return;
     }
 
-    setVerifyToken(payload.data.verifyTokenDev);
-    toast.success("Registration successful. You can login now.");
+    router.push(`/auth/verify-email?email=${encodeURIComponent(values.email)}`);
   }
 
   return (
@@ -71,7 +71,6 @@ export default function RegisterPage() {
                 {loading ? "Creating..." : "Create account"}
               </Button>
             </form>
-            {verifyToken ? <p className="mt-3 rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-600">Dev verify token: {verifyToken}</p> : null}
             <p className="mt-4 text-sm text-neutral-600">
               Already have an account?{" "}
               <Link href="/auth/login" className="font-medium text-[var(--theme-accent)] hover:underline">
