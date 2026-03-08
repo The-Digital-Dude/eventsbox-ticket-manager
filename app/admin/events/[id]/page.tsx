@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, CalendarDays, CheckCircle2, Users, Ticket, DollarSign } from "lucide-react";
+import { ChevronLeft, CalendarDays, CheckCircle2, Users, Ticket, DollarSign, Star } from "lucide-react";
 import { toast } from "sonner";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
 import { Badge } from "@/src/components/ui/badge";
@@ -44,6 +44,7 @@ type Order = {
 
 type EventDetail = {
   id: string; title: string; slug: string; status: string;
+  isFeatured: boolean;
   startAt: string; endAt: string; timezone: string;
   category: { name: string } | null;
   venue: { name: string; addressLine1: string } | null;
@@ -76,6 +77,7 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
   const [loading, setLoading] = useState(true);
   const [deciding, setDeciding] = useState(false);
   const [canceling, setCanceling] = useState(false);
+  const [togglingFeatured, setTogglingFeatured] = useState(false);
   const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
@@ -124,6 +126,24 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
     if (updated?.data) setEvent(updated.data);
   }
 
+  async function toggleFeatured() {
+    if (!event) return;
+
+    const nextValue = !event.isFeatured;
+    setTogglingFeatured(true);
+    const res = await fetch(`/api/admin/events/${id}/feature`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isFeatured: nextValue }),
+    });
+    const payload = await res.json();
+    setTogglingFeatured(false);
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to update featured state");
+
+    setEvent((prev) => (prev ? { ...prev, isFeatured: Boolean(payload?.data?.isFeatured) } : prev));
+    toast.success(nextValue ? "Event featured on homepage" : "Event removed from homepage");
+  }
+
   useEffect(() => {
     fetch(`/api/admin/events/${id}`)
       .then((r) => r.json())
@@ -161,6 +181,9 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
           <div className="flex flex-wrap gap-2 mb-2">
             <Badge className={statusBadgeClass(event.status)}>{event.status.replace("_", " ")}</Badge>
             {event.category && <Badge>{event.category.name}</Badge>}
+            {event.isFeatured && (
+              <Badge className="bg-blue-100 text-blue-700 border-transparent">Featured</Badge>
+            )}
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">{event.title}</h1>
           <p className="mt-1 text-sm text-neutral-500">
@@ -169,8 +192,19 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
           </p>
         </div>
 
-        {event.status === "PENDING_APPROVAL" && (
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant={event.isFeatured ? "default" : "outline"}
+            onClick={toggleFeatured}
+            disabled={togglingFeatured}
+            className={event.isFeatured ? "bg-blue-600 hover:bg-blue-700" : ""}
+          >
+            <Star className="mr-1 h-4 w-4" />
+            {togglingFeatured ? "Saving..." : event.isFeatured ? "Unfeature" : "Feature on Homepage"}
+          </Button>
+          {event.status === "PENDING_APPROVAL" && (
+            <>
             <Button size="sm" onClick={() => decide("PUBLISHED")} disabled={deciding}>
               {deciding ? "Processing..." : "Publish"}
             </Button>
@@ -182,10 +216,9 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
             >
               Reject
             </Button>
-          </div>
-        )}
-        {event.status === "PUBLISHED" && (
-          <div className="flex flex-wrap gap-2">
+            </>
+          )}
+          {event.status === "PUBLISHED" && (
             <Button
               size="sm"
               variant="outline"
@@ -195,8 +228,8 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
             >
               {canceling ? "Cancelling..." : "Cancel Event"}
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {showRejectForm && (

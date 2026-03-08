@@ -5,11 +5,17 @@ import { prisma } from "@/src/lib/db";
 export const revalidate = 60;
 
 async function getStats() {
+  const now = new Date();
+
   const [eventCount, orderCount, featuredEvents] = await Promise.all([
     prisma.event.count({ where: { status: "PUBLISHED" } }),
     prisma.order.count({ where: { status: "PAID" } }),
     prisma.event.findMany({
-      where: { status: "PUBLISHED", startAt: { gte: new Date() } },
+      where: {
+        isFeatured: true,
+        status: "PUBLISHED",
+        startAt: { gte: now },
+      },
       include: {
         category: { select: { name: true } },
         city: { select: { name: true } },
@@ -21,10 +27,35 @@ async function getStats() {
         },
       },
       orderBy: { startAt: "asc" },
-      take: 3,
+      take: 6,
     }),
   ]);
-  return { eventCount, orderCount, featuredEvents };
+
+  if (featuredEvents.length >= 3) {
+    return { eventCount, orderCount, featuredEvents };
+  }
+
+  const fallbackEvents = await prisma.event.findMany({
+    where: {
+      status: "PUBLISHED",
+      startAt: { gte: now },
+      id: { notIn: featuredEvents.map((event) => event.id) },
+    },
+    include: {
+      category: { select: { name: true } },
+      city: { select: { name: true } },
+      ticketTypes: {
+        where: { isActive: true },
+        orderBy: { price: "asc" },
+        select: { price: true, quantity: true, sold: true },
+        take: 1,
+      },
+    },
+    orderBy: { startAt: "asc" },
+    take: 3 - featuredEvents.length,
+  });
+
+  return { eventCount, orderCount, featuredEvents: [...featuredEvents, ...fallbackEvents] };
 }
 
 function formatDate(iso: Date) {
