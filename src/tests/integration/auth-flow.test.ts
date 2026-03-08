@@ -28,6 +28,6 @@ describe("auth integration", () => {
       expect(loginRes.status).toBe(200);
       expect(loginRes.headers.get("set-cookie")).toContain("eventsbox_access");
     },
-    15_000,
+    30_000,
   );
 });

@@ -5,14 +5,14 @@ import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
 import { registerSchema } from "@/src/lib/validators/auth";
 import { hashPassword } from "@/src/lib/auth/password";
-import { rateLimit } from "@/src/lib/http/rate-limit";
+import { rateLimitRedis } from "@/src/lib/http/rate-limit-redis";
 import { env } from "@/src/lib/env";
 import { sendWelcomeEmail } from "@/src/lib/services/notifications";
 
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get("x-forwarded-for") ?? "unknown";
-    const rl = rateLimit(`register:${ip}`, 10, 60_000);
+    const rl = await rateLimitRedis(`register:${ip}`, 10, 60_000);
     if (rl.limited) {
       return fail(429, { code: "RATE_LIMITED", message: "Too many attempts" });
     }

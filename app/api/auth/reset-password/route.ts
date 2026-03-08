@@ -5,9 +5,16 @@ import { fail, ok } from "@/src/lib/http/response";
 import { resetPasswordSchema } from "@/src/lib/validators/auth";
 import { env } from "@/src/lib/env";
 import { sendPasswordResetEmail } from "@/src/lib/services/notifications";
+import { rateLimitRedis } from "@/src/lib/http/rate-limit-redis";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for") ?? "unknown";
+    const rl = await rateLimitRedis(`reset-password:${ip}`, 10, 60_000);
+    if (rl.limited) {
+      return fail(429, { code: "RATE_LIMITED", message: "Too many attempts" });
+    }
+
     const parsed = resetPasswordSchema.safeParse(await req.json());
     if (!parsed.success) {
       return fail(400, { code: "VALIDATION_ERROR", message: "Invalid email" });

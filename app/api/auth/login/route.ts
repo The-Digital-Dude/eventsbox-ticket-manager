@@ -4,12 +4,12 @@ import { fail } from "@/src/lib/http/response";
 import { loginSchema } from "@/src/lib/validators/auth";
 import { verifyPassword } from "@/src/lib/auth/password";
 import { issueSession } from "@/src/lib/auth/session";
-import { rateLimit } from "@/src/lib/http/rate-limit";
+import { rateLimitRedis } from "@/src/lib/http/rate-limit-redis";
 
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get("x-forwarded-for") ?? "unknown";
-    const rl = rateLimit(`login:${ip}`, 20, 60_000);
+    const rl = await rateLimitRedis(`login:${ip}`, 20, 60_000);
     if (rl.limited) {
       return fail(429, { code: "RATE_LIMITED", message: "Too many attempts" });
     }
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       return fail(400, { code: "VALIDATION_ERROR", message: "Invalid input", details: parsed.error.flatten() });
     }
 
-    const emailRl = rateLimit(`login:email:${parsed.data.email}`, 10, 300_000);
+    const emailRl = await rateLimitRedis(`login:email:${parsed.data.email}`, 10, 300_000);
     if (emailRl.limited) {
       return fail(429, { code: "RATE_LIMITED", message: "Too many attempts" });
     }

@@ -95,6 +95,6 @@ describe("venue seating integration", () => {
       const venueInDb = await prisma.venue.findUnique({ where: { id: created.id } });
       expect(venueInDb?.totalSeats).toBe(8);
     },
-    15_000,
+    30_000,
   );
 });
