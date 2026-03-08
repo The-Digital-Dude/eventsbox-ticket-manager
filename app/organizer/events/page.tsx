@@ -28,6 +28,7 @@ const nav = [
   { href: "/organizer/onboarding", label: "Onboarding" },
   { href: "/organizer/dashboard", label: "Dashboard" },
   { href: "/organizer/events", label: "Events" },
+  { href: "/organizer/analytics", label: "Analytics" },
   { href: "/organizer/payout", label: "Payout" },
   { href: "/organizer/venues", label: "Venues" },
   { href: "/organizer/scanner", label: "Scanner" },
