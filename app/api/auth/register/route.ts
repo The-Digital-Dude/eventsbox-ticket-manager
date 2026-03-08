@@ -47,11 +47,15 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    void sendWelcomeEmail({ to: user.email, otp }).catch((error) => {
-      console.error("Welcome email dispatch failed:", error);
-    });
+    const emailDelivery = await sendWelcomeEmail({ to: user.email, otp });
+    if (!emailDelivery.sent) {
+      console.error("Welcome email dispatch failed:", {
+        email: user.email,
+        reason: emailDelivery.reason,
+      });
+    }
 
-    return ok({ userId: user.id, email: user.email }, 201);
+    return ok({ userId: user.id, email: user.email, emailSent: emailDelivery.sent }, 201);
   } catch (error) {
     console.error("[app/api/auth/register/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to register" });

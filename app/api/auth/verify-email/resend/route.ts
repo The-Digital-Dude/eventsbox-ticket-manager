@@ -39,9 +39,17 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    void sendWelcomeEmail({ to: user.email, otp }).catch((error) => {
-      console.error("Resend OTP email failed:", error);
-    });
+    const emailDelivery = await sendWelcomeEmail({ to: user.email, otp });
+    if (!emailDelivery.sent) {
+      console.error("Resend OTP email failed:", {
+        email: user.email,
+        reason: emailDelivery.reason,
+      });
+      return fail(503, {
+        code: "EMAIL_DELIVERY_FAILED",
+        message: "We couldn't send the verification code. Please try again shortly.",
+      });
+    }
 
     return ok({ sent: true });
   } catch (error) {

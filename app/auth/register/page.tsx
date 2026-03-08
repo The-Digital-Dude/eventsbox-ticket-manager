@@ -35,6 +35,10 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!payload?.data?.emailSent) {
+      toast.error("Account created, but code email was not sent. Please use resend on the next screen.");
+    }
+
     router.push(`/auth/verify-email?email=${encodeURIComponent(values.email)}`);
   }
 

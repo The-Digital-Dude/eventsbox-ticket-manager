@@ -17,14 +17,23 @@ type EmailPayload = {
   html: string;
 };
 
-async function sendEmail(payload: EmailPayload) {
+type EmailSendResult =
+  | { sent: true; skipped: false }
+  | { sent: false; skipped: true; reason: "MISSING_CONFIG" }
+  | { sent: false; skipped: false; reason: "PROVIDER_ERROR" };
+
+async function sendEmail(payload: EmailPayload): Promise<EmailSendResult> {
   const client = getResendClient();
   if (!client || !env.EMAIL_FROM) {
-    return { sent: false, skipped: true as const };
+    console.warn("[email] skipped due to missing configuration", {
+      hasResendApiKey: Boolean(env.RESEND_API_KEY),
+      hasEmailFrom: Boolean(env.EMAIL_FROM),
+    });
+    return { sent: false, skipped: true as const, reason: "MISSING_CONFIG" as const };
   }
 
   try {
-    await client.emails.send({
+    const result = await client.emails.send({
       from: env.EMAIL_FROM,
       to: payload.to,
       subject: payload.subject,
@@ -32,10 +41,14 @@ async function sendEmail(payload: EmailPayload) {
       html: payload.html,
       ...(env.EMAIL_REPLY_TO ? { replyTo: env.EMAIL_REPLY_TO } : {}),
     });
+    if (result.error) {
+      console.error("Email send failed:", result.error);
+      return { sent: false, skipped: false as const, reason: "PROVIDER_ERROR" as const };
+    }
     return { sent: true, skipped: false as const };
   } catch (error) {
     console.error("Email send failed:", error);
-    return { sent: false, skipped: false as const };
+    return { sent: false, skipped: false as const, reason: "PROVIDER_ERROR" as const };
   }
 }
 

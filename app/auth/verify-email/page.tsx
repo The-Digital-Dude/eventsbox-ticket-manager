@@ -101,11 +101,12 @@ function VerifyEmailContent() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
     });
+    const payload = await res.json().catch(() => null);
 
     if (res.ok) {
       toast.success("New code sent to your email");
     } else {
-      toast.error("Failed to resend code. Try again.");
+      toast.error(payload?.error?.message ?? "Failed to resend code. Try again.");
     }
   }
 
