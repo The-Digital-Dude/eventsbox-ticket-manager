@@ -306,6 +306,8 @@ model Event {
   ticketTypes        TicketType[]
   orders             Order[]
   promoCodes         PromoCode[]
+  isFeatured         Boolean          @default(false)
+  waitlist           Waitlist[]
 
   @@index([organizerProfileId])
   @@index([status])
@@ -330,6 +332,7 @@ model TicketType {
   updatedAt   DateTime       @updatedAt
   event       Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
   orderItems  OrderItem[]
+  waitlist    Waitlist[]
 
   @@index([eventId])
 }
@@ -429,6 +432,22 @@ model QRTicket {
 
   @@index([orderId])
   @@index([token])
+}
+
+model Waitlist {
+  id           String     @id @default(cuid())
+  eventId      String
+  ticketTypeId String
+  email        String
+  name         String?
+  notifiedAt   DateTime?
+  createdAt    DateTime   @default(now())
+  event        Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketTypeId, email])
+  @@index([eventId])
+  @@index([ticketTypeId])
 }
 
 model AuditLog {
