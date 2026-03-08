@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local codex task prompts
+docs/tasks/codex-phase5-prompt.md
+docs/tasks/codex-phase6-prompt.md
