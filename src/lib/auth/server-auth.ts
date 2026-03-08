@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { ACCESS_TOKEN_COOKIE } from "@/src/lib/auth/constants";
 import { verifyAccessToken } from "@/src/lib/auth/jwt";
 import { prisma } from "@/src/lib/db";
+export { requireRole } from "@/src/lib/auth/guards";
 
 export async function getServerSession() {
   const store = await cookies();
