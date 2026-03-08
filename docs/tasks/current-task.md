@@ -46,6 +46,7 @@
 
 - `npm run lint` ✅ clean
 - `npm run typecheck` ✅ clean
+- `npm run test:integration` ✅ clean (32/32 passing)
 - Git branches: `main` and `sleep-mode` pushed to GitHub
 
 ---
@@ -76,6 +77,10 @@
 - Organizer event orders page supports refund action for cancelled events
 - Admin event detail paid orders table supports refund action for cancelled events
 - Cancel status badge style added on organizer/admin event detail pages
+- Register route welcome email dispatch is now non-blocking (does not delay response path)
+- Integration timeout stability updates:
+  - `src/tests/integration/auth-flow.test.ts` timeout set to `15_000`
+  - `src/tests/integration/venue-seating-flow.test.ts` timeout set to `15_000`
 - Integration tests added:
   - `src/tests/integration/organizer-analytics.test.ts`
   - `src/tests/integration/organizer-event-image-upload.test.ts`
@@ -89,5 +94,4 @@
 
 ## Next Actions (Phase 3)
 1. **Phase 4 planning** — Prioritize next feature set and define acceptance criteria
-2. **Stability pass** — Investigate and fix integration test timeouts (`auth-flow`, `venue-seating-flow`)
-3. **Release prep** — Create release notes and deployment checklist
+2. **Release prep** — Create release notes and deployment checklist

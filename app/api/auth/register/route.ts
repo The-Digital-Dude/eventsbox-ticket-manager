@@ -50,7 +50,9 @@ export async function POST(req: NextRequest) {
     });
 
     const verifyUrl = `${env.APP_URL}/auth/verify-email?token=${verifyToken}`;
-    await sendWelcomeEmail({ to: user.email, verifyUrl });
+    void sendWelcomeEmail({ to: user.email, verifyUrl }).catch((error) => {
+      console.error("Welcome email dispatch failed:", error);
+    });
 
     return ok({ userId: user.id, email: user.email, verifyTokenDev: verifyToken }, 201);
   } catch {
