@@ -1,12 +1,19 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
+import { rateLimit } from "@/src/lib/http/rate-limit";
 import { z } from "zod";
 
 const schema = z.object({ email: z.email() });
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for") ?? "unknown";
+    const rl = rateLimit(`ticket-lookup:${ip}`, 15, 60_000);
+    if (rl.limited) {
+      return fail(429, { code: "RATE_LIMITED", message: "Too many lookup attempts. Try again in a minute." });
+    }
+
     const parsed = schema.safeParse(await req.json());
     if (!parsed.success) {
       return fail(400, { code: "VALIDATION_ERROR", message: "Valid email required" });

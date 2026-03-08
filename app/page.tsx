@@ -1,19 +1,38 @@
 import Link from "next/link";
-import { CalendarDays, QrCode, Shield, Ticket } from "lucide-react";
+import { CalendarDays, MapPin, QrCode, Shield, Ticket } from "lucide-react";
 import { prisma } from "@/src/lib/db";
 
 export const revalidate = 60;
 
 async function getStats() {
-  const [eventCount, orderCount] = await Promise.all([
+  const [eventCount, orderCount, featuredEvents] = await Promise.all([
     prisma.event.count({ where: { status: "PUBLISHED" } }),
     prisma.order.count({ where: { status: "PAID" } }),
+    prisma.event.findMany({
+      where: { status: "PUBLISHED", startAt: { gte: new Date() } },
+      include: {
+        category: { select: { name: true } },
+        city: { select: { name: true } },
+        ticketTypes: {
+          where: { isActive: true },
+          orderBy: { price: "asc" },
+          select: { price: true, quantity: true, sold: true },
+          take: 1,
+        },
+      },
+      orderBy: { startAt: "asc" },
+      take: 3,
+    }),
   ]);
-  return { eventCount, orderCount };
+  return { eventCount, orderCount, featuredEvents };
+}
+
+function formatDate(iso: Date) {
+  return new Date(iso).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
 
 export default async function HomePage() {
-  const { eventCount, orderCount } = await getStats();
+  const { eventCount, orderCount, featuredEvents } = await getStats();
 
   return (
     <div className="min-h-screen bg-[var(--page-bg,#f8f8f8)]">
@@ -81,6 +100,62 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Featured Events */}
+      {featuredEvents.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 py-16">
+          <div className="mb-8 flex items-center justify-between">
+            <h2 className="text-2xl font-bold tracking-tight text-neutral-900">Upcoming Events</h2>
+            <Link href="/events" className="text-sm font-medium text-[var(--theme-accent)] underline underline-offset-4">
+              See all →
+            </Link>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {featuredEvents.map((event) => {
+              const lowestPrice = event.ticketTypes[0] ? Number(event.ticketTypes[0].price) : null;
+              return (
+                <Link key={event.id} href={`/events/${event.slug}`} className="group block">
+                  <article className="h-full overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-sm transition group-hover:shadow-lg group-hover:border-[rgb(var(--theme-accent-rgb)/0.3)]">
+                    {event.heroImage ? (
+                      <div className="h-36 w-full bg-cover bg-center" style={{ backgroundImage: `url(${event.heroImage})` }} />
+                    ) : (
+                      <div className="h-2 bg-gradient-to-r from-[var(--theme-accent)] to-[rgb(59,130,246)]" />
+                    )}
+                    <div className="p-5">
+                      {event.category && (
+                        <span className="mb-2 inline-block rounded-full bg-[rgb(var(--theme-accent-rgb)/0.08)] px-2.5 py-0.5 text-xs font-semibold text-[var(--theme-accent)]">
+                          {event.category.name}
+                        </span>
+                      )}
+                      <h3 className="text-lg font-semibold leading-snug text-neutral-900 group-hover:text-[var(--theme-accent)] transition">
+                        {event.title}
+                      </h3>
+                      <div className="mt-3 space-y-1.5 text-sm text-neutral-600">
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4 shrink-0 text-[var(--theme-accent)]" />
+                          {formatDate(event.startAt)}
+                        </div>
+                        {event.city && (
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 shrink-0 text-[var(--theme-accent)]" />
+                            {event.city.name}
+                          </div>
+                        )}
+                        {lowestPrice !== null && (
+                          <div className="flex items-center gap-2">
+                            <Ticket className="h-4 w-4 shrink-0 text-[var(--theme-accent)]" />
+                            From <strong className="text-neutral-900">${lowestPrice.toFixed(2)}</strong>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Features */}
       <section className="mx-auto max-w-5xl px-4 py-20">
