@@ -11,7 +11,7 @@ const eventInclude = {
   state: { select: { id: true, name: true } },
   city: { select: { id: true, name: true } },
   ticketTypes: { orderBy: { sortOrder: "asc" as const } },
-  _count: { select: { orders: true } },
+  _count: { select: { orders: true, waitlist: true } },
   orders: {
     where: { status: "PAID" as const },
     select: { total: true, platformFee: true, gst: true },
