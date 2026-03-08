@@ -6,6 +6,7 @@ import { env } from "@/src/lib/env";
 import { getStripeClient } from "@/src/lib/stripe/client";
 import { prisma } from "@/src/lib/db";
 import { sendOrderConfirmationEmail } from "@/src/lib/services/notifications";
+import { notifyWaitlist } from "@/src/lib/services/waitlist";
 
 function getWebhookSecrets() {
   return [env.STRIPE_WEBHOOK_SECRET, env.STRIPE_CONNECT_WEBHOOK_SECRET].filter(
@@ -86,8 +87,53 @@ async function handleStripeEvent(event: Stripe.Event) {
       });
       return;
     }
+    case "charge.refunded": {
+      const charge = event.data.object as Stripe.Charge;
+      await handleChargeRefunded(charge);
+      return;
+    }
     default:
       return;
+  }
+}
+
+async function handleChargeRefunded(charge: Stripe.Charge) {
+  const paymentIntentId =
+    typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
+  if (!paymentIntentId) return;
+
+  const order = await prisma.order.findFirst({
+    where: { stripePaymentIntentId: paymentIntentId, status: "PAID" },
+    select: {
+      id: true,
+      items: {
+        select: {
+          ticketTypeId: true,
+          quantity: true,
+        },
+      },
+    },
+  });
+  if (!order) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({
+      where: { id: order.id },
+      data: { status: "REFUNDED" },
+    });
+
+    for (const item of order.items) {
+      await tx.ticketType.update({
+        where: { id: item.ticketTypeId },
+        data: { sold: { decrement: item.quantity } },
+      });
+    }
+  });
+
+  for (const item of order.items) {
+    void notifyWaitlist(item.ticketTypeId, item.quantity).catch((error) => {
+      console.error("[app/api/webhooks/stripe/route.ts][notifyWaitlist]", error);
+    });
   }
 }
 

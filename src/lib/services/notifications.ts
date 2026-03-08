@@ -322,3 +322,28 @@ export async function sendWaitlistConfirmationEmail(input: {
 
   return sendEmail({ to: input.to, subject, text, html });
 }
+
+export async function sendWaitlistAvailabilityEmail(input: {
+  to: string;
+  name?: string | null;
+  ticketName: string;
+  eventTitle: string;
+  eventUrl: string;
+}) {
+  const recipient = input.name?.trim() || "there";
+  const subject = `Ticket available: ${input.eventTitle}`;
+  const text = [
+    `Hi ${recipient},`,
+    "",
+    `Good news! A ${input.ticketName} ticket for ${input.eventTitle} is now available.`,
+    `Purchase here: ${input.eventUrl}`,
+  ].join("\n");
+
+  const html = `
+    <p>Hi ${recipient},</p>
+    <p>Good news! A <strong>${input.ticketName}</strong> ticket for <strong>${input.eventTitle}</strong> is now available.</p>
+    <p><a href="${input.eventUrl}">Purchase tickets</a></p>
+  `;
+
+  return sendEmail({ to: input.to, subject, text, html });
+}

@@ -4,6 +4,7 @@ import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
 import { refundPaidOrder } from "@/src/lib/services/order-refund";
+import { notifyWaitlist } from "@/src/lib/services/waitlist";
 
 export async function POST(
   req: NextRequest,
@@ -25,7 +26,15 @@ export async function POST(
         eventId: id,
         event: { organizerProfileId: profile.id },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        items: {
+          select: {
+            ticketTypeId: true,
+            quantity: true,
+          },
+        },
+      },
     });
     if (!order) return fail(404, { code: "NOT_FOUND", message: "Order not found" });
 
@@ -38,6 +47,12 @@ export async function POST(
         return fail(500, { code: refunded.error.code, message: refunded.error.message });
       }
       return fail(400, { code: refunded.error.code, message: refunded.error.message });
+    }
+
+    for (const item of order.items) {
+      void notifyWaitlist(item.ticketTypeId, item.quantity).catch((error) => {
+        console.error("[app/api/organizer/events/[id]/orders/[orderId]/refund/route.ts][notifyWaitlist]", error);
+      });
     }
 
     return ok(refunded.data);
