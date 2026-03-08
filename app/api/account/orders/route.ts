@@ -8,7 +8,7 @@ const PAGE_SIZE = 10;
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAttendee();
+    const session = await requireAttendee(req);
     const profile = await prisma.attendeeProfile.findUnique({ where: { userId: session.user.id } });
 
     if (!profile) {

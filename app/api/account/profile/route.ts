@@ -9,9 +9,9 @@ const profilePatchSchema = z.object({
   phone: z.string().max(30).optional(),
 });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const session = await requireAttendee();
+    const session = await requireAttendee(req);
     const profile = await prisma.attendeeProfile.findUnique({ where: { userId: session.user.id } });
 
     if (!profile) {
@@ -40,7 +40,7 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const session = await requireAttendee();
+    const session = await requireAttendee(req);
     const parsed = profilePatchSchema.safeParse(await req.json());
 
     if (!parsed.success) {
