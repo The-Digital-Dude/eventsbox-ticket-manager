@@ -78,6 +78,7 @@ const nav = [
   { href: "/admin/events", label: "Events" },
   { href: "/admin/venues", label: "Venues" },
   { href: "/admin/payouts", label: "Payouts" },
+  { href: "/admin/analytics", label: "Analytics" },
   { href: "/admin/config", label: "Platform Config" },
   { href: "/admin/categories", label: "Categories" },
   { href: "/admin/locations", label: "Locations" },
