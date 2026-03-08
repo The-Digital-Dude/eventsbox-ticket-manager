@@ -1,6 +1,6 @@
 # Phase 7 Plan — Promo Codes & Attendee Self-Service
 
-**Status:** TODO
+**Status:** DONE
 **Depends on:** Phase 6 complete ✅
 **Goal:** Give organizers promo/discount code tools, give attendees the ability to cancel orders, give admins attendee oversight, and give organizers exportable attendee lists.
 
@@ -272,16 +272,16 @@ Commit: `docs: phase 7 release notes and plan completion`
 
 | Task | Description | Status |
 |------|-------------|--------|
-| 1 | Schema migration (PromoCode + CancellationRequest) | TODO |
-| 2 | Organizer promo code API | TODO |
-| 3 | Organizer promo code management page | TODO |
-| 4 | Apply promo code at checkout | TODO |
-| 5 | Attendee order cancellation request | TODO |
-| 6 | Organizer cancellation request management | TODO |
-| 7 | Organizer attendee list export | TODO |
-| 8 | Admin attendee management | TODO |
-| 9 | Integration tests | TODO |
-| 10 | Release notes | TODO |
+| 1 | Schema migration (PromoCode + CancellationRequest) | DONE |
+| 2 | Organizer promo code API | DONE |
+| 3 | Organizer promo code management page | DONE |
+| 4 | Apply promo code at checkout | DONE |
+| 5 | Attendee order cancellation request | DONE |
+| 6 | Organizer cancellation request management | DONE |
+| 7 | Organizer attendee list export | DONE |
+| 8 | Admin attendee management | DONE |
+| 9 | Integration tests | DONE |
+| 10 | Release notes | DONE |
 
 ---
 
