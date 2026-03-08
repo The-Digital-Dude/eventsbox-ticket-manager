@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  BarChart2,
   Building2,
   CalendarDays,
   ClipboardCheck,
@@ -42,6 +43,7 @@ export function SidebarLayout({
     status: ClipboardCheck,
     onboarding: ListChecks,
     dashboard: LayoutDashboard,
+    analytics: BarChart2,
     payout: Wallet,
     payouts: Wallet,
     venues: Store,
