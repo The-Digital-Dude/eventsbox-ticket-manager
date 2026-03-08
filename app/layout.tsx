@@ -20,8 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             (function () {
               try {
                 var saved = localStorage.getItem("eventsbox-theme");
-                var useDark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
-                if (useDark) document.documentElement.classList.add("theme-dark");
+                if (saved === "dark") document.documentElement.classList.add("theme-dark");
               } catch (_) {}
             })();
           `}
