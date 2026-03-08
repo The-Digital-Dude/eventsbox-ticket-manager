@@ -10,6 +10,7 @@ import { Button } from "@/src/components/ui/button";
 type CategoryRow = { id: string; name: string };
 
 const nav = [
+  { href: "/admin/dashboard", label: "Dashboard" },
   { href: "/admin/organizers", label: "Organizers" },
   { href: "/admin/events", label: "Events" },
   { href: "/admin/venues", label: "Venues" },
