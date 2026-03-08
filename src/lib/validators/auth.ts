@@ -14,3 +14,8 @@ export const verifyEmailSchema = z.object({
 export const resetPasswordSchema = z.object({
   email: z.email(),
 });
+
+export const confirmResetSchema = z.object({
+  token: z.string().min(6),
+  password: z.string().min(8),
+});

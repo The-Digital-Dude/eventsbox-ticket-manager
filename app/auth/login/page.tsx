@@ -79,12 +79,19 @@ export default function LoginPage() {
                 {loading ? "Signing in..." : "Login"}
               </Button>
             </form>
-            <p className="mt-4 text-sm text-neutral-600">
-              New organizer?{" "}
-              <Link href="/auth/register" className="font-medium text-[var(--theme-accent)] hover:underline">
-                Create account
-              </Link>
-            </p>
+            <div className="mt-4 flex flex-col gap-1.5">
+              <p className="text-sm text-neutral-600">
+                New organizer?{" "}
+                <Link href="/auth/register" className="font-medium text-[var(--theme-accent)] hover:underline">
+                  Create account
+                </Link>
+              </p>
+              <p className="text-sm text-neutral-600">
+                <Link href="/auth/forgot-password" className="font-medium text-[var(--theme-accent)] hover:underline">
+                  Forgot password?
+                </Link>
+              </p>
+            </div>
           </CardContent>
         </Card>
       </section>
