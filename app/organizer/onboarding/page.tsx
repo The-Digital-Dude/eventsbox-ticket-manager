@@ -31,6 +31,7 @@ const nav = [
   { href: "/organizer/dashboard", label: "Dashboard" },
   { href: "/organizer/events", label: "Events" },
   { href: "/organizer/promo-codes", label: "Promo Codes" },
+  { href: "/organizer/cancellation-requests", label: "Cancellations" },
   { href: "/organizer/analytics", label: "Analytics" },
   { href: "/organizer/payout", label: "Payout" },
   { href: "/organizer/venues", label: "Venues" },

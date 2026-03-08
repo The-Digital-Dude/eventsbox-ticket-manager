@@ -274,3 +274,27 @@ export async function sendOrganizerCancellationRequestEmail(input: {
 
   return sendEmail({ to: input.to, subject, text, html });
 }
+
+export async function sendCancellationRejectedEmail(input: {
+  to: string;
+  buyerName: string;
+  eventTitle: string;
+  orderId: string;
+  adminNote?: string | null;
+}) {
+  const subject = `Cancellation request rejected: ${input.eventTitle}`;
+  const text = [
+    `Hi ${input.buyerName},`,
+    "",
+    `Your cancellation request for order ${input.orderId} (${input.eventTitle}) has been rejected.`,
+    ...(input.adminNote ? [`Organizer note: ${input.adminNote}`] : []),
+  ].join("\n");
+
+  const html = `
+    <p>Hi ${input.buyerName},</p>
+    <p>Your cancellation request for order <strong>${input.orderId}</strong> (${input.eventTitle}) has been rejected.</p>
+    ${input.adminNote ? `<p>Organizer note: ${input.adminNote}</p>` : ""}
+  `;
+
+  return sendEmail({ to: input.to, subject, text, html });
+}

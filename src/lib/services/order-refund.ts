@@ -27,7 +27,10 @@ type RefundResult =
       };
     };
 
-export async function refundPaidOrder(orderId: string): Promise<RefundResult> {
+export async function refundPaidOrder(
+  orderId: string,
+  options?: { allowAnyEventStatus?: boolean },
+): Promise<RefundResult> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
@@ -47,7 +50,7 @@ export async function refundPaidOrder(orderId: string): Promise<RefundResult> {
     };
   }
 
-  if (order.event.status !== "CANCELLED") {
+  if (!options?.allowAnyEventStatus && order.event.status !== "CANCELLED") {
     return {
       success: false,
       error: { code: "EVENT_NOT_CANCELLED", message: "Order can be refunded only when event is cancelled" },
