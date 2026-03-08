@@ -1,11 +1,66 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Ticket } from "lucide-react";
+
+type SessionRole = "ATTENDEE" | "ORGANIZER" | "SUPER_ADMIN" | null;
+
+type AuthState = {
+  loading: boolean;
+  role: SessionRole;
+};
 
 export function PublicNav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [auth, setAuth] = useState<AuthState>({ loading: true, role: null });
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSession() {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        if (!active) return;
+
+        if (!res.ok) {
+          setAuth({ loading: false, role: null });
+          return;
+        }
+
+        const payload = (await res.json()) as { data?: { role?: SessionRole } };
+        setAuth({ loading: false, role: payload.data?.role ?? null });
+      } catch {
+        if (active) {
+          setAuth({ loading: false, role: null });
+        }
+      }
+    }
+
+    void loadSession();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      setAuth({ loading: false, role: null });
+      router.refresh();
+      if (pathname?.startsWith("/account")) {
+        router.push("/auth/login");
+      }
+    } finally {
+      setLoggingOut(false);
+    }
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-white/90 backdrop-blur-md">
@@ -36,12 +91,54 @@ export function PublicNav() {
           >
             My Tickets
           </Link>
-          <Link
-            href="/auth/login"
-            className="ml-2 rounded-lg bg-[var(--theme-accent)] px-4 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
-          >
-            Sign In
-          </Link>
+
+          {!auth.loading && auth.role === "ATTENDEE" ? (
+            <>
+              <Link
+                href="/account/dashboard"
+                className="ml-2 rounded-lg bg-[var(--theme-accent)] px-4 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
+              >
+                My Account
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="ml-1 rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100"
+                disabled={loggingOut}
+              >
+                {loggingOut ? "Logging out..." : "Logout"}
+              </button>
+            </>
+          ) : !auth.loading && !auth.role ? (
+            <>
+              <Link
+                href="/auth/login"
+                className="ml-2 rounded-lg bg-[var(--theme-accent)] px-4 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/auth/register/attendee"
+                className="ml-1 rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100"
+              >
+                Register
+              </Link>
+            </>
+          ) : !auth.loading && (auth.role === "ORGANIZER" || auth.role === "SUPER_ADMIN") ? (
+            <Link
+              href="/auth/login"
+              className="ml-2 rounded-lg bg-[var(--theme-accent)] px-4 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
+            >
+              Sign In
+            </Link>
+          ) : (
+            <Link
+              href="/auth/login"
+              className="ml-2 rounded-lg bg-[var(--theme-accent)] px-4 py-1.5 text-sm font-medium text-white transition hover:opacity-90"
+            >
+              Sign In
+            </Link>
+          )}
         </nav>
       </div>
     </header>
