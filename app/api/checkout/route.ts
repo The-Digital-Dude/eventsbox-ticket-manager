@@ -4,6 +4,7 @@ import { fail, ok } from "@/src/lib/http/response";
 import { getStripeClient } from "@/src/lib/stripe/client";
 import { checkoutIntentSchema } from "@/src/lib/validators/event";
 import { getServerSession } from "@/src/lib/auth/server-auth";
+import { validatePromoCodeById } from "@/src/lib/services/promo-code";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
       return fail(400, { code: "VALIDATION_ERROR", message: "Invalid checkout data", details: parsed.error.flatten() });
     }
 
-    const { eventId, buyerName, buyerEmail, items } = parsed.data;
+    const { eventId, buyerName, buyerEmail, items, promoCodeId } = parsed.data;
 
     const event = await prisma.event.findFirst({
       where: { id: eventId, status: "PUBLISHED" },
@@ -51,31 +52,69 @@ export async function POST(req: NextRequest) {
     const gstPct = Number(event.gstPct);
     const platformFeeFixed = Number(event.platformFeeFixed);
 
-    const platformFee = parseFloat((subtotal * (commissionPct / 100) + platformFeeFixed).toFixed(2));
-    const gst = parseFloat(((subtotal + platformFee) * (gstPct / 100)).toFixed(2));
-    const total = parseFloat((subtotal + platformFee + gst).toFixed(2));
+    let promoCodeRecordId: string | undefined;
+    let discountAmount = 0;
+
+    if (promoCodeId) {
+      const promoCheck = await validatePromoCodeById({ promoCodeId, eventId });
+      if (!promoCheck.valid) {
+        return fail(400, { code: "INVALID_PROMO", message: promoCheck.message });
+      }
+
+      promoCodeRecordId = promoCheck.promoCode.id;
+      const promoDiscountValue = Number(promoCheck.promoCode.discountValue);
+      if (promoCheck.promoCode.discountType === "PERCENTAGE") {
+        discountAmount = subtotal * (promoDiscountValue / 100);
+      } else {
+        discountAmount = Math.min(promoDiscountValue, subtotal);
+      }
+      discountAmount = parseFloat(discountAmount.toFixed(2));
+    }
+
+    const discountedSubtotal = parseFloat(Math.max(0, subtotal - discountAmount).toFixed(2));
+    const platformFee = parseFloat((discountedSubtotal * (commissionPct / 100) + platformFeeFixed).toFixed(2));
+    const gst = parseFloat(((discountedSubtotal + platformFee) * (gstPct / 100)).toFixed(2));
+    const total = parseFloat((discountedSubtotal + platformFee + gst).toFixed(2));
+
+    const stripe = getStripeClient();
+    if (!stripe) {
+      return fail(500, { code: "STRIPE_UNAVAILABLE", message: "Payment system unavailable" });
+    }
 
     // Create pending order
-    const order = await prisma.order.create({
-      data: {
-        eventId,
-        buyerName,
-        buyerEmail,
-        subtotal,
-        platformFee,
-        gst,
-        total,
-        status: "PENDING",
-        items: {
-          create: resolvedItems.map((ri) => ({
-            ticketTypeId: ri.ticketType.id,
-            quantity: ri.quantity,
-            unitPrice: ri.unitPrice,
-            subtotal: ri.subtotal,
-          })),
+    const order = await prisma.$transaction(async (tx) => {
+      const createdOrder = await tx.order.create({
+        data: {
+          eventId,
+          buyerName,
+          buyerEmail,
+          subtotal,
+          discountAmount,
+          promoCodeId: promoCodeRecordId,
+          platformFee,
+          gst,
+          total,
+          status: "PENDING",
+          items: {
+            create: resolvedItems.map((ri) => ({
+              ticketTypeId: ri.ticketType.id,
+              quantity: ri.quantity,
+              unitPrice: ri.unitPrice,
+              subtotal: ri.subtotal,
+            })),
+          },
         },
-      },
-      include: { items: true },
+        include: { items: true },
+      });
+
+      if (promoCodeRecordId) {
+        await tx.promoCode.update({
+          where: { id: promoCodeRecordId },
+          data: { usedCount: { increment: 1 } },
+        });
+      }
+
+      return createdOrder;
     });
 
     // Link order to attendee account if logged in
@@ -90,13 +129,6 @@ export async function POST(req: NextRequest) {
           data: { attendeeUserId: attendeeProfile.id },
         });
       }
-    }
-
-    // Create Stripe payment intent
-    const stripe = getStripeClient();
-    if (!stripe) {
-      await prisma.order.delete({ where: { id: order.id } });
-      return fail(500, { code: "STRIPE_UNAVAILABLE", message: "Payment system unavailable" });
     }
 
     const intent = await stripe.paymentIntents.create({
@@ -114,7 +146,7 @@ export async function POST(req: NextRequest) {
     return ok({
       orderId: order.id,
       clientSecret: intent.client_secret,
-      summary: { subtotal, platformFee, gst, total },
+      summary: { subtotal, discountAmount, discountedSubtotal, platformFee, gst, total },
     });
   } catch (err) {
     console.error("Checkout error:", err);

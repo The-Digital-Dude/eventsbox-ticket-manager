@@ -41,6 +41,7 @@ export const checkoutIntentSchema = z.object({
   eventId: z.string().min(1),
   buyerName: z.string().min(2).max(200),
   buyerEmail: z.string().email(),
+  promoCodeId: z.string().cuid().optional(),
   items: z.array(z.object({
     ticketTypeId: z.string().min(1),
     quantity: z.coerce.number().int().min(1).max(20),

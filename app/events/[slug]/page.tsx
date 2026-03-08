@@ -46,6 +46,12 @@ type EventDetail = {
   organizerProfile: { companyName: string | null; brandName: string | null; website: string | null; supportEmail: string | null };
 };
 
+type AppliedPromo = {
+  promoCodeId: string;
+  discountType: "PERCENTAGE" | "FIXED";
+  discountValue: number;
+};
+
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
@@ -67,6 +73,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ slug: st
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
   const [checkingOut, setCheckingOut] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<AppliedPromo | null>(null);
+  const [promoError, setPromoError] = useState("");
+  const [promoSuccess, setPromoSuccess] = useState("");
+  const [applyingPromo, setApplyingPromo] = useState(false);
 
   useEffect(() => {
     fetch(`/api/public/events/${slug}`)
@@ -95,12 +106,71 @@ export default function EventDetailPage({ params }: { params: Promise<{ slug: st
     return sum + (Number(tt?.price ?? 0) * qty);
   }, 0);
 
+  const discountAmount = appliedPromo
+    ? parseFloat(
+        (
+          appliedPromo.discountType === "PERCENTAGE"
+            ? cartTotal * (appliedPromo.discountValue / 100)
+            : Math.min(appliedPromo.discountValue, cartTotal)
+        ).toFixed(2),
+      )
+    : 0;
+  const discountedSubtotal = parseFloat(Math.max(0, cartTotal - discountAmount).toFixed(2));
+
   const commissionPct = Number(event?.commissionPct ?? 10);
   const gstPct = Number(event?.gstPct ?? 15);
   const platformFeeFixed = Number(event?.platformFeeFixed ?? 0);
-  const platformFee = parseFloat((cartTotal * (commissionPct / 100) + platformFeeFixed).toFixed(2));
-  const gst = parseFloat(((cartTotal + platformFee) * (gstPct / 100)).toFixed(2));
-  const grandTotal = parseFloat((cartTotal + platformFee + gst).toFixed(2));
+  const platformFee = parseFloat((discountedSubtotal * (commissionPct / 100) + platformFeeFixed).toFixed(2));
+  const gst = parseFloat(((discountedSubtotal + platformFee) * (gstPct / 100)).toFixed(2));
+  const grandTotal = parseFloat((discountedSubtotal + platformFee + gst).toFixed(2));
+
+  async function applyPromo() {
+    if (!event) return;
+    if (!promoCode.trim()) {
+      setPromoError("Enter a promo code");
+      setPromoSuccess("");
+      setAppliedPromo(null);
+      return;
+    }
+
+    setApplyingPromo(true);
+    setPromoError("");
+    setPromoSuccess("");
+
+    const res = await fetch("/api/checkout/validate-promo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: promoCode.trim(), eventId: event.id }),
+    });
+    const payload = await res.json();
+    setApplyingPromo(false);
+
+    if (!res.ok) {
+      setPromoError(payload?.error?.message ?? "Unable to validate promo code");
+      setAppliedPromo(null);
+      return;
+    }
+
+    if (!payload?.data?.valid) {
+      setPromoError(payload?.data?.message ?? "Promo code is invalid");
+      setAppliedPromo(null);
+      return;
+    }
+
+    const promoData = payload.data as {
+      valid: true;
+      promoCodeId: string;
+      discountType: "PERCENTAGE" | "FIXED";
+      discountValue: number | string;
+    };
+    setAppliedPromo({
+      promoCodeId: promoData.promoCodeId,
+      discountType: promoData.discountType,
+      discountValue: Number(promoData.discountValue),
+    });
+    setPromoSuccess(`Promo applied: ${promoData.discountType === "PERCENTAGE" ? `${promoData.discountValue}%` : `$${Number(promoData.discountValue).toFixed(2)}`} off`);
+    setPromoError("");
+  }
 
   async function checkout() {
     if (cartItems.length === 0) return toast.error("Select at least one ticket");
@@ -116,6 +186,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ slug: st
         buyerName: buyerName.trim(),
         buyerEmail: buyerEmail.trim(),
         items: cartItems.map(([ticketTypeId, quantity]) => ({ ticketTypeId, quantity })),
+        ...(appliedPromo ? { promoCodeId: appliedPromo.promoCodeId } : {}),
       }),
     });
     const payload = await res.json();
@@ -313,6 +384,25 @@ export default function EventDetailPage({ params }: { params: Promise<{ slug: st
             {/* Fee breakdown */}
             {cartItems.length > 0 && (
               <section className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm text-sm">
+                <h3 className="mb-3 font-semibold text-neutral-900">Promo Code</h3>
+                <div className="flex gap-2">
+                  <Input
+                    value={promoCode}
+                    onChange={(event) => setPromoCode(event.target.value.toUpperCase())}
+                    placeholder="Enter promo code"
+                    maxLength={20}
+                  />
+                  <Button type="button" variant="outline" onClick={applyPromo} disabled={applyingPromo}>
+                    {applyingPromo ? "Applying..." : "Apply"}
+                  </Button>
+                </div>
+                {promoError && <p className="mt-2 text-xs text-red-600">{promoError}</p>}
+                {promoSuccess && <p className="mt-2 text-xs text-emerald-600">{promoSuccess}</p>}
+              </section>
+            )}
+
+            {cartItems.length > 0 && (
+              <section className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm text-sm">
                 <h3 className="mb-3 font-semibold text-neutral-900">Order Summary</h3>
                 {cartItems.map(([ttId, qty]) => {
                   const tt = event.ticketTypes.find((t) => t.id === ttId);
@@ -326,6 +416,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ slug: st
                 })}
                 <div className="my-2 border-t border-[var(--border)]" />
                 <div className="flex justify-between text-neutral-600"><span>Subtotal</span><span>${cartTotal.toFixed(2)}</span></div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>Discount</span>
+                    <span>- ${discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-neutral-600"><span>Platform fee ({commissionPct}%{platformFeeFixed > 0 ? ` + $${platformFeeFixed.toFixed(2)}` : ""})</span><span>${platformFee.toFixed(2)}</span></div>
                 <div className="flex justify-between text-neutral-600"><span>GST ({gstPct}%)</span><span>${gst.toFixed(2)}</span></div>
                 <div className="my-2 border-t border-[var(--border)]" />
