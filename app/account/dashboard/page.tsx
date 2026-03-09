@@ -29,10 +29,15 @@ export default async function AccountDashboardPage() {
         <p className="mt-2 text-sm text-neutral-600">Total orders: {profile._count.orders}</p>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
+      <section className="grid gap-4 md:grid-cols-3">
         <Link href="/account/orders" className="rounded-xl border border-[var(--border)] bg-white p-6 shadow-sm transition hover:border-[var(--theme-accent)]">
           <h2 className="text-lg font-semibold text-neutral-900">My Orders</h2>
           <p className="mt-2 text-sm text-neutral-600">View your paid and refunded order history.</p>
+        </Link>
+
+        <Link href="/account/tickets" className="rounded-xl border border-[var(--border)] bg-white p-6 shadow-sm transition hover:border-[var(--theme-accent)]">
+          <h2 className="text-lg font-semibold text-neutral-900">My Tickets</h2>
+          <p className="mt-2 text-sm text-neutral-600">Access your QR tickets for upcoming and past events.</p>
         </Link>
 
         <Link href="/account/profile" className="rounded-xl border border-[var(--border)] bg-white p-6 shadow-sm transition hover:border-[var(--theme-accent)]">
