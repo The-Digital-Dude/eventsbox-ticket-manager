@@ -12,7 +12,9 @@ const {
   orderUpdateManyMock,
   transactionOrderUpdateMock,
   transactionTicketTypeUpdateMock,
-  transactionQRTicketCreateManyMock,
+  transactionQRTicketCreateMock,
+  transactionEventSeatBookingFindManyMock,
+  transactionEventSeatBookingUpdateManyMock,
   transactionMock,
   sendOrderConfirmationEmailMock,
   notifyWaitlistMock,
@@ -27,7 +29,9 @@ const {
   orderUpdateManyMock: vi.fn(),
   transactionOrderUpdateMock: vi.fn(),
   transactionTicketTypeUpdateMock: vi.fn(),
-  transactionQRTicketCreateManyMock: vi.fn(),
+  transactionQRTicketCreateMock: vi.fn(),
+  transactionEventSeatBookingFindManyMock: vi.fn(),
+  transactionEventSeatBookingUpdateManyMock: vi.fn(),
   transactionMock: vi.fn(),
   sendOrderConfirmationEmailMock: vi.fn(),
   notifyWaitlistMock: vi.fn(),
@@ -148,12 +152,21 @@ describe("order confirmation email integration", () => {
 
     transactionOrderUpdateMock.mockResolvedValue(undefined);
     transactionTicketTypeUpdateMock.mockResolvedValue(undefined);
-    transactionQRTicketCreateManyMock.mockResolvedValue({ count: 2 });
+    transactionQRTicketCreateMock.mockResolvedValue(undefined);
+    transactionEventSeatBookingFindManyMock.mockResolvedValue([
+      { seatId: "Main-A1", seatLabel: "Main A1" },
+      { seatId: "Main-A2", seatLabel: "Main A2" },
+    ]);
+    transactionEventSeatBookingUpdateManyMock.mockResolvedValue({ count: 2 });
     transactionMock.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) =>
       callback({
         order: { update: transactionOrderUpdateMock },
         ticketType: { update: transactionTicketTypeUpdateMock },
-        qRTicket: { createMany: transactionQRTicketCreateManyMock },
+        qRTicket: { create: transactionQRTicketCreateMock },
+        eventSeatBooking: {
+          findMany: transactionEventSeatBookingFindManyMock,
+          updateMany: transactionEventSeatBookingUpdateManyMock,
+        },
       }),
     );
 
@@ -180,11 +193,16 @@ describe("order confirmation email integration", () => {
       where: { id: "order-1" },
       data: { status: "PAID", paidAt: expect.any(Date) },
     });
-    expect(transactionQRTicketCreateManyMock).toHaveBeenCalledWith(
+    expect(transactionEventSeatBookingUpdateManyMock).toHaveBeenCalledWith({
+      where: { orderId: "order-1" },
+      data: { status: "BOOKED", expiresAt: null },
+    });
+    expect(transactionQRTicketCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.arrayContaining([
-          expect.objectContaining({ orderId: "order-1", orderItemId: "item-1" }),
-        ]),
+        data: expect.objectContaining({
+          orderId: "order-1",
+          orderItemId: "item-1",
+        }),
       }),
     );
     expect(sendOrderConfirmationEmailMock).toHaveBeenCalledWith(

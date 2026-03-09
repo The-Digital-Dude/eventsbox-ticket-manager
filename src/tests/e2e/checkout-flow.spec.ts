@@ -26,7 +26,27 @@ test("attendee can complete mocked checkout and land on order confirmation", asy
           commissionPct: 10,
           platformFeeFixed: 0,
           category: { name: "Music" },
-          venue: { name: "Mock Arena", addressLine1: "Mock Street 1" },
+          venue: {
+            name: "Mock Arena",
+            addressLine1: "Mock Street 1",
+            seatingConfig: {
+              mapType: "seats",
+              sections: [
+                {
+                  id: "main",
+                  name: "Main",
+                  mapType: "seats",
+                  rowStart: 0,
+                  maxRows: 1,
+                  columns: [{ index: 1, rows: 1, seats: 3 }],
+                },
+              ],
+              seatState: {},
+              summary: { totalSeats: 3, totalTables: 0, sectionCount: 1 },
+              schemaVersion: 1,
+            },
+            seatState: {},
+          },
           state: { name: "Dhaka" },
           city: { name: "Dhaka" },
           organizerProfile: { companyName: "Mock Org", brandName: "Mock Org", website: null, supportEmail: null },
@@ -44,6 +64,28 @@ test("attendee can complete mocked checkout and land on order confirmation", asy
               saleEndAt: null,
             },
           ],
+        },
+      }),
+    });
+  });
+
+  await page.route("**/api/public/events/mock-concert/seats", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          seatingEnabled: true,
+          statuses: {
+            "Main-A3": { status: "BOOKED", seatLabel: "Main A3", expiresAt: null },
+          },
+          seatAvailability: {
+            "Main-A3": "booked",
+          },
+          summary: { booked: 1, reserved: 0 },
+          refreshIntervalMs: 10000,
+          updatedAt: new Date().toISOString(),
         },
       }),
     });
@@ -114,8 +156,10 @@ test("attendee can complete mocked checkout and land on order confirmation", asy
 
   await page.goto("/events/mock-concert");
   await expect(page.getByRole("heading", { name: "Mock Concert" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Seating plan" })).toBeVisible();
 
   await page.locator("button", { hasText: "+" }).first().click();
+  await page.getByRole("button", { name: "1" }).first().click();
   await page.getByPlaceholder("Jane Smith").fill("Mock Buyer");
   await page.getByPlaceholder("jane@example.com").fill("buyer@mock.local");
   await page.getByRole("button", { name: "Pay $63.25" }).click();

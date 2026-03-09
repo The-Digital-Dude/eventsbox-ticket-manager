@@ -1,6 +1,18 @@
 # Current Task
 
 ## Active Task
+**Phase 10 — Pre-Launch Bug Fixes**
+
+**Status:** TODO — see `docs/tasks/phase-10-plan.md` for full plan
+
+**Latest Handoff (2026-03-10):**
+- Public event pages now expose venue seating layouts and a live seat-status endpoint for attendee-facing seat maps.
+- Seated-event checkout now requires seat selection, reserves seats during payment, and converts them to booked seats on successful Stripe webhook processing.
+- Event detail UI now polls live seat status and shows available, reserved, booked, and selected seat states.
+
+---
+
+## Previous Task
 **Phase 9 — Buyer Experience & Soft Launch Readiness**
 
 **Status:** Completed on 2026-03-10

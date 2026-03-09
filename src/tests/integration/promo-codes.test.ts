@@ -16,6 +16,8 @@ const {
   orderUpdateMock,
   attendeeProfileFindUniqueMock,
   orderCreateMock,
+  txEventFindFirstMock,
+  txEventSeatBookingDeleteManyMock,
   txPromoCodeUpdateMock,
   prismaTransactionMock,
 } = vi.hoisted(() => ({
@@ -32,6 +34,8 @@ const {
   orderUpdateMock: vi.fn(),
   attendeeProfileFindUniqueMock: vi.fn(),
   orderCreateMock: vi.fn(),
+  txEventFindFirstMock: vi.fn(),
+  txEventSeatBookingDeleteManyMock: vi.fn(),
   txPromoCodeUpdateMock: vi.fn(),
   prismaTransactionMock: vi.fn(),
 }));
@@ -127,12 +131,21 @@ describe("promo codes integration", () => {
 
     orderCreateMock.mockResolvedValue({
       id: "order-1",
+      subtotal: new Prisma.Decimal(100),
+      discountAmount: new Prisma.Decimal(10),
+      platformFee: new Prisma.Decimal(9),
+      gst: new Prisma.Decimal(14.85),
+      total: new Prisma.Decimal(113.85),
       items: [{ id: "item-1", ticketTypeId: "ticket-1", quantity: 2 }],
     });
+    txEventFindFirstMock.mockResolvedValue(null);
+    txEventSeatBookingDeleteManyMock.mockResolvedValue({ count: 0 });
     txPromoCodeUpdateMock.mockResolvedValue({});
 
     prismaTransactionMock.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) =>
       callback({
+        event: { findFirst: txEventFindFirstMock },
+        eventSeatBooking: { deleteMany: txEventSeatBookingDeleteManyMock },
         order: { create: orderCreateMock },
         promoCode: { update: txPromoCodeUpdateMock },
       }),
@@ -202,12 +215,13 @@ describe("promo codes integration", () => {
 
   it("applies promo in checkout and increments promo usedCount", async () => {
     const promoCodeId = "ckpromo000000000000000001";
-    eventFindFirstMock.mockResolvedValue({
+    const publishedEvent = {
       id: "event-1",
       status: "PUBLISHED",
       commissionPct: new Prisma.Decimal(10),
       gstPct: new Prisma.Decimal(15),
       platformFeeFixed: new Prisma.Decimal(0),
+      venue: null,
       ticketTypes: [
         {
           id: "ticket-1",
@@ -219,7 +233,9 @@ describe("promo codes integration", () => {
           name: "General",
         },
       ],
-    });
+    };
+    eventFindFirstMock.mockResolvedValue(publishedEvent);
+    txEventFindFirstMock.mockResolvedValue(publishedEvent);
 
     const req = new NextRequest("http://localhost/api/checkout", {
       method: "POST",
