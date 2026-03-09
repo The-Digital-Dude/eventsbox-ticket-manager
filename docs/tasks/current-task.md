@@ -3,6 +3,8 @@
 ## Active Task
 **Phase 9 — Buyer Experience & Soft Launch Readiness**
 
+**Status:** Completed on 2026-03-10
+
 ---
 
 ## Phase 9 Overview
@@ -201,11 +203,18 @@ P9-A8 (docs)                   → last
 
 | Task | Status |
 |------|--------|
-| P9-A1 — Order Confirmation Email | TODO |
-| P9-A2 — Attendee Ticket Wallet | TODO |
-| P9-A3 — OG Meta Tags Per Event | TODO |
-| P9-A4 — Sitemap + robots.txt | TODO |
-| P9-A5 — Organizer Public Profile | TODO |
-| P9-A6 — Admin Bulk Event Actions | TODO |
-| P9-A7 — Integration Tests | TODO |
-| P9-A8 — Docs Update | TODO |
+| P9-A1 — Order Confirmation Email | DONE |
+| P9-A2 — Attendee Ticket Wallet | DONE |
+| P9-A3 — OG Meta Tags Per Event | DONE |
+| P9-A4 — Sitemap + robots.txt | DONE |
+| P9-A5 — Organizer Public Profile | DONE |
+| P9-A6 — Admin Bulk Event Actions | DONE |
+| P9-A7 — Integration Tests | DONE |
+| P9-A8 — Docs Update | DONE |
+
+## Completion Notes
+
+- Buyer confirmations now include ticket QR codes generated from `QRTicket.id`, and the organizer scanner accepts both legacy token values and the new ticket-ID QR payloads.
+- Attendees now have a dedicated `/account/tickets` wallet with downloadable QR images and protected QR PNG delivery.
+- Public discovery is improved through sitemap/robots coverage, event OG metadata, and organizer profile pages.
+- Admin launch readiness is improved through bulk event moderation and dedicated integration coverage for the new attendee and admin flows.
