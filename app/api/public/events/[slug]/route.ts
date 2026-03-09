@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
+import { sanitizePublicSeatState } from "@/src/lib/venue-seating";
+import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -9,7 +11,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
     where: { slug, status: "PUBLISHED" },
     include: {
       category: { select: { id: true, name: true } },
-      venue: { select: { id: true, name: true, addressLine1: true } },
+      venue: {
+        select: {
+          id: true,
+          name: true,
+          addressLine1: true,
+          seatingConfig: true,
+          seatState: true,
+        },
+      },
       state: { select: { id: true, name: true } },
       city: { select: { id: true, name: true } },
       ticketTypes: {
@@ -42,5 +52,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
 
   if (!event) return fail(404, { code: "NOT_FOUND", message: "Event not found" });
 
-  return ok(event);
+  return ok({
+    ...event,
+    venue: event.venue
+      ? {
+          ...event.venue,
+          seatingConfig: (event.venue.seatingConfig as VenueSeatingConfig | null) ?? null,
+          seatState: sanitizePublicSeatState((event.venue.seatState as Record<string, SeatState> | null) ?? null),
+        }
+      : null,
+  });
 }

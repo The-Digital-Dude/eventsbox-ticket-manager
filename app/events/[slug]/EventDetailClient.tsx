@@ -5,10 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Building2, CalendarDays, Mail, MapPin, Phone, Share2 } from "lucide-react";
 import { toast } from "sonner";
+import { SeatMapLive } from "@/src/components/shared/seat-map-live";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import type {
+  PublicSeatBookingState,
+  SeatState,
+  VenueSeatingConfig,
+} from "@/src/types/venue-seating";
 
 type TicketType = {
   id: string;
@@ -40,7 +46,12 @@ type EventDetail = {
   commissionPct: number | string;
   platformFeeFixed: number | string;
   category: { name: string } | null;
-  venue: { name: string; addressLine1: string } | null;
+  venue: {
+    name: string;
+    addressLine1: string;
+    seatingConfig?: VenueSeatingConfig | null;
+    seatState?: Record<string, SeatState> | null;
+  } | null;
   state: { name: string } | null;
   city: { name: string } | null;
   ticketTypes: TicketType[];
@@ -57,6 +68,13 @@ type AppliedPromo = {
   promoCodeId: string;
   discountType: "PERCENTAGE" | "FIXED";
   discountValue: number;
+};
+
+type SeatAvailabilityPayload = {
+  seatingEnabled: boolean;
+  statuses: Record<string, PublicSeatBookingState>;
+  refreshIntervalMs: number;
+  updatedAt: string;
 };
 
 function formatDateTime(iso: string) {
@@ -90,6 +108,10 @@ export function EventDetailClient({ slug }: { slug: string }) {
   const [waitlistSubmittingFor, setWaitlistSubmittingFor] = useState<string | null>(null);
   const [waitlistMessageByTicket, setWaitlistMessageByTicket] = useState<Record<string, string>>({});
   const [waitlistErrorByTicket, setWaitlistErrorByTicket] = useState<Record<string, string>>({});
+  const [selectedSeatIds, setSelectedSeatIds] = useState<string[]>([]);
+  const [seatAvailability, setSeatAvailability] = useState<Record<string, PublicSeatBookingState>>({});
+  const [seatAvailabilityLoading, setSeatAvailabilityLoading] = useState(false);
+  const [seatPollIntervalMs, setSeatPollIntervalMs] = useState(10_000);
 
   useEffect(() => {
     fetch(`/api/public/events/${slug}`)
@@ -105,6 +127,59 @@ export function EventDetailClient({ slug }: { slug: string }) {
         setLoading(false);
       });
   }, [slug]);
+
+  useEffect(() => {
+    if (!event?.venue?.seatingConfig) {
+      setSeatAvailability({});
+      setSeatAvailabilityLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    async function loadSeatAvailability(showLoading: boolean) {
+      if (showLoading) {
+        setSeatAvailabilityLoading(true);
+      }
+
+      try {
+        const response = await fetch(`/api/public/events/${slug}/seats`, {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as { data?: SeatAvailabilityPayload };
+        if (!active || !payload.data) {
+          return;
+        }
+
+        setSeatAvailability(payload.data.statuses ?? {});
+        setSeatPollIntervalMs(payload.data.refreshIntervalMs ?? 10_000);
+      } finally {
+        if (active) {
+          setSeatAvailabilityLoading(false);
+        }
+      }
+    }
+
+    void loadSeatAvailability(true);
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+
+      void loadSeatAvailability(false);
+    }, seatPollIntervalMs);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [event?.venue?.seatingConfig, seatPollIntervalMs, slug]);
 
   function setQty(ticketTypeId: string, qty: number) {
     setCart((prev) => {
@@ -143,6 +218,46 @@ export function EventDetailClient({ slug }: { slug: string }) {
   );
   const gst = parseFloat(((discountedSubtotal + platformFee) * (gstPct / 100)).toFixed(2));
   const grandTotal = parseFloat((discountedSubtotal + platformFee + gst).toFixed(2));
+  const totalSelectedTickets = cartItems.reduce((sum, [, qty]) => sum + qty, 0);
+  const requiresSeatSelection = Boolean(event?.venue?.seatingConfig);
+  const bookedSeatCount = Object.values(seatAvailability).filter((seat) => seat.status === "BOOKED").length;
+  const reservedSeatCount = Object.values(seatAvailability).filter((seat) => seat.status === "RESERVED").length;
+
+  useEffect(() => {
+    setSelectedSeatIds((prev) => prev.slice(0, totalSelectedTickets));
+  }, [totalSelectedTickets]);
+
+  useEffect(() => {
+    setSelectedSeatIds((prev) =>
+      prev.filter((seatId) => (seatAvailability[seatId]?.status ?? "AVAILABLE") === "AVAILABLE"),
+    );
+  }, [seatAvailability]);
+
+  function toggleSeatSelection(seatId: string) {
+    if (!requiresSeatSelection) return;
+    if (totalSelectedTickets <= 0) {
+      toast.error("Select your ticket quantity first");
+      return;
+    }
+
+    const availability = seatAvailability[seatId]?.status ?? "AVAILABLE";
+    if (availability !== "AVAILABLE" && !selectedSeatIds.includes(seatId)) {
+      return;
+    }
+
+    setSelectedSeatIds((prev) => {
+      if (prev.includes(seatId)) {
+        return prev.filter((entry) => entry !== seatId);
+      }
+
+      if (prev.length >= totalSelectedTickets) {
+        toast.error(`You can only select ${totalSelectedTickets} seat${totalSelectedTickets === 1 ? "" : "s"}`);
+        return prev;
+      }
+
+      return [...prev, seatId];
+    });
+  }
 
   async function applyPromo() {
     if (!event) return;
@@ -247,6 +362,9 @@ export function EventDetailClient({ slug }: { slug: string }) {
     if (cartItems.length === 0) return toast.error("Select at least one ticket");
     if (!buyerName.trim()) return toast.error("Enter your name");
     if (!buyerEmail.trim()) return toast.error("Enter your email");
+    if (requiresSeatSelection && selectedSeatIds.length !== totalSelectedTickets) {
+      return toast.error(`Select ${totalSelectedTickets} seat${totalSelectedTickets === 1 ? "" : "s"} before checkout`);
+    }
 
     setCheckingOut(true);
     const res = await fetch("/api/checkout", {
@@ -257,6 +375,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
         buyerName: buyerName.trim(),
         buyerEmail: buyerEmail.trim(),
         items: cartItems.map(([ticketTypeId, quantity]) => ({ ticketTypeId, quantity })),
+        ...(requiresSeatSelection ? { selectedSeatIds } : {}),
         ...(appliedPromo ? { promoCodeId: appliedPromo.promoCodeId } : {}),
       }),
     });
@@ -364,6 +483,42 @@ export function EventDetailClient({ slug }: { slug: string }) {
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">
                   {event.description}
                 </p>
+              </section>
+            )}
+
+            {event.venue?.seatingConfig && (
+              <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-neutral-900">Seating plan</h2>
+                    <p className="mt-1 text-sm text-neutral-600">
+                      Pick your seats and watch live availability update automatically.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <Badge className="border-transparent bg-red-100 text-red-700">
+                      {bookedSeatCount} booked
+                    </Badge>
+                    {reservedSeatCount > 0 ? (
+                      <Badge className="border-transparent bg-amber-100 text-amber-700">
+                        {reservedSeatCount} reserved
+                      </Badge>
+                    ) : null}
+                    {selectedSeatIds.length > 0 ? (
+                      <Badge className="border-transparent bg-sky-100 text-sky-700">
+                        {selectedSeatIds.length} selected
+                      </Badge>
+                    ) : null}
+                    {seatAvailabilityLoading ? <Badge>Refreshing…</Badge> : null}
+                  </div>
+                </div>
+                <SeatMapLive
+                  config={event.venue.seatingConfig}
+                  seatState={event.venue.seatState}
+                  bookingStates={seatAvailability}
+                  selectedSeatIds={selectedSeatIds}
+                  onSeatToggle={toggleSeatSelection}
+                />
               </section>
             )}
 
@@ -633,6 +788,11 @@ export function EventDetailClient({ slug }: { slug: string }) {
                   <span>Total</span>
                   <span>${grandTotal.toFixed(2)}</span>
                 </div>
+                {requiresSeatSelection && (
+                  <div className="mt-3 rounded-xl border border-[rgb(var(--theme-accent-rgb)/0.16)] bg-[rgb(var(--theme-accent-rgb)/0.05)] px-3 py-2 text-xs text-neutral-700">
+                    Seats selected: {selectedSeatIds.length}/{totalSelectedTickets}
+                  </div>
+                )}
               </section>
             )}
 

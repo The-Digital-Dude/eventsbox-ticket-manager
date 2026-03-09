@@ -12,6 +12,7 @@ type QRTicket = {
   id: string;
   token: string;
   ticketNumber: string;
+  seatLabel?: string | null;
   checkedInAt: string | null;
 };
 
@@ -199,6 +200,7 @@ export default function OrderConfirmationPage({ params }: { params: Promise<{ id
                   <div>
                     <p className="font-semibold text-neutral-900">{ticket.ticketType.name}</p>
                     <p className="mt-1 font-mono text-xs text-neutral-500">{ticket.ticketNumber}</p>
+                    {ticket.seatLabel ? <p className="mt-1 text-xs text-neutral-600">{ticket.seatLabel}</p> : null}
                     {ticket.checkedInAt ? (
                       <Badge className="mt-2 bg-emerald-100 text-emerald-700 border-transparent">
                         Checked in {formatDateTime(ticket.checkedInAt)}

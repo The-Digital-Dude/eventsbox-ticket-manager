@@ -1,27 +1,43 @@
 "use client";
 
 import { Badge } from "@/src/components/ui/badge";
-import type { SeatState, SeatingSection, VenueSeatingConfig } from "@/src/types/venue-seating";
+import { buildSeatId, buildTableSeatId, rowLabel } from "@/src/lib/venue-seating";
+import type { SeatAvailabilityStatus, SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
-function rowLabel(index: number) {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  if (index <= alphabet.length) {
-    return alphabet[index - 1];
+function getSeatTone(
+  state: SeatState,
+  availability?: SeatAvailabilityStatus,
+) {
+  if (availability === "booked") {
+    return "border-red-300 bg-red-100 text-red-800";
   }
-  const first = Math.floor((index - 1) / alphabet.length) - 1;
-  const second = (index - 1) % alphabet.length;
-  return `${alphabet[first]}${alphabet[second]}`;
+
+  if (availability === "reserved") {
+    return "border-amber-300 bg-amber-100 text-amber-800";
+  }
+
+  if (state.selected) {
+    return "border-emerald-700 bg-emerald-300 text-emerald-950";
+  }
+
+  return "border-neutral-300 bg-neutral-50 text-neutral-700";
 }
 
-function buildSeatId(section: SeatingSection, rowName: string, seatNo: number) {
-  return `${section.name || section.id}-${rowName}${seatNo}`;
-}
-
-function buildTableSeatId(section: SeatingSection, tableIndex: number, seatIndex: number) {
-  return `${section.name || section.id}-T${tableIndex}-S${seatIndex}`;
-}
-
-export function SeatMapReadOnly({ config, seatState, compact = false }: { config: VenueSeatingConfig; seatState?: Record<string, SeatState> | null; compact?: boolean }) {
+export function SeatMapReadOnly({
+  config,
+  seatState,
+  seatAvailability,
+  compact = false,
+  showLegend = Boolean(seatAvailability),
+  onSeatClick,
+}: {
+  config: VenueSeatingConfig;
+  seatState?: Record<string, SeatState> | null;
+  seatAvailability?: Record<string, SeatAvailabilityStatus> | null;
+  compact?: boolean;
+  showLegend?: boolean;
+  onSeatClick?: (seatId: string) => void;
+}) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-xs">
@@ -29,6 +45,23 @@ export function SeatMapReadOnly({ config, seatState, compact = false }: { config
         <Badge>Total Seats: {config.summary.totalSeats}</Badge>
         <Badge>Total Tables: {config.summary.totalTables}</Badge>
       </div>
+
+      {showLegend ? (
+        <div className="flex flex-wrap gap-3 text-xs text-neutral-600">
+          <span className="inline-flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full border border-neutral-300 bg-neutral-50" />
+            Available
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full border border-amber-300 bg-amber-100" />
+            Reserved
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full border border-red-300 bg-red-100" />
+            Booked
+          </span>
+        </div>
+      ) : null}
 
       {config.sections.map((section) => {
         const blockClass = compact
@@ -58,13 +91,24 @@ export function SeatMapReadOnly({ config, seatState, compact = false }: { config
                         const y = size / 2 + radius * Math.sin(angle) - seatSize / 2;
                         const seatId = buildTableSeatId(section, tableIndex, seatIdx + 1);
                         const state = seatState?.[seatId] ?? {};
+                        const availability = seatAvailability?.[seatId];
+                        const isClickable = Boolean(onSeatClick) && !state.deleted && availability !== "booked" && availability !== "reserved";
                         return (
                           <div
                             key={seatId}
                             className={`absolute grid place-items-center rounded-full border text-[10px] ${
-                              state.deleted ? "invisible" : state.selected ? "border-emerald-700 bg-emerald-300" : "border-neutral-300 bg-neutral-50"
-                            }`}
+                              state.deleted ? "invisible" : getSeatTone(state, availability)
+                            } ${isClickable ? "cursor-pointer transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--theme-accent-rgb)/0.35)]" : ""}`}
                             style={{ width: seatSize, height: seatSize, left: x, top: y }}
+                            onClick={isClickable ? () => onSeatClick?.(seatId) : undefined}
+                            onKeyDown={isClickable ? (event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                onSeatClick?.(seatId);
+                              }
+                            } : undefined}
+                            role={isClickable ? "button" : undefined}
+                            tabIndex={isClickable ? 0 : undefined}
                           >
                             {seatIdx + 1}
                           </div>
@@ -90,14 +134,25 @@ export function SeatMapReadOnly({ config, seatState, compact = false }: { config
                                 const seatNo = offsetBefore + seatIdx + 1;
                                 const seatId = buildSeatId(section, rLabel, seatNo);
                                 const state = seatState?.[seatId] ?? {};
+                                const availability = seatAvailability?.[seatId];
                                 const offset = state.offset ?? 0;
+                                const isClickable = Boolean(onSeatClick) && !state.deleted && availability !== "booked" && availability !== "reserved";
                                 return (
                                   <div
                                     key={seatId}
                                     className={`grid h-6 w-6 place-items-center rounded-md border text-[10px] ${
-                                      state.deleted ? "invisible" : state.selected ? "border-emerald-700 bg-emerald-300" : "border-neutral-300 bg-neutral-50"
-                                    }`}
+                                      state.deleted ? "invisible" : getSeatTone(state, availability)
+                                    } ${isClickable ? "cursor-pointer transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--theme-accent-rgb)/0.35)]" : ""}`}
                                     style={{ transform: `translateX(${offset}px)` }}
+                                    onClick={isClickable ? () => onSeatClick?.(seatId) : undefined}
+                                    onKeyDown={isClickable ? (event) => {
+                                      if (event.key === "Enter" || event.key === " ") {
+                                        event.preventDefault();
+                                        onSeatClick?.(seatId);
+                                      }
+                                    } : undefined}
+                                    role={isClickable ? "button" : undefined}
+                                    tabIndex={isClickable ? 0 : undefined}
                                   >
                                     {seatNo}
                                   </div>

@@ -8,6 +8,7 @@ import { Badge } from "@/src/components/ui/badge";
 type TicketCard = {
   id: string;
   ticketNumber: string;
+  seatLabel: string | null;
   checkedInAt: Date | null;
   eventTitle: string;
   eventSlug: string;
@@ -38,7 +39,7 @@ function buildTicketCards(
     };
     items: Array<{
       ticketType: { name: string };
-      tickets: Array<{ id: string; ticketNumber: string; checkedInAt: Date | null }>;
+      tickets: Array<{ id: string; ticketNumber: string; seatLabel: string | null; checkedInAt: Date | null }>;
     }>;
   }>,
 ) {
@@ -47,6 +48,7 @@ function buildTicketCards(
       item.tickets.map((ticket) => ({
         id: ticket.id,
         ticketNumber: ticket.ticketNumber,
+        seatLabel: ticket.seatLabel,
         checkedInAt: ticket.checkedInAt,
         eventTitle: order.event.title,
         eventSlug: order.event.slug,
@@ -106,6 +108,7 @@ async function loadAccountTickets() {
               select: {
                 id: true,
                 ticketNumber: true,
+                seatLabel: true,
                 checkedInAt: true,
               },
             },
@@ -171,6 +174,7 @@ function TicketSection({
                 <h3 className="text-lg font-semibold text-neutral-900">{ticket.eventTitle}</h3>
                 <p className="text-sm text-neutral-600">{ticket.ticketTypeName}</p>
                 <p className="font-mono text-xs text-neutral-500">{ticket.ticketNumber}</p>
+                {ticket.seatLabel ? <p className="text-xs text-neutral-600">{ticket.seatLabel}</p> : null}
               </div>
               {ticket.checkedInAt ? (
                 <Badge className="border-transparent bg-emerald-100 text-emerald-700">

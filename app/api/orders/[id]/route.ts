@@ -25,7 +25,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         include: {
           ticketType: { select: { id: true, name: true, kind: true } },
           tickets: {
-            select: { id: true, token: true, ticketNumber: true, checkedInAt: true },
+            select: { id: true, token: true, ticketNumber: true, seatLabel: true, checkedInAt: true },
           },
         },
       },
