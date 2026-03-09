@@ -146,6 +146,11 @@ async function handlePaymentSucceeded(intent: Stripe.PaymentIntent) {
           title: true,
           startAt: true,
           timezone: true,
+          venue: {
+            select: {
+              name: true,
+            },
+          },
         },
       },
       items: { include: { ticketType: true } },
@@ -166,7 +171,6 @@ async function handlePaymentSucceeded(intent: Stripe.PaymentIntent) {
         data: { sold: { increment: item.quantity } },
       });
 
-      // Generate one QRTicket per seat
       const tickets = Array.from({ length: item.quantity }, (_, i) => ({
         orderId: order.id,
         orderItemId: item.id,
@@ -177,17 +181,67 @@ async function handlePaymentSucceeded(intent: Stripe.PaymentIntent) {
     }
   });
 
-  await sendOrderConfirmationEmail({
-    to: order.buyerEmail,
-    buyerName: order.buyerName,
-    orderId: order.id,
-    eventTitle: order.event.title,
-    startAt: order.event.startAt,
-    timezone: order.event.timezone,
-    orderTotal: Number(order.total),
-    ticketLines: order.items.map((item) => `${item.ticketType.name} x${item.quantity}`),
-    orderUrl: `${env.APP_URL}/orders/${order.id}`,
+  const paidOrder = await prisma.order.findUnique({
+    where: { id: order.id },
+    select: {
+      buyerEmail: true,
+      buyerName: true,
+      event: {
+        select: {
+          title: true,
+          startAt: true,
+          timezone: true,
+          venue: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+      tickets: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          ticketNumber: true,
+          orderItem: {
+            select: {
+              ticketType: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   });
+
+  if (!paidOrder) return;
+
+  try {
+    const emailResult = await sendOrderConfirmationEmail({
+      to: paidOrder.buyerEmail,
+      buyerName: paidOrder.buyerName,
+      orderId: order.id,
+      eventTitle: paidOrder.event.title,
+      startAt: paidOrder.event.startAt,
+      timezone: paidOrder.event.timezone,
+      venueName: paidOrder.event.venue?.name ?? null,
+      tickets: paidOrder.tickets.map((ticket) => ({
+        id: ticket.id,
+        ticketNumber: ticket.ticketNumber,
+        ticketTypeName: ticket.orderItem.ticketType.name,
+      })),
+      orderUrl: `${env.APP_URL}/orders/${order.id}`,
+    });
+
+    if (!emailResult.sent) {
+      console.error("[app/api/webhooks/stripe/route.ts][sendOrderConfirmationEmail]", emailResult);
+    }
+  } catch (error) {
+    console.error("[app/api/webhooks/stripe/route.ts][sendOrderConfirmationEmail]", error);
+  }
 }
 
 export async function GET() {

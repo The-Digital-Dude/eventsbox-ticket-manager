@@ -17,8 +17,10 @@ export async function POST(req: NextRequest) {
 
     const { token } = parsed.data;
 
-    const ticket = await prisma.qRTicket.findUnique({
-      where: { token },
+    const ticket = await prisma.qRTicket.findFirst({
+      where: {
+        OR: [{ id: token }, { token }],
+      },
       include: {
         order: {
           include: {

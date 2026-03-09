@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { prisma } from "@/src/lib/db";
 import { env } from "@/src/lib/env";
+import { generateQrDataUrl } from "@/src/lib/qr";
 
 let resendClient: Resend | null | undefined;
 
@@ -59,18 +60,37 @@ export async function sendOrderConfirmationEmail(input: {
   eventTitle: string;
   startAt: Date;
   timezone: string;
-  orderTotal: number;
-  ticketLines: string[];
+  venueName: string | null;
+  tickets: Array<{
+    id: string;
+    ticketNumber: string;
+    ticketTypeName: string;
+  }>;
   orderUrl: string;
 }) {
+  const formattedStartAt = new Intl.DateTimeFormat(undefined, {
+    dateStyle: "full",
+    timeStyle: "short",
+    timeZone: input.timezone,
+  }).format(new Date(input.startAt));
+  const ticketsWithQr = await Promise.all(
+    input.tickets.map(async (ticket) => ({
+      ...ticket,
+      qrDataUrl: await generateQrDataUrl(ticket.id),
+    })),
+  );
   const subject = `Order confirmed: ${input.eventTitle}`;
   const text = [
     `Hi ${input.buyerName},`,
     "",
     `Your order (${input.orderId}) is confirmed for ${input.eventTitle}.`,
-    `Date: ${new Date(input.startAt).toLocaleString()} (${input.timezone})`,
-    `Tickets: ${input.ticketLines.join(", ")}`,
-    `Total: $${input.orderTotal.toFixed(2)}`,
+    `Date: ${formattedStartAt} (${input.timezone})`,
+    `Venue: ${input.venueName ?? "Venue TBA"}`,
+    "",
+    "Tickets:",
+    ...ticketsWithQr.map(
+      (ticket) => `- ${ticket.ticketTypeName} · ${ticket.ticketNumber} · QR value: ${ticket.id}`,
+    ),
     "",
     `View your tickets: ${input.orderUrl}`,
     "",
@@ -78,15 +98,38 @@ export async function sendOrderConfirmationEmail(input: {
   ].join("\n");
 
   const html = `
-    <p>Hi ${input.buyerName},</p>
-    <p>Your order (<strong>${input.orderId}</strong>) is confirmed for <strong>${input.eventTitle}</strong>.</p>
-    <p>
-      Date: ${new Date(input.startAt).toLocaleString()} (${input.timezone})<br/>
-      Tickets: ${input.ticketLines.join(", ")}<br/>
-      Total: $${input.orderTotal.toFixed(2)}
-    </p>
-    <p><a href="${input.orderUrl}">View your tickets</a></p>
-    <p>Thanks for booking with EventsBox.</p>
+    <div style="font-family:sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#111827">
+      <p>Hi ${input.buyerName},</p>
+      <p>
+        Your order (<strong>${input.orderId}</strong>) is confirmed for
+        <strong>${input.eventTitle}</strong>.
+      </p>
+      <p>
+        Date: ${formattedStartAt} (${input.timezone})<br/>
+        Venue: ${input.venueName ?? "Venue TBA"}
+      </p>
+      <div style="margin-top:24px">
+        ${ticketsWithQr
+          .map(
+            (ticket) => `
+              <div style="margin-bottom:20px;padding:16px;border:1px solid #e5e7eb;border-radius:16px">
+                <p style="margin:0 0 8px;font-weight:600">${ticket.ticketTypeName}</p>
+                <p style="margin:0 0 12px;font-size:13px;color:#6b7280">${ticket.ticketNumber}</p>
+                <img
+                  src="${ticket.qrDataUrl}"
+                  alt="QR code for ${ticket.ticketNumber}"
+                  width="180"
+                  height="180"
+                  style="display:block;border:1px solid #e5e7eb;border-radius:12px"
+                />
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+      <p><a href="${input.orderUrl}">View your tickets</a></p>
+      <p>Thanks for booking with EventsBox.</p>
+    </div>
   `;
 
   return sendEmail({ to: input.to, subject, text, html });
