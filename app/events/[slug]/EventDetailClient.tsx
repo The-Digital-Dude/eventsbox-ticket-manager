@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Building2, CalendarDays, Mail, MapPin, Phone, Share2 } from "lucide-react";
 import { toast } from "sonner";
@@ -44,6 +45,7 @@ type EventDetail = {
   city: { name: string } | null;
   ticketTypes: TicketType[];
   organizerProfile: {
+    id: string;
     companyName: string | null;
     brandName: string | null;
     website: string | null;
@@ -402,6 +404,15 @@ export function EventDetailClient({ slug }: { slug: string }) {
                   </div>
                 )}
               </div>
+              <Link
+                href={`/organizers/${event.organizerProfile.id}`}
+                className="mt-4 inline-flex text-sm font-medium text-[var(--theme-accent)] transition hover:underline"
+              >
+                More events by{" "}
+                {event.organizerProfile.brandName ??
+                  event.organizerProfile.companyName ??
+                  "this organiser"}
+              </Link>
             </section>
           </div>
 

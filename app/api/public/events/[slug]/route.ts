@@ -30,6 +30,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
       },
       organizerProfile: {
         select: {
+          id: true,
           companyName: true,
           brandName: true,
           website: true,
