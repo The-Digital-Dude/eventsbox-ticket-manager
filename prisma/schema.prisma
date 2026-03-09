@@ -78,6 +78,11 @@ enum CancellationRequestStatus {
   REJECTED
 }
 
+enum SeatBookingStatus {
+  RESERVED
+  BOOKED
+}
+
 model User {
   id               String                   @id @default(cuid())
   email            String                   @unique
@@ -307,6 +312,7 @@ model Event {
   orders             Order[]
   promoCodes         PromoCode[]
   isFeatured         Boolean          @default(false)
+  seatBookings       EventSeatBooking[]
   waitlist           Waitlist[]
 
   @@index([organizerProfileId])
@@ -379,6 +385,7 @@ model Order {
   attendeeProfile       AttendeeProfile?     @relation(fields: [attendeeUserId], references: [id])
   promoCode             PromoCode?           @relation(fields: [promoCodeId], references: [id])
   items                 OrderItem[]
+  seatBookings          EventSeatBooking[]
   tickets               QRTicket[]
   cancellationRequest   CancellationRequest?
 
@@ -425,6 +432,8 @@ model QRTicket {
   orderItemId  String
   token        String    @unique @default(cuid())
   ticketNumber String
+  seatId       String?
+  seatLabel    String?
   checkedInAt  DateTime?
   createdAt    DateTime  @default(now())
   order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -432,6 +441,24 @@ model QRTicket {
 
   @@index([orderId])
   @@index([token])
+}
+
+model EventSeatBooking {
+  id        String            @id @default(cuid())
+  eventId   String
+  orderId   String
+  seatId    String
+  seatLabel String
+  status    SeatBookingStatus @default(RESERVED)
+  expiresAt DateTime?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  event     Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  order     Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, seatId])
+  @@index([orderId])
+  @@index([eventId, status, expiresAt])
 }
 
 model Waitlist {

@@ -6,6 +6,10 @@ import { env } from "@/src/lib/env";
 import { getStripeClient } from "@/src/lib/stripe/client";
 import { prisma } from "@/src/lib/db";
 import { sendOrderConfirmationEmail } from "@/src/lib/services/notifications";
+import {
+  markSeatBookingsBooked,
+  releaseSeatBookingsForOrder,
+} from "@/src/lib/services/seat-booking";
 import { notifyWaitlist } from "@/src/lib/services/waitlist";
 
 function getWebhookSecrets() {
@@ -81,9 +85,20 @@ async function handleStripeEvent(event: Stripe.Event) {
     }
     case "payment_intent.payment_failed": {
       const intent = event.data.object as Stripe.PaymentIntent;
-      await prisma.order.updateMany({
+      const failedOrders = await prisma.order.findMany({
         where: { stripePaymentIntentId: intent.id, status: "PENDING" },
-        data: { status: "FAILED" },
+        select: { id: true },
+      });
+
+      await prisma.$transaction(async (tx) => {
+        await tx.order.updateMany({
+          where: { stripePaymentIntentId: intent.id, status: "PENDING" },
+          data: { status: "FAILED" },
+        });
+
+        for (const order of failedOrders) {
+          await releaseSeatBookingsForOrder(tx, order.id);
+        }
       });
       return;
     }
@@ -121,6 +136,8 @@ async function handleChargeRefunded(charge: Stripe.Charge) {
       where: { id: order.id },
       data: { status: "REFUNDED" },
     });
+
+    await releaseSeatBookingsForOrder(tx, order.id);
 
     for (const item of order.items) {
       await tx.ticketType.update({
@@ -165,19 +182,29 @@ async function handlePaymentSucceeded(intent: Stripe.PaymentIntent) {
       data: { status: "PAID", paidAt: new Date() },
     });
 
+    const seatBookings = await markSeatBookingsBooked(tx, order.id);
+
+    let seatCursor = 0;
     for (const item of order.items) {
       await tx.ticketType.update({
         where: { id: item.ticketTypeId },
         data: { sold: { increment: item.quantity } },
       });
 
-      const tickets = Array.from({ length: item.quantity }, (_, i) => ({
-        orderId: order.id,
-        orderItemId: item.id,
-        ticketNumber: `${order.id.slice(-6).toUpperCase()}-${item.ticketType.name.slice(0, 3).toUpperCase()}-${String(i + 1).padStart(3, "0")}`,
-      }));
+      for (let index = 0; index < item.quantity; index += 1) {
+        const seatBooking = seatBookings[seatCursor] ?? null;
+        seatCursor += 1;
 
-      await tx.qRTicket.createMany({ data: tickets });
+        await tx.qRTicket.create({
+          data: {
+            orderId: order.id,
+            orderItemId: item.id,
+            ticketNumber: `${order.id.slice(-6).toUpperCase()}-${item.ticketType.name.slice(0, 3).toUpperCase()}-${String(index + 1).padStart(3, "0")}`,
+            seatId: seatBooking?.seatId ?? null,
+            seatLabel: seatBooking?.seatLabel ?? null,
+          },
+        });
+      }
     }
   });
 
@@ -203,6 +230,7 @@ async function handlePaymentSucceeded(intent: Stripe.PaymentIntent) {
         select: {
           id: true,
           ticketNumber: true,
+          seatLabel: true,
           orderItem: {
             select: {
               ticketType: {

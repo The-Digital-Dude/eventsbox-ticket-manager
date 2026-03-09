@@ -29,6 +29,16 @@ export type SeatState = {
   offset?: number;
 };
 
+export type PublicSeatBookingStatus = "AVAILABLE" | "RESERVED" | "BOOKED";
+
+export type PublicSeatBookingState = {
+  status: PublicSeatBookingStatus;
+  seatLabel?: string | null;
+  expiresAt?: string | null;
+};
+
+export type SeatAvailabilityStatus = "available" | "reserved" | "booked";
+
 export type VenueSeatingConfig = {
   mapType: SeatingMapType;
   sections: SeatingSection[];
