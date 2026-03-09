@@ -16,6 +16,7 @@ type EventRow = {
   title: string;
   slug: string;
   status: string;
+  isFeatured: boolean;
   startAt: string;
   submittedAt: string | null;
   rejectionReason: string | null;
@@ -58,6 +59,8 @@ export default function AdminEventsPage() {
   const [status, setStatus] = useState("PENDING_APPROVAL");
   const [q, setQ] = useState("");
   const [rejectDraft, setRejectDraft] = useState<{ id: string | null; reason: string }>({ id: null, reason: "" });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkPendingAction, setBulkPendingAction] = useState<string | null>(null);
 
   async function load(nextStatus = status, nextQ = q) {
     setLoading(true);
@@ -77,6 +80,10 @@ export default function AdminEventsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, q]);
 
+  useEffect(() => {
+    setSelectedIds((prev) => prev.filter((id) => events.some((event) => event.id === id)));
+  }, [events]);
+
   async function decide(id: string, action: "PUBLISHED" | "REJECTED", reason?: string) {
     const res = await fetch(`/api/admin/events/${id}/decision`, {
       method: "POST",
@@ -89,6 +96,44 @@ export default function AdminEventsPage() {
     setRejectDraft({ id: null, reason: "" });
     await load();
   }
+
+  function toggleSelected(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      if (checked) {
+        return prev.includes(id) ? prev : [...prev, id];
+      }
+
+      return prev.filter((item) => item !== id);
+    });
+  }
+
+  function toggleSelectAll(checked: boolean) {
+    setSelectedIds(checked ? events.map((event) => event.id) : []);
+  }
+
+  async function runBulkAction(action: "APPROVE" | "REJECT" | "FEATURE" | "UNFEATURE") {
+    if (selectedIds.length === 0) return;
+
+    setBulkPendingAction(action);
+    const res = await fetch("/api/admin/events/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: selectedIds, action }),
+    });
+    const payload = await res.json();
+    setBulkPendingAction(null);
+
+    if (!res.ok) {
+      return toast.error(payload?.error?.message ?? "Bulk action failed");
+    }
+
+    setSelectedIds([]);
+    toast.success(`${payload?.data?.updated ?? selectedIds.length} event(s) updated`);
+    await load();
+  }
+
+  const allVisibleSelected = events.length > 0 && selectedIds.length === events.length;
+  const someVisibleSelected = selectedIds.length > 0 && selectedIds.length < events.length;
 
   return (
     <SidebarLayout role="admin" title="Admin" items={nav}>
@@ -106,6 +151,62 @@ export default function AdminEventsPage() {
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title or organizer..." />
       </div>
 
+      {!loading && events.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-white p-4 shadow-sm">
+          <label className="inline-flex items-center gap-2 text-sm font-medium text-neutral-700">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-[var(--border)] text-[var(--theme-accent)]"
+              checked={allVisibleSelected}
+              ref={(node) => {
+                if (node) node.indeterminate = someVisibleSelected;
+              }}
+              onChange={(e) => toggleSelectAll(e.target.checked)}
+            />
+            Select all visible
+          </label>
+
+          {selectedIds.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-neutral-500">
+                {selectedIds.length} selected
+              </span>
+              <Button
+                size="sm"
+                onClick={() => void runBulkAction("APPROVE")}
+                disabled={bulkPendingAction !== null}
+              >
+                {bulkPendingAction === "APPROVE" ? "Approving..." : "Approve"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void runBulkAction("REJECT")}
+                disabled={bulkPendingAction !== null}
+              >
+                {bulkPendingAction === "REJECT" ? "Rejecting..." : "Reject"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void runBulkAction("FEATURE")}
+                disabled={bulkPendingAction !== null}
+              >
+                {bulkPendingAction === "FEATURE" ? "Featuring..." : "Feature"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void runBulkAction("UNFEATURE")}
+                disabled={bulkPendingAction !== null}
+              >
+                {bulkPendingAction === "UNFEATURE" ? "Unfeaturing..." : "Unfeature"}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => <div key={i} className="h-40 animate-pulse rounded-2xl bg-neutral-100" />)}
@@ -115,12 +216,31 @@ export default function AdminEventsPage() {
       ) : (
         <div className="space-y-3">
           {events.map((event) => (
-            <article key={event.id} className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+            <article
+              key={event.id}
+              className={`rounded-2xl border bg-white p-5 shadow-sm ${
+                selectedIds.includes(event.id)
+                  ? "border-[rgb(var(--theme-accent-rgb)/0.45)]"
+                  : "border-[var(--border)]"
+              }`}
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1">
+                  <label className="mb-2 inline-flex items-center gap-2 text-sm text-neutral-500">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-[var(--border)] text-[var(--theme-accent)]"
+                      checked={selectedIds.includes(event.id)}
+                      onChange={(e) => toggleSelected(event.id, e.target.checked)}
+                    />
+                    Select event
+                  </label>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge className={statusBadgeClass(event.status)}>{event.status.replace("_", " ")}</Badge>
                     {event.category && <Badge>{event.category.name}</Badge>}
+                    {event.isFeatured && (
+                      <Badge className="border-transparent bg-sky-100 text-sky-700">Featured</Badge>
+                    )}
                   </div>
                   <h3 className="text-xl font-semibold tracking-tight text-neutral-900">
                     <Link href={`/admin/events/${event.id}`} className="hover:text-[var(--theme-accent)] transition">

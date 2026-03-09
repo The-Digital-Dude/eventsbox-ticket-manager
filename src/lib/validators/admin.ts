@@ -36,3 +36,8 @@ export const payoutDecisionSchema = z.object({
   action: z.enum([PayoutRequestStatus.APPROVED, PayoutRequestStatus.PAID, PayoutRequestStatus.REJECTED]),
   adminNote: z.string().max(500).optional(),
 });
+
+export const bulkEventActionSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1).max(200),
+  action: z.enum(["APPROVE", "REJECT", "FEATURE", "UNFEATURE"]),
+});
