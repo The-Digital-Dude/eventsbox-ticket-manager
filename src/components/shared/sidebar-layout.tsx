@@ -50,12 +50,30 @@ export function SidebarLayout({
     venues: Store,
     organizers: Building2,
     events: CalendarDays,
+    series: CalendarDays,
     orders: ReceiptText,
     scanner: ScanLine,
     "platform config": Settings,
     categories: Compass,
     locations: MapPin,
   };
+  const navigationItems = (() => {
+    if (role !== "organizer" || items.some((item) => item.href === "/organizer/series")) {
+      return items;
+    }
+
+    const seriesItem = { href: "/organizer/series", label: "Series" };
+    const eventIndex = items.findIndex((item) => item.href === "/organizer/events");
+    if (eventIndex === -1) {
+      return [...items, seriesItem];
+    }
+
+    return [
+      ...items.slice(0, eventIndex + 1),
+      seriesItem,
+      ...items.slice(eventIndex + 1),
+    ];
+  })();
 
   const titleLabel = role === "admin" ? "Control Center" : "Organizer Workspace";
 
@@ -94,7 +112,7 @@ export function SidebarLayout({
             <p className="text-sm text-[var(--sidebar-muted)]">{titleLabel}</p>
           </div>
           <nav className="space-y-1">
-            {items.map((item) => {
+            {navigationItems.map((item) => {
               const normalizedLabel = item.label.toLowerCase();
               const Icon = iconMap[normalizedLabel] ?? LayoutDashboard;
               const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -146,7 +164,7 @@ export function SidebarLayout({
 
         <div className="min-w-0 flex-1 px-4 pb-8 pt-4 md:px-8 md:pt-7">
           <div className="mb-6 flex items-center gap-2 overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--sidebar-mobile-bg)] p-2 lg:hidden">
-            {items.map((item) => {
+            {navigationItems.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link

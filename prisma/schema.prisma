@@ -83,6 +83,13 @@ enum SeatBookingStatus {
   BOOKED
 }
 
+enum TicketTransferStatus {
+  PENDING
+  ACCEPTED
+  CANCELLED
+  EXPIRED
+}
+
 model User {
   id               String                   @id @default(cuid())
   email            String                   @unique
@@ -98,6 +105,7 @@ model User {
   resetTokens      PasswordResetToken[]
   verifyTokens     EmailVerificationToken[]
   auditLogs        AuditLog[]
+  compIssuances    CompTicketIssuance[]
 }
 
 model RefreshToken {
@@ -144,6 +152,7 @@ model OrganizerProfile {
   venues           Venue[]
   events           Event[]
   promoCodes       PromoCode[]
+  eventSeries      EventSeries[]
 }
 
 model AttendeeProfile {
@@ -279,6 +288,7 @@ model Venue {
 model Event {
   id                 String           @id @default(cuid())
   organizerProfileId String
+  seriesId           String?
   categoryId         String?
   venueId            String?
   stateId            String?
@@ -304,6 +314,7 @@ model Event {
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   organizerProfile   OrganizerProfile @relation(fields: [organizerProfileId], references: [id], onDelete: Cascade)
+  series             EventSeries?     @relation(fields: [seriesId], references: [id])
   category           Category?        @relation(fields: [categoryId], references: [id])
   venue              Venue?           @relation(fields: [venueId], references: [id])
   state              State?           @relation(fields: [stateId], references: [id])
@@ -316,8 +327,22 @@ model Event {
   waitlist           Waitlist[]
 
   @@index([organizerProfileId])
+  @@index([seriesId])
   @@index([status])
   @@index([startAt])
+}
+
+model EventSeries {
+  id                 String           @id @default(cuid())
+  organizerProfileId String
+  title              String
+  description        String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  organizerProfile   OrganizerProfile @relation(fields: [organizerProfileId], references: [id], onDelete: Cascade)
+  events             Event[]
+
+  @@index([organizerProfileId])
 }
 
 model TicketType {
@@ -329,6 +354,8 @@ model TicketType {
   price       Decimal        @db.Decimal(10, 2)
   quantity    Int
   sold        Int            @default(0)
+  reservedQty Int            @default(0)
+  compIssued  Int            @default(0)
   saleStartAt DateTime?
   saleEndAt   DateTime?
   maxPerOrder Int            @default(10)
@@ -339,6 +366,7 @@ model TicketType {
   event       Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
   orderItems  OrderItem[]
   waitlist    Waitlist[]
+  compIssuances CompTicketIssuance[]
 
   @@index([eventId])
 }
@@ -434,12 +462,49 @@ model QRTicket {
   ticketNumber String
   seatId       String?
   seatLabel    String?
+  isComplimentary Boolean @default(false)
   checkedInAt  DateTime?
   createdAt    DateTime  @default(now())
   order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   orderItem    OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  compIssuance CompTicketIssuance?
+  transfers    TicketTransfer[]
 
   @@index([orderId])
+  @@index([token])
+}
+
+model CompTicketIssuance {
+  id              String     @id @default(cuid())
+  ticketTypeId    String
+  issuedByUserId  String
+  recipientName   String
+  recipientEmail  String
+  note            String?
+  qrTicketId      String     @unique
+  createdAt       DateTime   @default(now())
+  ticketType      TicketType @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
+  issuedBy        User       @relation(fields: [issuedByUserId], references: [id])
+  qrTicket        QRTicket   @relation(fields: [qrTicketId], references: [id])
+
+  @@index([ticketTypeId])
+  @@index([issuedByUserId])
+}
+
+model TicketTransfer {
+  id         String               @id @default(cuid())
+  qrTicketId String
+  fromEmail  String
+  toEmail    String
+  toName     String
+  token      String               @unique @default(cuid())
+  status     TicketTransferStatus @default(PENDING)
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime             @default(now())
+  qrTicket   QRTicket             @relation(fields: [qrTicketId], references: [id], onDelete: Cascade)
+
+  @@index([qrTicketId])
   @@index([token])
 }
 

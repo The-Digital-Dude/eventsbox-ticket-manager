@@ -13,6 +13,20 @@ import Link from "next/link";
 type StateRow = { id: string; name: string; cities: { id: string; name: string }[] };
 type CategoryRow = { id: string; name: string };
 type VenueRow = { id: string; name: string; status: string };
+type SeriesRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  _count: { events: number };
+};
+type EditableTicketType = {
+  id: string;
+  name: string;
+  quantity: number;
+  sold: number;
+  reservedQty: number;
+  compIssued: number;
+};
 
 const nav = [
   { href: "/organizer/status", label: "Status" },
@@ -35,11 +49,14 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [states, setStates] = useState<StateRow[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [venues, setVenues] = useState<VenueRow[]>([]);
+  const [series, setSeries] = useState<SeriesRow[]>([]);
+  const [ticketTypes, setTicketTypes] = useState<EditableTicketType[]>([]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [venueId, setVenueId] = useState("");
+  const [seriesId, setSeriesId] = useState("");
   const [stateId, setStateId] = useState("");
   const [cityId, setCityId] = useState("");
   const [startAt, setStartAt] = useState("");
@@ -66,16 +83,18 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
 
   useEffect(() => {
     async function load() {
-      const [locRes, catRes, venRes, evRes] = await Promise.all([
+      const [locRes, catRes, venRes, seriesRes, evRes] = await Promise.all([
         fetch("/api/public/locations").then((r) => r.json()),
         fetch("/api/public/categories").then((r) => r.json()),
         fetch("/api/organizer/venues").then((r) => r.json()),
+        fetch("/api/organizer/series").then((r) => r.json()),
         fetch(`/api/organizer/events/${id}`).then((r) => r.json()),
       ]);
 
       setStates(locRes?.data ?? []);
       setCategories(catRes?.data ?? []);
       setVenues((venRes?.data ?? []).filter((v: VenueRow) => v.status === "APPROVED"));
+      setSeries(seriesRes?.data ?? []);
 
       const ev = evRes?.data;
       if (!ev) { toast.error("Event not found"); router.push("/organizer/events"); return; }
@@ -89,6 +108,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setDescription(ev.description ?? "");
       setCategoryId(ev.category?.id ?? "");
       setVenueId(ev.venue?.id ?? "");
+      setSeriesId(ev.series?.id ?? "");
       setStateId(ev.state?.id ?? "");
       setCityId(ev.city?.id ?? "");
       setStartAt(toLocalDatetime(ev.startAt));
@@ -102,6 +122,16 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setCommissionPct(String(ev.commissionPct ?? 10));
       setGstPct(String(ev.gstPct ?? 15));
       setPlatformFeeFixed(String(ev.platformFeeFixed ?? 0));
+      setTicketTypes(
+        (ev.ticketTypes ?? []).map((ticket: EditableTicketType) => ({
+          id: ticket.id,
+          name: ticket.name,
+          quantity: ticket.quantity,
+          sold: ticket.sold,
+          reservedQty: ticket.reservedQty ?? 0,
+          compIssued: ticket.compIssued ?? 0,
+        })),
+      );
       setReady(true);
     }
     load();
@@ -119,6 +149,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       body: JSON.stringify({
         title, description: description || undefined,
         categoryId: categoryId || undefined, venueId: venueId || undefined,
+        seriesId: seriesId || null,
         stateId: stateId || undefined, cityId: cityId || undefined,
         startAt, endAt, timezone,
         heroImage: heroImage || undefined,
@@ -129,8 +160,25 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       }),
     });
     const payload = await res.json();
+    if (!res.ok) {
+      setSaving(false);
+      return toast.error(payload?.error?.message ?? "Failed to save event");
+    }
+
+    for (const ticket of ticketTypes) {
+      const ticketRes = await fetch(`/api/organizer/events/${id}/tickets/${ticket.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reservedQty: ticket.reservedQty }),
+      });
+      if (!ticketRes.ok) {
+        const ticketPayload = await ticketRes.json();
+        setSaving(false);
+        return toast.error(ticketPayload?.error?.message ?? `Failed to update comp reservation for ${ticket.name}`);
+      }
+    }
+
     setSaving(false);
-    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to save event");
     toast.success("Event updated");
     router.push(`/organizer/events/${id}`);
   }
@@ -229,6 +277,18 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
                 </select>
               </div>
               <div className="space-y-2">
+                <Label>Series</Label>
+                <select className="app-select" value={seriesId} onChange={(e) => setSeriesId(e.target.value)}>
+                  <option value="">No series</option>
+                  {series.map((entry) => <option key={entry.id} value={entry.id}>{entry.title}</option>)}
+                </select>
+                <p className="text-xs text-neutral-500">
+                  {seriesId
+                    ? `This event is assigned to ${series.find((entry) => entry.id === seriesId)?.title ?? "a series"}.`
+                    : "Group related published events together on one public series page."}
+                </p>
+              </div>
+              <div className="space-y-2">
                 <Label>State</Label>
                 <select className="app-select" value={stateId} onChange={(e) => { setStateId(e.target.value); setCityId(""); }}>
                   <option value="">No state</option>
@@ -314,6 +374,63 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
               <Input type="number" min="0" step="0.01" value={platformFeeFixed} onChange={(e) => setPlatformFeeFixed(e.target.value)} />
             </div>
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold text-neutral-900">Comp Ticket Reservations</h2>
+          {ticketTypes.length === 0 ? (
+            <p className="text-sm text-neutral-500">
+              Add ticket types on the event page first, then reserve complimentary ticket slots here.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {ticketTypes.map((ticket) => {
+                const publicAvailable = Math.max(0, ticket.quantity - ticket.sold - ticket.reservedQty);
+                const remainingCompSlots = Math.max(0, ticket.reservedQty - ticket.compIssued);
+
+                return (
+                  <div key={ticket.id} className="rounded-xl border border-[var(--border)] p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-neutral-900">{ticket.name}</p>
+                        <p className="mt-1 text-xs text-neutral-500">
+                          {ticket.sold} sold of {ticket.quantity} total. {ticket.compIssued} comp tickets already issued.
+                        </p>
+                      </div>
+                      <div className="w-full max-w-[180px] space-y-2">
+                        <Label htmlFor={`reserved-${ticket.id}`}>Reserved (Comp) Qty</Label>
+                        <Input
+                          id={`reserved-${ticket.id}`}
+                          type="number"
+                          min={ticket.compIssued}
+                          max={Math.max(ticket.compIssued, ticket.quantity - ticket.sold)}
+                          value={ticket.reservedQty}
+                          onChange={(event) => {
+                            const value = Number(event.target.value);
+                            setTicketTypes((current) =>
+                              current.map((entry) =>
+                                entry.id === ticket.id
+                                  ? {
+                                      ...entry,
+                                      reservedQty: Number.isNaN(value)
+                                        ? entry.reservedQty
+                                        : Math.max(ticket.compIssued, value),
+                                    }
+                                  : entry,
+                              ),
+                            );
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <p className="mt-2 text-xs text-neutral-500">
+                      {ticket.reservedQty} of {ticket.quantity} reserved for complimentary tickets. Public available: {publicAvailable}. Remaining comp slots: {remainingCompSlots}.
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         <div className="flex gap-3">

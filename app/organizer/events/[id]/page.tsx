@@ -19,6 +19,8 @@ type TicketType = {
   price: number | string;
   quantity: number;
   sold: number;
+  reservedQty: number;
+  compIssued: number;
   maxPerOrder: number;
   isActive: boolean;
   sortOrder: number;
@@ -241,6 +243,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <Link href={`/organizer/events/${id}/attendees`}>
               <Button variant="outline" size="sm">View Attendees</Button>
             </Link>
+            <Link href={`/organizer/events/${id}/comp-tickets`}>
+              <Button variant="outline" size="sm">Comp Tickets</Button>
+            </Link>
             {event._count.waitlist > 0 && (
               <Link href={`/organizer/events/${id}/waitlist`}>
                 <Button variant="outline" size="sm">Waitlist ({event._count.waitlist})</Button>
@@ -403,7 +408,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         ) : (
           <div className="space-y-3">
             {event.ticketTypes.map((ticket) => {
-              const available = ticket.quantity - ticket.sold;
+              const available = ticket.quantity - ticket.sold - ticket.reservedQty;
               const soldPct = Math.round((ticket.sold / ticket.quantity) * 100);
               return (
                 <div key={ticket.id} className="rounded-xl border border-[var(--border)] p-4">
@@ -433,6 +438,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                         style={{ width: `${Math.min(100, soldPct)}%` }}
                       />
                     </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-2 text-xs text-neutral-500 md:grid-cols-3">
+                    <p>Reserved for comp: {ticket.reservedQty}</p>
+                    <p>Comp issued: {ticket.compIssued}</p>
+                    <p>Comp remaining: {Math.max(0, ticket.reservedQty - ticket.compIssued)}</p>
                   </div>
 
                   {canEdit && (

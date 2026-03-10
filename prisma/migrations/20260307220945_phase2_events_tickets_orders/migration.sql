@@ -14,7 +14,7 @@ CREATE TYPE "public"."TicketTypeKind" AS ENUM ('DIRECT', 'COMBO');
 CREATE TYPE "public"."OrderStatus" AS ENUM ('PENDING', 'PAID', 'FAILED', 'CANCELLED', 'REFUNDED');
 
 -- AlterTable
-ALTER TABLE "public"."PayoutRequest" ALTER COLUMN "amount" SET DATA TYPE DECIMAL(65,30);
+ALTER TABLE IF EXISTS "public"."PayoutRequest" ALTER COLUMN "amount" SET DATA TYPE DECIMAL(65,30);
 
 -- CreateTable
 CREATE TABLE "public"."Event" (

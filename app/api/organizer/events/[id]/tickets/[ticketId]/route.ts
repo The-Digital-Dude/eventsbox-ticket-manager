@@ -23,6 +23,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return fail(400, { code: "VALIDATION_ERROR", message: "Invalid ticket data", details: parsed.error.flatten() });
     }
 
+    const nextQuantity = parsed.data.quantity ?? ticket.quantity;
+    const nextReservedQty = parsed.data.reservedQty ?? ticket.reservedQty;
+    if (nextReservedQty > nextQuantity - ticket.sold) {
+      return fail(400, {
+        code: "INVALID_RESERVED_QTY",
+        message: "Reserved quantity cannot exceed remaining inventory",
+      });
+    }
+    if (nextReservedQty < ticket.compIssued) {
+      return fail(400, {
+        code: "INVALID_RESERVED_QTY",
+        message: "Reserved quantity cannot be less than already issued comp tickets",
+      });
+    }
+
     const { saleStartAt, saleEndAt, ...rest } = parsed.data;
 
     const updated = await prisma.ticketType.update({

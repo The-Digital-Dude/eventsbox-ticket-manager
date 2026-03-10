@@ -56,7 +56,7 @@ async function getPublishedEvents(
         ticketTypes: {
           where: { isActive: true },
           orderBy: { price: "asc" },
-          select: { price: true, quantity: true, sold: true },
+          select: { price: true, quantity: true, sold: true, reservedQty: true },
           take: 1,
         },
       },
@@ -204,7 +204,8 @@ export default async function PublicEventsPage({
                 const lowestPrice = event.ticketTypes[0] ? Number(event.ticketTypes[0].price) : null;
                 const totalQty = event.ticketTypes.reduce((sum, t) => sum + t.quantity, 0);
                 const totalSold = event.ticketTypes.reduce((sum, t) => sum + t.sold, 0);
-                const available = totalQty - totalSold;
+                const totalReserved = event.ticketTypes.reduce((sum, ticket) => sum + ticket.reservedQty, 0);
+                const available = totalQty - totalSold - totalReserved;
 
                 return (
                   <Link key={event.id} href={`/events/${event.slug}`} className="group block">

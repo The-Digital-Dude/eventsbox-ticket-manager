@@ -1,21 +1,21 @@
 # Current Task
 
 ## Active Task
-**Phase 11 — Security & Business Correctness**
+**Phase 12 — Attendee & Transaction Completions**
 
 **Status:** DONE
 
 **Latest Handoff (2026-03-10):**
-- Added Redis IP throttling to `/api/auth/verify-email` to cap OTP verification attempts.
-- Admin and organizer refund routes now pass `allowAnyEventStatus: true`, so PAID orders can be refunded without requiring the whole event to be cancelled.
-- Real checkout now routes payments to completed Stripe Connect organizers with `application_fee_amount` and `transfer_data.destination`; manual / not-yet-connected organizers keep the previous platform-collected flow.
-- Added integration coverage for Stripe Connect checkout routing and the refund override behavior.
-- `npm run lint`, `npm run typecheck`, and `npm run test:integration` all pass.
+- Added the shared Phase 12 schema for event series, complimentary tickets, and ticket transfer, plus a single migration SQL file at `prisma/migrations/20260310120000_add_comp_tickets_series_transfer/migration.sql`.
+- Organizers can now create public event series, assign events to them, and attendees can browse `/events/series/[id]` pages or jump from an event detail page via the new series badge.
+- Organizers can reserve complimentary inventory, issue comp tickets that create real PAID orders plus scannable QR tickets, and manage comp issuance from `/organizer/events/[id]/comp-tickets`.
+- Attendees can initiate ticket transfers from `/account/orders`, recipients can accept via `/transfer/accept?token=...`, and accepted transfers update buyer ownership details.
+- `npm run lint`, `npm run typecheck`, and `npm run test:integration` all pass (24 files, 78 tests).
 
 ---
 
 ## Previous Task
-**Phase 10 — Pre-Launch Bug Fixes**
+**Phase 11 — Security & Business Correctness**
 
 **Status:** Completed on 2026-03-10
 

@@ -22,6 +22,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
       },
       state: { select: { id: true, name: true } },
       city: { select: { id: true, name: true } },
+      series: { select: { id: true, title: true } },
       ticketTypes: {
         where: { isActive: true },
         orderBy: { sortOrder: "asc" },
@@ -33,6 +34,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
           price: true,
           quantity: true,
           sold: true,
+          reservedQty: true,
           maxPerOrder: true,
           saleStartAt: true,
           saleEndAt: true,

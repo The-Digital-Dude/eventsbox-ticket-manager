@@ -35,6 +35,25 @@ export async function GET(req: NextRequest) {
             select: {
               quantity: true,
               ticketType: { select: { name: true } },
+              tickets: {
+                orderBy: { createdAt: "asc" },
+                select: {
+                  id: true,
+                  ticketNumber: true,
+                  checkedInAt: true,
+                  transfers: {
+                    orderBy: { createdAt: "desc" },
+                    take: 1,
+                    select: {
+                      id: true,
+                      status: true,
+                      toEmail: true,
+                      toName: true,
+                      expiresAt: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -45,8 +64,21 @@ export async function GET(req: NextRequest) {
       prisma.order.count({ where }),
     ]);
 
+    const mappedOrders = orders.map((order) => ({
+      ...order,
+      items: order.items.map((item) => ({
+        ...item,
+        tickets: item.tickets.map((ticket) => ({
+          id: ticket.id,
+          ticketNumber: ticket.ticketNumber,
+          checkedInAt: ticket.checkedInAt,
+          transfer: ticket.transfers[0] ?? null,
+        })),
+      })),
+    }));
+
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-    return ok({ orders, total, pages });
+    return ok({ orders: mappedOrders, total, pages });
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHENTICATED") {
       return fail(401, { code: "UNAUTHENTICATED", message: "Login required" });

@@ -11,7 +11,22 @@ type OrderRow = {
   status: "PAID" | "REFUNDED";
   paidAt: string | null;
   event: { title: string; startAt: string; slug: string };
-  items: Array<{ quantity: number; ticketType: { name: string } }>;
+  items: Array<{
+    quantity: number;
+    ticketType: { name: string };
+    tickets: Array<{
+      id: string;
+      ticketNumber: string;
+      checkedInAt: string | null;
+      transfer: {
+        id: string;
+        status: "PENDING" | "ACCEPTED" | "CANCELLED" | "EXPIRED";
+        toEmail: string;
+        toName: string;
+        expiresAt: string;
+      } | null;
+    }>;
+  }>;
   cancellationRequest?: { id: string; status: "PENDING" | "APPROVED" | "REJECTED" } | null;
 };
 

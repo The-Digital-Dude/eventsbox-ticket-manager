@@ -20,7 +20,14 @@ export const eventCreateSchema = z.object({
   platformFeeFixed: z.coerce.number().min(0).default(0),
 });
 
-export const eventUpdateSchema = eventCreateSchema.partial();
+export const eventUpdateSchema = eventCreateSchema.partial().extend({
+  seriesId: z.string().cuid().nullable().optional(),
+});
+
+export const eventSeriesSchema = z.object({
+  title: z.string().trim().min(1).max(100),
+  description: z.string().trim().max(2000).optional().nullable(),
+});
 
 export const ticketTypeCreateSchema = z.object({
   name: z.string().min(1).max(200),
@@ -28,6 +35,7 @@ export const ticketTypeCreateSchema = z.object({
   kind: z.enum(["DIRECT", "COMBO"]).default("DIRECT"),
   price: z.coerce.number().min(0),
   quantity: z.coerce.number().int().min(1),
+  reservedQty: z.coerce.number().int().min(0).default(0),
   saleStartAt: z.string().datetime().optional(),
   saleEndAt: z.string().datetime().optional(),
   maxPerOrder: z.coerce.number().int().min(1).max(100).default(10),

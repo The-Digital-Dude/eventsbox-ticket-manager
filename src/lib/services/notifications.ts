@@ -409,3 +409,163 @@ export async function sendWaitlistAvailabilityEmail(input: {
 
   return sendEmail({ to: input.to, subject, text, html });
 }
+
+export async function sendComplimentaryTicketEmail(input: {
+  to: string;
+  recipientName: string;
+  eventTitle: string;
+  ticketTypeName: string;
+  ticketNumber: string;
+  startAt: Date;
+  timezone: string;
+  venueName: string | null;
+  orderUrl: string;
+}) {
+  const formattedStartAt = new Intl.DateTimeFormat(undefined, {
+    dateStyle: "full",
+    timeStyle: "short",
+    timeZone: input.timezone,
+  }).format(new Date(input.startAt));
+  const subject = `You've received a complimentary ticket for ${input.eventTitle}`;
+  const text = [
+    `Hi ${input.recipientName},`,
+    "",
+    `You've received a complimentary ${input.ticketTypeName} ticket for ${input.eventTitle}.`,
+    `Ticket number: ${input.ticketNumber}`,
+    `Date: ${formattedStartAt} (${input.timezone})`,
+    `Venue: ${input.venueName ?? "Venue TBA"}`,
+    "",
+    `View your ticket: ${input.orderUrl}`,
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#111827">
+      <p>Hi ${input.recipientName},</p>
+      <p>
+        You've received a complimentary <strong>${input.ticketTypeName}</strong> ticket for
+        <strong>${input.eventTitle}</strong>.
+      </p>
+      <p>
+        Ticket number: <strong>${input.ticketNumber}</strong><br/>
+        Date: ${formattedStartAt} (${input.timezone})<br/>
+        Venue: ${input.venueName ?? "Venue TBA"}
+      </p>
+      <p><a href="${input.orderUrl}">View your ticket</a></p>
+    </div>
+  `;
+
+  return sendEmail({ to: input.to, subject, text, html });
+}
+
+export async function sendTicketTransferInviteEmail(input: {
+  to: string;
+  toName: string;
+  fromEmail: string;
+  eventTitle: string;
+  ticketNumber: string;
+  acceptUrl: string;
+  expiresAt: Date;
+}) {
+  const subject = `Ticket transfer invitation: ${input.eventTitle}`;
+  const text = [
+    `Hi ${input.toName},`,
+    "",
+    `${input.fromEmail} wants to transfer ticket ${input.ticketNumber} for ${input.eventTitle} to you.`,
+    `Accept here: ${input.acceptUrl}`,
+    `This link expires on ${input.expiresAt.toLocaleString()}.`,
+  ].join("\n");
+
+  const html = `
+    <p>Hi ${input.toName},</p>
+    <p>
+      <strong>${input.fromEmail}</strong> wants to transfer ticket
+      <strong>${input.ticketNumber}</strong> for <strong>${input.eventTitle}</strong> to you.
+    </p>
+    <p><a href="${input.acceptUrl}">Accept ticket transfer</a></p>
+    <p>This link expires on ${input.expiresAt.toLocaleString()}.</p>
+  `;
+
+  return sendEmail({ to: input.to, subject, text, html });
+}
+
+export async function sendTicketTransferSenderEmail(input: {
+  to: string;
+  recipientName: string;
+  recipientEmail: string;
+  eventTitle: string;
+  ticketNumber: string;
+  expiresAt: Date;
+}) {
+  const subject = `Transfer requested: ${input.eventTitle}`;
+  const text = [
+    "Hello,",
+    "",
+    `Your transfer request for ticket ${input.ticketNumber} has been sent to ${input.recipientName} (${input.recipientEmail}).`,
+    `Event: ${input.eventTitle}`,
+    `The link expires on ${input.expiresAt.toLocaleString()}.`,
+  ].join("\n");
+
+  const html = `
+    <p>Hello,</p>
+    <p>
+      Your transfer request for ticket <strong>${input.ticketNumber}</strong> has been sent to
+      <strong>${input.recipientName}</strong> (${input.recipientEmail}).
+    </p>
+    <p>Event: <strong>${input.eventTitle}</strong></p>
+    <p>The link expires on ${input.expiresAt.toLocaleString()}.</p>
+  `;
+
+  return sendEmail({ to: input.to, subject, text, html });
+}
+
+export async function sendTicketTransferAcceptedRecipientEmail(input: {
+  to: string;
+  toName: string;
+  eventTitle: string;
+  ticketNumber: string;
+  orderUrl: string;
+}) {
+  const subject = `Ticket transfer accepted: ${input.eventTitle}`;
+  const text = [
+    `Hi ${input.toName},`,
+    "",
+    `Ticket ${input.ticketNumber} for ${input.eventTitle} is now yours.`,
+    `View the ticket here: ${input.orderUrl}`,
+  ].join("\n");
+
+  const html = `
+    <p>Hi ${input.toName},</p>
+    <p>
+      Ticket <strong>${input.ticketNumber}</strong> for <strong>${input.eventTitle}</strong> is now yours.
+    </p>
+    <p><a href="${input.orderUrl}">View your ticket</a></p>
+  `;
+
+  return sendEmail({ to: input.to, subject, text, html });
+}
+
+export async function sendTicketTransferAcceptedSenderEmail(input: {
+  to: string;
+  recipientName: string;
+  recipientEmail: string;
+  eventTitle: string;
+  ticketNumber: string;
+}) {
+  const subject = `Ticket transferred: ${input.eventTitle}`;
+  const text = [
+    "Hello,",
+    "",
+    `Your transfer of ticket ${input.ticketNumber} for ${input.eventTitle} was accepted by ${input.recipientName} (${input.recipientEmail}).`,
+  ].join("\n");
+
+  const html = `
+    <p>Hello,</p>
+    <p>
+      Your transfer of ticket <strong>${input.ticketNumber}</strong> for
+      <strong>${input.eventTitle}</strong> was accepted by
+      <strong>${input.recipientName}</strong> (${input.recipientEmail}).
+    </p>
+  `;
+
+  return sendEmail({ to: input.to, subject, text, html });
+}

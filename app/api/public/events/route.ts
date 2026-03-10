@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       ticketTypes: {
         where: { isActive: true },
         orderBy: { price: "asc" },
-        select: { id: true, name: true, price: true, quantity: true, sold: true },
+        select: { id: true, name: true, price: true, quantity: true, sold: true, reservedQty: true },
       },
       organizerProfile: { select: { companyName: true, brandName: true } },
     },

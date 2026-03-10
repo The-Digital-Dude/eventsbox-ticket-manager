@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
           throw new Error(`INVALID_TICKET:${item.ticketTypeId}`);
         }
 
-        const available = ticketType.quantity - ticketType.sold;
+        const available = ticketType.quantity - ticketType.sold - ticketType.reservedQty;
         if (item.quantity > available) {
           throw new Error(`INSUFFICIENT_INVENTORY:${ticketType.name}:${available}`);
         }

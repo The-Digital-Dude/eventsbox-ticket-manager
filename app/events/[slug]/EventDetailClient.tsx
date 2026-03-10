@@ -23,6 +23,7 @@ type TicketType = {
   price: number | string;
   quantity: number;
   sold: number;
+  reservedQty: number;
   maxPerOrder: number;
   saleStartAt: string | null;
   saleEndAt: string | null;
@@ -45,6 +46,7 @@ type EventDetail = {
   commissionPct: number | string;
   platformFeeFixed: number | string;
   category: { name: string } | null;
+  series: { id: string; title: string } | null;
   venue: {
     name: string;
     addressLine1: string;
@@ -511,7 +513,16 @@ export function EventDetailClient({ slug }: { slug: string }) {
             )}
 
             <div>
-              {event.category && <Badge className="mb-3">{event.category.name}</Badge>}
+              <div className="mb-3 flex flex-wrap gap-2">
+                {event.category && <Badge>{event.category.name}</Badge>}
+                {event.series ? (
+                  <Link href={`/events/series/${event.series.id}`}>
+                    <Badge className="border-transparent bg-sky-100 text-sky-700 transition hover:bg-sky-200">
+                      Part of {event.series.title}
+                    </Badge>
+                  </Link>
+                ) : null}
+              </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h1 className="text-3xl font-bold tracking-tight text-neutral-900">{event.title}</h1>
                 <Button type="button" variant="outline" onClick={shareEvent}>
@@ -643,7 +654,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
               ) : (
                 <div className="space-y-3">
                   {event.ticketTypes.map((ticketType) => {
-                    const available = ticketType.quantity - ticketType.sold;
+                    const available = ticketType.quantity - ticketType.sold - ticketType.reservedQty;
                     const isSoldOut = available <= 0;
                     const qty = cart[ticketType.id] ?? 0;
 

@@ -10,6 +10,7 @@ const eventInclude = {
   venue: { select: { id: true, name: true, addressLine1: true } },
   state: { select: { id: true, name: true } },
   city: { select: { id: true, name: true } },
+  series: { select: { id: true, title: true } },
   ticketTypes: { orderBy: { sortOrder: "asc" as const } },
   _count: { select: { orders: true, waitlist: true } },
   orders: {
@@ -78,7 +79,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return fail(400, { code: "VALIDATION_ERROR", message: "Invalid update data", details: parsed.error.flatten() });
     }
 
-    const { startAt, endAt, heroImage, contactEmail, ...rest } = parsed.data;
+    const { startAt, endAt, heroImage, contactEmail, seriesId, ...rest } = parsed.data;
+
+    if (seriesId !== undefined && seriesId !== null) {
+      const ownedSeries = await prisma.eventSeries.findFirst({
+        where: { id: seriesId, organizerProfileId: profile.id },
+        select: { id: true },
+      });
+      if (!ownedSeries) {
+        return fail(404, { code: "SERIES_NOT_FOUND", message: "Series not found" });
+      }
+    }
 
     const event = await prisma.event.update({
       where: { id },
@@ -88,6 +99,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(contactEmail !== undefined ? { contactEmail: contactEmail || null } : {}),
         ...(startAt ? { startAt: new Date(startAt) } : {}),
         ...(endAt ? { endAt: new Date(endAt) } : {}),
+        ...(seriesId !== undefined ? { seriesId } : {}),
       },
       include: eventInclude,
     });
