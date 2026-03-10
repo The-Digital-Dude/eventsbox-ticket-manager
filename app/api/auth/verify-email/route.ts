@@ -1,10 +1,17 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
+import { rateLimitRedis } from "@/src/lib/http/rate-limit-redis";
 import { verifyOtpSchema } from "@/src/lib/validators/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for") ?? "unknown";
+    const rl = await rateLimitRedis(`verify-email:${ip}`, 10, 60_000);
+    if (rl.limited) {
+      return fail(429, { code: "RATE_LIMITED", message: "Too many attempts" });
+    }
+
     const parsed = verifyOtpSchema.safeParse(await req.json());
     if (!parsed.success) {
       return fail(400, { code: "VALIDATION_ERROR", message: "Invalid input" });

@@ -9,7 +9,6 @@ import { SeatMapLive } from "@/src/components/shared/seat-map-live";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
 import type {
   PublicSeatBookingState,
   SeatState,
@@ -77,6 +76,14 @@ type SeatAvailabilityPayload = {
   updatedAt: string;
 };
 
+type CheckoutSessionState =
+  | "loading"
+  | null
+  | {
+      name: string;
+      email: string;
+    };
+
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
     weekday: "long",
@@ -93,6 +100,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [session, setSession] = useState<CheckoutSessionState>("loading");
   const [cart, setCart] = useState<Record<string, number>>({});
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
@@ -127,6 +135,55 @@ export function EventDetailClient({ slug }: { slug: string }) {
         setLoading(false);
       });
   }, [slug]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSession() {
+      try {
+        const response = await fetch("/api/auth/me", { cache: "no-store" });
+        if (!active) return;
+
+        if (!response.ok) {
+          setSession(null);
+          return;
+        }
+
+        const payload = (await response.json()) as {
+          data?: { email?: string; displayName?: string | null };
+        };
+        const email = payload.data?.email?.trim();
+        if (!email) {
+          setSession(null);
+          return;
+        }
+
+        setSession({
+          name: payload.data?.displayName?.trim() || email,
+          email,
+        });
+      } catch {
+        if (active) {
+          setSession(null);
+        }
+      }
+    }
+
+    void loadSession();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!session || session === "loading") {
+      return;
+    }
+
+    setBuyerName((current) => current || session.name);
+    setBuyerEmail((current) => current || session.email);
+  }, [session]);
 
   useEffect(() => {
     if (!event?.venue?.seatingConfig) {
@@ -360,6 +417,8 @@ export function EventDetailClient({ slug }: { slug: string }) {
   async function checkout() {
     if (!event) return;
     if (cartItems.length === 0) return toast.error("Select at least one ticket");
+    if (session === "loading") return toast.error("Checking your session");
+    if (!session) return toast.error("Sign in to purchase tickets");
     if (!buyerName.trim()) return toast.error("Enter your name");
     if (!buyerEmail.trim()) return toast.error("Enter your email");
     if (requiresSeatSelection && selectedSeatIds.length !== totalSelectedTickets) {
@@ -430,6 +489,10 @@ export function EventDetailClient({ slug }: { slug: string }) {
       </div>
     );
   }
+
+  const eventRedirectPath = `/events/${slug}`;
+  const loginUrl = `/auth/login?redirect=${encodeURIComponent(eventRedirectPath)}`;
+  const registerUrl = `/auth/register/attendee?redirect=${encodeURIComponent(eventRedirectPath)}`;
 
   return (
     <div className="min-h-screen bg-[var(--page-bg,#f8f8f8)]">
@@ -798,28 +861,55 @@ export function EventDetailClient({ slug }: { slug: string }) {
 
             {cartItems.length > 0 && (
               <section className="space-y-3 rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.3)] bg-white p-5 shadow-sm">
-                <h3 className="font-semibold text-neutral-900">Your Details</h3>
-                <div className="space-y-2">
-                  <Label>Full Name</Label>
-                  <Input
-                    value={buyerName}
-                    onChange={(event) => setBuyerName(event.target.value)}
-                    placeholder="Jane Smith"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input
-                    type="email"
-                    value={buyerEmail}
-                    onChange={(event) => setBuyerEmail(event.target.value)}
-                    placeholder="jane@example.com"
-                  />
-                </div>
-                <Button className="w-full" onClick={checkout} disabled={checkingOut}>
-                  {checkingOut ? "Processing..." : `Pay $${grandTotal.toFixed(2)}`}
-                </Button>
-                <p className="text-center text-xs text-neutral-400">Secured by Stripe</p>
+                {session === "loading" ? (
+                  <>
+                    <div className="h-5 w-36 animate-pulse rounded bg-neutral-100" />
+                    <div className="space-y-2">
+                      <div className="h-12 animate-pulse rounded-xl bg-neutral-100" />
+                      <div className="h-12 animate-pulse rounded-xl bg-neutral-100" />
+                    </div>
+                  </>
+                ) : session === null ? (
+                  <>
+                    <div className="space-y-1">
+                      <h3 className="font-semibold text-neutral-900">Sign in to purchase</h3>
+                      <p className="text-sm text-neutral-600">
+                        Create an account or sign in to complete your purchase and access your tickets.
+                      </p>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Link
+                        href={loginUrl}
+                        className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-[var(--theme-accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[rgb(var(--theme-accent-rgb)/0.92)]"
+                      >
+                        Sign In
+                      </Link>
+                      <Link
+                        href={registerUrl}
+                        className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-neutral-900 transition hover:bg-[rgb(var(--theme-accent-rgb)/0.05)]"
+                      >
+                        Register
+                      </Link>
+                    </div>
+                    <p className="text-center text-xs text-neutral-400">
+                      Your tickets will appear in your account after purchase.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-xl border border-[var(--border)] bg-neutral-50 px-4 py-3">
+                      <p className="text-xs font-medium uppercase tracking-[0.14em] text-neutral-500">
+                        Purchasing As
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-neutral-900">{session.name}</p>
+                      <p className="text-sm text-neutral-600">{session.email}</p>
+                    </div>
+                    <Button className="w-full" onClick={checkout} disabled={checkingOut}>
+                      {checkingOut ? "Processing..." : `Pay $${grandTotal.toFixed(2)}`}
+                    </Button>
+                    <p className="text-center text-xs text-neutral-400">Secured by Stripe</p>
+                  </>
+                )}
               </section>
             )}
           </div>

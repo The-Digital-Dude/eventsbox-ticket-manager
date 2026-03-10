@@ -1,23 +1,21 @@
 # Current Task
 
 ## Active Task
-**Phase 10 — Pre-Launch Bug Fixes**
+**Phase 11 — Security & Business Correctness**
 
-**Status:** IN PROGRESS — implementation landed; full acceptance is blocked by an unrelated integration DB failure in `src/tests/integration/attendee-account.test.ts`
+**Status:** DONE
 
 **Latest Handoff (2026-03-10):**
-- Phase 10 bug fixes landed for promo code usage timing, atomic promo max-use enforcement on payment success, and QR ticket null safety.
-- Added Phase 10 integration coverage in `src/tests/integration/checkout.test.ts` plus defensive QR null-safety coverage in `src/tests/integration/ticket-wallet.test.ts`.
-- `npm run lint` and `npm run typecheck` pass; targeted Phase 10 integration tests pass.
-- `npm run test:integration` still has an unrelated failure in `src/tests/integration/attendee-account.test.ts` because that test is attempting to reach the Neon database and receives a connection error.
-- Public event pages now expose venue seating layouts and a live seat-status endpoint for attendee-facing seat maps.
-- Seated-event checkout now requires seat selection, reserves seats during payment, and converts them to booked seats on successful Stripe webhook processing.
-- Event detail UI now polls live seat status and shows available, reserved, booked, and selected seat states.
+- Added Redis IP throttling to `/api/auth/verify-email` to cap OTP verification attempts.
+- Admin and organizer refund routes now pass `allowAnyEventStatus: true`, so PAID orders can be refunded without requiring the whole event to be cancelled.
+- Real checkout now routes payments to completed Stripe Connect organizers with `application_fee_amount` and `transfer_data.destination`; manual / not-yet-connected organizers keep the previous platform-collected flow.
+- Added integration coverage for Stripe Connect checkout routing and the refund override behavior.
+- `npm run lint`, `npm run typecheck`, and `npm run test:integration` all pass.
 
 ---
 
 ## Previous Task
-**Phase 9 — Buyer Experience & Soft Launch Readiness**
+**Phase 10 — Pre-Launch Bug Fixes**
 
 **Status:** Completed on 2026-03-10
 

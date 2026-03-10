@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -14,6 +14,7 @@ import { Label } from "@/src/components/ui/label";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const form = useForm<{ email: string; password: string }>({
     resolver: zodResolver(z.object({ email: z.email(), password: z.string().min(8) })),
@@ -36,8 +37,13 @@ export default function LoginPage() {
     }
 
     toast.success("Welcome back");
-    if (payload.data.role === "SUPER_ADMIN") {
+    const redirectTarget = searchParams.get("redirect");
+    if (redirectTarget) {
+      router.push(redirectTarget);
+    } else if (payload.data.role === "SUPER_ADMIN") {
       router.push("/admin/dashboard");
+    } else if (payload.data.role === "ATTENDEE") {
+      router.push("/account/dashboard");
     } else {
       router.push("/organizer/status");
     }
@@ -87,7 +93,14 @@ export default function LoginPage() {
               </p>
               <p className="text-sm text-neutral-600">
                 New attendee?{" "}
-                <Link href="/auth/register/attendee" className="font-medium text-[var(--theme-accent)] hover:underline">
+                <Link
+                  href={
+                    searchParams.get("redirect")
+                      ? `/auth/register/attendee?redirect=${encodeURIComponent(searchParams.get("redirect") ?? "")}`
+                      : "/auth/register/attendee"
+                  }
+                  className="font-medium text-[var(--theme-accent)] hover:underline"
+                >
                   Register here
                 </Link>
               </p>

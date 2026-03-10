@@ -38,7 +38,7 @@ export async function POST(
     });
     if (!order) return fail(404, { code: "NOT_FOUND", message: "Order not found" });
 
-    const refunded = await refundPaidOrder(orderId);
+    const refunded = await refundPaidOrder(orderId, { allowAnyEventStatus: true });
     if (!refunded.success) {
       if (refunded.error.code === "NOT_FOUND") {
         return fail(404, { code: refunded.error.code, message: refunded.error.message });

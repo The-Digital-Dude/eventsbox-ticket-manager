@@ -4,9 +4,11 @@ import { NextRequest } from "next/server";
 
 const {
   getStripeClientMock,
+  paymentIntentCreateMock,
   validatePromoCodeByIdMock,
   getServerSessionMock,
   eventFindFirstMock,
+  organizerPayoutSettingsFindUniqueMock,
   attendeeProfileFindUniqueMock,
   orderUpdateMock,
   orderCreateMock,
@@ -31,9 +33,11 @@ const {
   constructEventMock,
 } = vi.hoisted(() => ({
   getStripeClientMock: vi.fn(),
+  paymentIntentCreateMock: vi.fn(),
   validatePromoCodeByIdMock: vi.fn(),
   getServerSessionMock: vi.fn(),
   eventFindFirstMock: vi.fn(),
+  organizerPayoutSettingsFindUniqueMock: vi.fn(),
   attendeeProfileFindUniqueMock: vi.fn(),
   orderUpdateMock: vi.fn(),
   orderCreateMock: vi.fn(),
@@ -91,6 +95,9 @@ vi.mock("@/src/lib/db", () => ({
     event: {
       findFirst: eventFindFirstMock,
     },
+    organizerPayoutSettings: {
+      findUnique: organizerPayoutSettingsFindUniqueMock,
+    },
     attendeeProfile: {
       findUnique: attendeeProfileFindUniqueMock,
     },
@@ -116,6 +123,7 @@ import { POST as webhookPost } from "@/app/api/webhooks/stripe/route";
 
 const publishedEvent = {
   id: "event-1",
+  organizerProfileId: "organizer-profile-1",
   status: "PUBLISHED",
   commissionPct: new Prisma.Decimal(10),
   gstPct: new Prisma.Decimal(15),
@@ -208,6 +216,7 @@ describe("checkout promo lifecycle integration", () => {
     stripeEvents = [];
 
     eventFindFirstMock.mockResolvedValue(publishedEvent);
+    organizerPayoutSettingsFindUniqueMock.mockResolvedValue(null);
     txEventFindFirstMock.mockResolvedValue(publishedEvent);
     txEventSeatBookingDeleteManyMock.mockResolvedValue({ count: 0 });
     attendeeProfileFindUniqueMock.mockResolvedValue({ id: "attendee-profile-1" });
@@ -287,9 +296,11 @@ describe("checkout promo lifecycle integration", () => {
       return stripeEvent;
     });
 
+    paymentIntentCreateMock.mockResolvedValue({ id: "pi_checkout_1", client_secret: "cs_test_123" });
+
     getStripeClientMock.mockReturnValue({
       paymentIntents: {
-        create: vi.fn().mockResolvedValue({ id: "pi_checkout_1", client_secret: "cs_test_123" }),
+        create: paymentIntentCreateMock,
       },
       webhooks: {
         constructEvent: constructEventMock,
@@ -318,6 +329,26 @@ describe("checkout promo lifecycle integration", () => {
     );
     expect(txPromoCodeUpdateMock).not.toHaveBeenCalled();
     expect(promoCodeState.usedCount).toBe(0);
+  });
+
+  it("routes checkout payments to a completed Stripe Connect account", async () => {
+    organizerPayoutSettingsFindUniqueMock.mockResolvedValueOnce({
+      stripeAccountId: "acct_123",
+      stripeOnboardingStatus: "COMPLETED",
+      payoutMode: "STRIPE_CONNECT",
+    });
+    queueCheckoutTransaction();
+
+    const res = await checkoutPost(createCheckoutRequest());
+
+    expect(res.status).toBe(200);
+    expect(paymentIntentCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 11650,
+        application_fee_amount: 1000,
+        transfer_data: { destination: "acct_123" },
+      }),
+    );
   });
 
   it("promo code usedCount increments to 1 after payment_intent.succeeded", async () => {

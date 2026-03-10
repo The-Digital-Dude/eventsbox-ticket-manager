@@ -6,11 +6,13 @@ const {
   findOrderMock,
   requireRoleMock,
   refundPaidOrderMock,
+  notifyWaitlistMock,
 } = vi.hoisted(() => ({
   findProfileMock: vi.fn(),
   findOrderMock: vi.fn(),
   requireRoleMock: vi.fn(),
   refundPaidOrderMock: vi.fn(),
+  notifyWaitlistMock: vi.fn(),
 }));
 
 vi.mock("@/src/lib/db", () => ({
@@ -28,6 +30,10 @@ vi.mock("@/src/lib/services/order-refund", () => ({
   refundPaidOrder: refundPaidOrderMock,
 }));
 
+vi.mock("@/src/lib/services/waitlist", () => ({
+  notifyWaitlist: notifyWaitlistMock,
+}));
+
 import { POST } from "@/app/api/organizer/events/[id]/orders/[orderId]/refund/route";
 
 describe("organizer order refund integration", () => {
@@ -36,6 +42,7 @@ describe("organizer order refund integration", () => {
     findOrderMock.mockReset();
     requireRoleMock.mockReset();
     refundPaidOrderMock.mockReset();
+    notifyWaitlistMock.mockReset();
 
     requireRoleMock.mockResolvedValue({ sub: "org-user-1", role: "ORGANIZER" });
     findProfileMock.mockResolvedValue({ id: "org-profile-1" });
@@ -44,9 +51,10 @@ describe("organizer order refund integration", () => {
       success: true,
       data: { orderId: "order-1", status: "REFUNDED", refundId: "re_123" },
     });
+    notifyWaitlistMock.mockResolvedValue(undefined);
   });
 
-  it("refunds organizer-owned order", async () => {
+  it("refunds a paid order on a non-cancelled organizer event", async () => {
     const req = new NextRequest("http://localhost/api/organizer/events/event-1/orders/order-1/refund", { method: "POST" });
     const res = await POST(req, { params: Promise.resolve({ id: "event-1", orderId: "order-1" }) });
     const payload = await res.json();
@@ -54,7 +62,7 @@ describe("organizer order refund integration", () => {
     expect(res.status).toBe(200);
     expect(payload.success).toBe(true);
     expect(payload.data.status).toBe("REFUNDED");
-    expect(refundPaidOrderMock).toHaveBeenCalledWith("order-1");
+    expect(refundPaidOrderMock).toHaveBeenCalledWith("order-1", { allowAnyEventStatus: true });
   });
 
   it("returns 404 when order does not belong to organizer event", async () => {

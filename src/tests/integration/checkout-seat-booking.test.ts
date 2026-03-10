@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 
 const {
   eventFindFirstMock,
+  organizerPayoutSettingsFindUniqueMock,
   txEventFindFirstMock,
   txEventSeatBookingDeleteManyMock,
   txEventSeatBookingCreateMock,
@@ -14,6 +15,7 @@ const {
   prismaTransactionMock,
 } = vi.hoisted(() => ({
   eventFindFirstMock: vi.fn(),
+  organizerPayoutSettingsFindUniqueMock: vi.fn(),
   txEventFindFirstMock: vi.fn(),
   txEventSeatBookingDeleteManyMock: vi.fn(),
   txEventSeatBookingCreateMock: vi.fn(),
@@ -28,6 +30,9 @@ vi.mock("@/src/lib/db", () => ({
   prisma: {
     event: {
       findFirst: eventFindFirstMock,
+    },
+    organizerPayoutSettings: {
+      findUnique: organizerPayoutSettingsFindUniqueMock,
     },
     attendeeProfile: {
       findUnique: vi.fn(),
@@ -59,6 +64,7 @@ import { POST } from "@/app/api/checkout/route";
 
 const seatedEvent = {
   id: "event-1",
+  organizerProfileId: "organizer-profile-1",
   status: "PUBLISHED",
   commissionPct: new Prisma.Decimal(10),
   gstPct: new Prisma.Decimal(15),
@@ -100,6 +106,7 @@ describe("checkout seat booking integration", () => {
     vi.clearAllMocks();
 
     eventFindFirstMock.mockResolvedValue(seatedEvent);
+    organizerPayoutSettingsFindUniqueMock.mockResolvedValue(null);
     txEventFindFirstMock.mockResolvedValue(seatedEvent);
     txEventSeatBookingDeleteManyMock.mockResolvedValue({ count: 0 });
     txEventSeatBookingCreateMock.mockResolvedValue({});

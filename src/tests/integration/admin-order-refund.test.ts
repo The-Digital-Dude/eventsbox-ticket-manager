@@ -41,7 +41,7 @@ describe("admin order refund integration", () => {
     });
   });
 
-  it("refunds event order as admin", async () => {
+  it("refunds a paid order on a non-cancelled event as admin", async () => {
     const req = new NextRequest("http://localhost/api/admin/events/event-1/orders/order-1/refund", { method: "POST" });
     const res = await POST(req, { params: Promise.resolve({ id: "event-1", orderId: "order-1" }) });
     const payload = await res.json();
@@ -49,7 +49,7 @@ describe("admin order refund integration", () => {
     expect(res.status).toBe(200);
     expect(payload.success).toBe(true);
     expect(payload.data.status).toBe("REFUNDED");
-    expect(refundPaidOrderMock).toHaveBeenCalledWith("order-1");
+    expect(refundPaidOrderMock).toHaveBeenCalledWith("order-1", { allowAnyEventStatus: true });
   });
 
   it("returns 404 when order is missing for event", async () => {

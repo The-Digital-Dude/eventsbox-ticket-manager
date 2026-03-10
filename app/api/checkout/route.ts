@@ -40,6 +40,22 @@ export async function POST(req: NextRequest) {
       return fail(404, { code: "NOT_FOUND", message: "Event not found or not available" });
     }
 
+    const organizerPayoutSettings = await prisma.organizerPayoutSettings.findUnique({
+      where: { organizerProfileId: event.organizerProfileId },
+      select: {
+        stripeAccountId: true,
+        stripeOnboardingStatus: true,
+        payoutMode: true,
+      },
+    });
+
+    const connectedAccountId =
+      organizerPayoutSettings?.payoutMode === "STRIPE_CONNECT" &&
+      organizerPayoutSettings?.stripeOnboardingStatus === "COMPLETED" &&
+      organizerPayoutSettings?.stripeAccountId
+        ? organizerPayoutSettings.stripeAccountId
+        : null;
+
     const totalRequestedTickets = items.reduce((sum, item) => sum + item.quantity, 0);
     const uniqueSelectedSeatIds = Array.from(new Set(selectedSeatIds));
     const seatingConfig = (event.venue?.seatingConfig as VenueSeatingConfig | null) ?? null;
@@ -246,11 +262,20 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const platformFeeAmount = Math.round(Number(order.platformFee) * 100);
+    const totalAmountCents = Math.round(Number(order.total) * 100);
+
     const intent = await stripe.paymentIntents.create({
-      amount: Math.round(Number(order.total) * 100),
+      amount: totalAmountCents,
       currency: "nzd",
       metadata: { orderId: order.id, eventId, buyerEmail },
       receipt_email: buyerEmail,
+      ...(connectedAccountId && platformFeeAmount > 0
+        ? {
+            application_fee_amount: platformFeeAmount,
+            transfer_data: { destination: connectedAccountId },
+          }
+        : {}),
     });
 
     await prisma.order.update({

@@ -14,6 +14,10 @@ function VerifyEmailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get("email") ?? "";
+  const redirectTarget = searchParams.get("redirect");
+  const loginHref = redirectTarget
+    ? `/auth/login?redirect=${encodeURIComponent(redirectTarget)}`
+    : "/auth/login";
 
   const [code, setCode] = useState<string[]>(Array(OTP_LENGTH).fill(""));
   const [loading, setLoading] = useState(false);
@@ -86,7 +90,7 @@ function VerifyEmailContent() {
     }
 
     setVerified(true);
-    setTimeout(() => router.push("/auth/login"), 2500);
+    setTimeout(() => router.push(loginHref), 2500);
   }
 
   async function handleResend() {
@@ -160,7 +164,7 @@ function VerifyEmailContent() {
         </button>
       </div>
 
-      <Link href="/auth/login" className="text-xs text-neutral-400 hover:underline">
+      <Link href={loginHref} className="text-xs text-neutral-400 hover:underline">
         Back to login
       </Link>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -14,6 +14,7 @@ type ApiResponse = {
 
 export default function AttendeeRegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -38,7 +39,14 @@ export default function AttendeeRegisterPage() {
         return;
       }
 
-      router.push(`/auth/verify-email?email=${encodeURIComponent(email)}`);
+      const redirectTarget = searchParams.get("redirect");
+      const verifyUrl = new URL("/auth/verify-email", window.location.origin);
+      verifyUrl.searchParams.set("email", email);
+      if (redirectTarget) {
+        verifyUrl.searchParams.set("redirect", redirectTarget);
+      }
+
+      router.push(`${verifyUrl.pathname}${verifyUrl.search}`);
     } catch {
       setErrorMessage("Registration failed");
     } finally {
@@ -96,7 +104,14 @@ export default function AttendeeRegisterPage() {
 
           <p className="mt-4 text-sm text-neutral-600">
             Already have an account?{" "}
-            <Link href="/auth/login" className="font-medium text-[var(--theme-accent)] hover:underline">
+            <Link
+              href={
+                searchParams.get("redirect")
+                  ? `/auth/login?redirect=${encodeURIComponent(searchParams.get("redirect") ?? "")}`
+                  : "/auth/login"
+              }
+              className="font-medium text-[var(--theme-accent)] hover:underline"
+            >
               Sign in
             </Link>
           </p>

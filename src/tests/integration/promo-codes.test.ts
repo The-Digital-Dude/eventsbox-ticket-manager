@@ -14,6 +14,7 @@ const {
   validatePromoCodeByIdMock,
   getStripeClientMock,
   orderUpdateMock,
+  organizerPayoutSettingsFindUniqueMock,
   attendeeProfileFindUniqueMock,
   orderCreateMock,
   txEventFindFirstMock,
@@ -32,6 +33,7 @@ const {
   validatePromoCodeByIdMock: vi.fn(),
   getStripeClientMock: vi.fn(),
   orderUpdateMock: vi.fn(),
+  organizerPayoutSettingsFindUniqueMock: vi.fn(),
   attendeeProfileFindUniqueMock: vi.fn(),
   orderCreateMock: vi.fn(),
   txEventFindFirstMock: vi.fn(),
@@ -61,6 +63,9 @@ vi.mock("@/src/lib/db", () => ({
     },
     event: {
       findFirst: eventFindFirstMock,
+    },
+    organizerPayoutSettings: {
+      findUnique: organizerPayoutSettingsFindUniqueMock,
     },
     promoCode: {
       findUnique: promoCodeFindUniqueMock,
@@ -126,6 +131,7 @@ describe("promo codes integration", () => {
     });
 
     getServerSessionMock.mockResolvedValue(null);
+    organizerPayoutSettingsFindUniqueMock.mockResolvedValue(null);
     attendeeProfileFindUniqueMock.mockResolvedValue({ id: "attendee-profile-1" });
     orderUpdateMock.mockResolvedValue({});
 
@@ -217,6 +223,7 @@ describe("promo codes integration", () => {
     const promoCodeId = "ckpromo000000000000000001";
     const publishedEvent = {
       id: "event-1",
+      organizerProfileId: "organizer-profile-1",
       status: "PUBLISHED",
       commissionPct: new Prisma.Decimal(10),
       gstPct: new Prisma.Decimal(15),
