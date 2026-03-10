@@ -1,23 +1,23 @@
 # Current Task
 
 ## Active Task
-**Phase 13 — Admin Governance + Scanner Operations**
+**Phase 14 — Event Richness + Hardening**
 
 **Status:** DONE
 
 **Latest Handoff (2026-03-11):**
-- Admin organizer approvals and rejections now trigger fire-and-forget notification emails through `sendOrganizerApprovedEmail()` and `sendOrganizerRejectedEmail()`, wired from `app/api/admin/organizers/[id]/decision/route.ts`.
-- Organizers now have a second `/organizer/scanner` tab for a searchable attendee list with event selection, checked-in summaries, and manual ticket check-in backed by `GET/POST /api/organizer/events/[id]/checkin-list`.
-- Admins now have a financial dashboard at `/admin/analytics` backed by `GET /api/admin/analytics`, including revenue summary cards, refunds, top events, and a revenue-by-day chart.
-- Added Phase 13 integration coverage in `src/tests/integration/admin-analytics.test.ts` and `src/tests/integration/organizer-decision-notify.test.ts`.
-- `npm run lint`, `npm run typecheck`, and `npm run test:integration` all pass (26 files, 82 tests).
+- Events now support an ordered multi-image gallery through the new `Event.images` field, organizer gallery management in `/organizer/events/[id]/edit`, and a public horizontal gallery/lightbox on `/events/[slug]`.
+- Marketing unsubscribe is now complete with `User.marketingOptOut`, `User.unsubscribeToken`, a public `/unsubscribe` flow, waitlist-email opt-out enforcement, and an attendee email-preferences toggle on `/account/profile`.
+- Added Phase 14 integration coverage in `src/tests/integration/unsubscribe.test.ts` and `src/tests/integration/gallery.test.ts`.
+- Validation passed with `npm run lint`, `npm run typecheck`, `npm run test:integration`, and `npm run build` (28 integration files, 88 tests).
+- `npx prisma migrate dev --name add-event-gallery-and-unsubscribe` was blocked by pre-existing migration drift in the shared development database, so Phase 14 ships with a checked-in SQL migration at `prisma/migrations/20260311024757_add_event_gallery_and_unsubscribe/migration.sql`, applied manually via `prisma db execute`, plus a regenerated Prisma client.
 
 ---
 
 ## Previous Task
-**Phase 12 — Attendee & Transaction Completions**
+**Phase 13 — Admin Governance + Scanner Operations**
 
-**Status:** Completed on 2026-03-10
+**Status:** Completed on 2026-03-11
 
 ---
 

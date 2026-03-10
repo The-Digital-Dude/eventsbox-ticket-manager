@@ -56,6 +56,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
 
   return ok({
     ...event,
+    images: event.images ?? [],
     venue: event.venue
       ? {
           ...event.venue,

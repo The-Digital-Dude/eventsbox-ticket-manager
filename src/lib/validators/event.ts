@@ -8,6 +8,7 @@ export const eventCreateSchema = z.object({
   stateId: z.string().optional(),
   cityId: z.string().optional(),
   heroImage: z.string().url().optional().or(z.literal("")),
+  images: z.array(z.string().url()).max(10).optional(),
   contactEmail: z.string().email().optional().or(z.literal("")),
   contactPhone: z.string().max(30).optional(),
   cancelPolicy: z.string().max(2000).optional(),

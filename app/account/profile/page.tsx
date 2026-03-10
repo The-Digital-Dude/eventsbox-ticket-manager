@@ -13,6 +13,7 @@ type ProfileResponse = {
     email?: string;
     displayName?: string | null;
     phone?: string | null;
+    marketingOptOut?: boolean;
     createdAt?: string;
   };
   error?: { message?: string };
@@ -25,6 +26,7 @@ export default function AccountProfilePage() {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
+  const [marketingOptOut, setMarketingOptOut] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -50,6 +52,7 @@ export default function AccountProfilePage() {
       setEmail(payload.data?.email ?? "");
       setDisplayName(payload.data?.displayName ?? "");
       setPhone(payload.data?.phone ?? "");
+      setMarketingOptOut(payload.data?.marketingOptOut ?? false);
       setLoading(false);
     }
 
@@ -68,6 +71,7 @@ export default function AccountProfilePage() {
       body: JSON.stringify({
         displayName: displayName || undefined,
         phone: phone || undefined,
+        marketingOptOut,
       }),
     });
 
@@ -107,6 +111,20 @@ export default function AccountProfilePage() {
         <div className="space-y-2">
           <Label htmlFor="phone">Phone</Label>
           <Input id="phone" value={phone} onChange={(event) => setPhone(event.target.value)} />
+        </div>
+
+        <div className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
+          <p className="text-sm font-medium text-neutral-900">Email Preferences</p>
+          <label htmlFor="marketingOptOut" className="mt-3 flex items-start gap-3 text-sm text-neutral-700">
+            <input
+              id="marketingOptOut"
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 rounded border-[var(--border)]"
+              checked={!marketingOptOut}
+              onChange={(event) => setMarketingOptOut(!event.target.checked)}
+            />
+            <span>Receive notifications when waitlisted events get new tickets</span>
+          </label>
         </div>
 
         <Button onClick={saveProfile} disabled={saving}>

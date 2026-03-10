@@ -97,6 +97,8 @@ model User {
   role             Role
   emailVerified    Boolean                  @default(false)
   isActive         Boolean                  @default(true)
+  marketingOptOut  Boolean                  @default(false)
+  unsubscribeToken String                   @unique @default(cuid())
   createdAt        DateTime                 @default(now())
   updatedAt        DateTime                 @updatedAt
   organizerProfile OrganizerProfile?
@@ -297,6 +299,7 @@ model Event {
   slug               String           @unique
   description        String?
   heroImage          String?
+  images             String[]         @default([])
   contactEmail       String?
   contactPhone       String?
   cancelPolicy       String?

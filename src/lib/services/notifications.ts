@@ -21,7 +21,22 @@ type EmailPayload = {
 type EmailSendResult =
   | { sent: true; skipped: false }
   | { sent: false; skipped: true; reason: "MISSING_CONFIG" }
+  | { sent: false; skipped: true; reason: "OPT_OUT" }
   | { sent: false; skipped: false; reason: "PROVIDER_ERROR" };
+
+function unsubscribeUrl(token: string) {
+  return `${env.APP_URL}/unsubscribe?token=${token}`;
+}
+
+async function getMarketingRecipient(email: string) {
+  return prisma.user.findUnique({
+    where: { email },
+    select: {
+      marketingOptOut: true,
+      unsubscribeToken: true,
+    },
+  });
+}
 
 async function sendEmail(payload: EmailPayload): Promise<EmailSendResult> {
   const client = getResendClient();
@@ -413,19 +428,32 @@ export async function sendWaitlistConfirmationEmail(input: {
   ticketName: string;
   eventTitle: string;
 }) {
+  const user = await getMarketingRecipient(input.to);
+  if (user?.marketingOptOut) {
+    return { sent: false, skipped: true as const, reason: "OPT_OUT" as const };
+  }
+
   const recipient = input.name?.trim() || "there";
+  const footerText = user?.unsubscribeToken
+    ? ["", `Stop waitlist emails: ${unsubscribeUrl(user.unsubscribeToken)}`]
+    : [];
+  const footerHtml = user?.unsubscribeToken
+    ? `<p style="margin-top:24px;font-size:12px;color:#6b7280">Prefer not to receive waitlist emails? <a href="${unsubscribeUrl(user.unsubscribeToken)}">Unsubscribe here</a>.</p>`
+    : "";
   const subject = `You're on the waitlist: ${input.eventTitle}`;
   const text = [
     `Hi ${recipient},`,
     "",
     `You're on the waitlist for ${input.ticketName} at ${input.eventTitle}.`,
     "We'll notify you if tickets become available.",
+    ...footerText,
   ].join("\n");
 
   const html = `
     <p>Hi ${recipient},</p>
     <p>You're on the waitlist for <strong>${input.ticketName}</strong> at <strong>${input.eventTitle}</strong>.</p>
     <p>We'll notify you if tickets become available.</p>
+    ${footerHtml}
   `;
 
   return sendEmail({ to: input.to, subject, text, html });
@@ -438,19 +466,32 @@ export async function sendWaitlistAvailabilityEmail(input: {
   eventTitle: string;
   eventUrl: string;
 }) {
+  const user = await getMarketingRecipient(input.to);
+  if (user?.marketingOptOut) {
+    return { sent: false, skipped: true as const, reason: "OPT_OUT" as const };
+  }
+
   const recipient = input.name?.trim() || "there";
+  const footerText = user?.unsubscribeToken
+    ? ["", `Stop waitlist emails: ${unsubscribeUrl(user.unsubscribeToken)}`]
+    : [];
+  const footerHtml = user?.unsubscribeToken
+    ? `<p style="margin-top:24px;font-size:12px;color:#6b7280">Prefer not to receive waitlist emails? <a href="${unsubscribeUrl(user.unsubscribeToken)}">Unsubscribe here</a>.</p>`
+    : "";
   const subject = `Ticket available: ${input.eventTitle}`;
   const text = [
     `Hi ${recipient},`,
     "",
     `Good news! A ${input.ticketName} ticket for ${input.eventTitle} is now available.`,
     `Purchase here: ${input.eventUrl}`,
+    ...footerText,
   ].join("\n");
 
   const html = `
     <p>Hi ${recipient},</p>
     <p>Good news! A <strong>${input.ticketName}</strong> ticket for <strong>${input.eventTitle}</strong> is now available.</p>
     <p><a href="${input.eventUrl}">Purchase tickets</a></p>
+    ${footerHtml}
   `;
 
   return sendEmail({ to: input.to, subject, text, html });

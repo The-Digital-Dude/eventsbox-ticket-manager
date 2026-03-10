@@ -79,7 +79,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return fail(400, { code: "VALIDATION_ERROR", message: "Invalid update data", details: parsed.error.flatten() });
     }
 
-    const { startAt, endAt, heroImage, contactEmail, seriesId, ...rest } = parsed.data;
+    const { startAt, endAt, heroImage, contactEmail, images, seriesId, ...rest } = parsed.data;
 
     if (seriesId !== undefined && seriesId !== null) {
       const ownedSeries = await prisma.eventSeries.findFirst({
@@ -96,6 +96,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data: {
         ...rest,
         ...(heroImage !== undefined ? { heroImage: heroImage || null } : {}),
+        ...(images !== undefined ? { images } : {}),
         ...(contactEmail !== undefined ? { contactEmail: contactEmail || null } : {}),
         ...(startAt ? { startAt: new Date(startAt) } : {}),
         ...(endAt ? { endAt: new Date(endAt) } : {}),

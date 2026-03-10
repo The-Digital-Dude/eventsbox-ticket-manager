@@ -13,6 +13,7 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   try {
     await requireRole(req, Role.ORGANIZER);
+    const uploadType = req.nextUrl.searchParams.get("type") === "gallery" ? "gallery" : "hero";
 
     if (!isEventImageUploadConfigured()) {
       return fail(503, { code: "UPLOAD_NOT_CONFIGURED", message: "Cloudinary upload is not configured" });
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     }
 
     const uploaded = await uploadEventImage(file);
-    return ok(uploaded, 201);
+    return ok(uploadType === "gallery" ? { url: uploaded.url } : uploaded, 201);
   } catch (error) {
     if (error instanceof EventImageUploadError) {
       return fail(error.status, { code: error.code, message: error.message });

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -66,11 +66,14 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [contactPhone, setContactPhone] = useState("");
   const [heroImage, setHeroImage] = useState("");
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
+  const [images, setImages] = useState<string[]>([]);
+  const [uploadingGalleryImage, setUploadingGalleryImage] = useState(false);
   const [cancelPolicy, setCancelPolicy] = useState("");
   const [refundPolicy, setRefundPolicy] = useState("");
   const [commissionPct, setCommissionPct] = useState("10");
   const [gstPct, setGstPct] = useState("15");
   const [platformFeeFixed, setPlatformFeeFixed] = useState("0");
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
   const cities = states.find((s) => s.id === stateId)?.cities ?? [];
 
@@ -117,6 +120,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setContactEmail(ev.contactEmail ?? "");
       setContactPhone(ev.contactPhone ?? "");
       setHeroImage(ev.heroImage ?? "");
+      setImages(Array.isArray(ev.images) ? ev.images : []);
       setCancelPolicy(ev.cancelPolicy ?? "");
       setRefundPolicy(ev.refundPolicy ?? "");
       setCommissionPct(String(ev.commissionPct ?? 10));
@@ -153,6 +157,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         stateId: stateId || undefined, cityId: cityId || undefined,
         startAt, endAt, timezone,
         heroImage: heroImage || undefined,
+        images,
         contactEmail: contactEmail || undefined, contactPhone: contactPhone || undefined,
         cancelPolicy: cancelPolicy || undefined, refundPolicy: refundPolicy || undefined,
         commissionPct: Number(commissionPct), gstPct: Number(gstPct),
@@ -197,6 +202,43 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
     if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to upload image");
     setHeroImage(payload.data.url);
     toast.success("Hero image uploaded");
+  }
+
+  async function uploadGallery(file: File) {
+    if (images.length >= 10) {
+      toast.error("You can upload up to 10 gallery images");
+      return;
+    }
+
+    setUploadingGalleryImage(true);
+    const fd = new FormData();
+    fd.append("file", file);
+
+    const res = await fetch("/api/organizer/uploads/event-image?type=gallery", {
+      method: "POST",
+      body: fd,
+    });
+    const payload = await res.json();
+    setUploadingGalleryImage(false);
+
+    if (!res.ok) {
+      toast.error(payload?.error?.message ?? "Failed to upload image");
+      return;
+    }
+
+    const url = payload?.data?.url;
+    if (!url) {
+      toast.error("Upload did not return an image URL");
+      return;
+    }
+
+    setImages((current) => {
+      if (current.length >= 10) {
+        return current;
+      }
+      return [...current, url];
+    });
+    toast.success("Gallery image uploaded");
   }
 
   if (!ready) {
@@ -259,6 +301,61 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
               {heroImage && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={heroImage} alt="Event hero preview" className="h-40 w-full rounded-xl object-cover" />
+              )}
+            </div>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <Label>Event Gallery</Label>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Add up to 10 extra photos that will appear on the event page.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-medium text-neutral-500">{images.length} / 10</span>
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+                      if (!file) return;
+                      void uploadGallery(file);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={uploadingGalleryImage || images.length >= 10}
+                    onClick={() => galleryInputRef.current?.click()}
+                  >
+                    {uploadingGalleryImage ? "Uploading..." : "Add Photo"}
+                  </Button>
+                </div>
+              </div>
+              {images.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {images.map((imageUrl, index) => (
+                    <div key={imageUrl} className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-neutral-50">
+                      <button
+                        type="button"
+                        onClick={() => setImages((current) => current.filter((entry) => entry !== imageUrl))}
+                        className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-sm font-semibold text-white transition hover:bg-black"
+                        aria-label={`Remove gallery image ${index + 1}`}
+                      >
+                        ×
+                      </button>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={imageUrl} alt={`Gallery preview ${index + 1}`} className="h-36 w-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-[var(--border)] bg-neutral-50 px-4 py-6 text-sm text-neutral-500">
+                  No gallery images yet.
+                </div>
               )}
             </div>
             <div className="grid gap-4 md:grid-cols-2">

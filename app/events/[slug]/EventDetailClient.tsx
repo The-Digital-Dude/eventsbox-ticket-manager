@@ -34,6 +34,7 @@ type EventDetail = {
   title: string;
   slug: string;
   heroImage: string | null;
+  images: string[];
   description: string | null;
   startAt: string;
   endAt: string;
@@ -122,6 +123,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
   const [seatAvailability, setSeatAvailability] = useState<Record<string, PublicSeatBookingState>>({});
   const [seatAvailabilityLoading, setSeatAvailabilityLoading] = useState(false);
   const [seatPollIntervalMs, setSeatPollIntervalMs] = useState(10_000);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/public/events/${slug}`)
@@ -239,6 +241,23 @@ export function EventDetailClient({ slug }: { slug: string }) {
       window.clearInterval(interval);
     };
   }, [event?.venue?.seatingConfig, seatPollIntervalMs, slug]);
+
+  useEffect(() => {
+    if (!selectedImage) {
+      return;
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSelectedImage(null);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [selectedImage]);
 
   function setQty(ticketTypeId: string, qty: number) {
     setCart((prev) => {
@@ -495,6 +514,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
   const eventRedirectPath = `/events/${slug}`;
   const loginUrl = `/auth/login?redirect=${encodeURIComponent(eventRedirectPath)}`;
   const registerUrl = `/auth/register/attendee?redirect=${encodeURIComponent(eventRedirectPath)}`;
+  const galleryImages = event.images ?? [];
 
   return (
     <div className="min-h-screen bg-[var(--page-bg,#f8f8f8)]">
@@ -510,6 +530,35 @@ export function EventDetailClient({ slug }: { slug: string }) {
                 alt={event.title}
                 className="h-72 w-full rounded-2xl border border-[var(--border)] object-cover shadow-sm"
               />
+            )}
+
+            {galleryImages.length > 0 && (
+              <section className="rounded-2xl border border-[var(--border)] bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-neutral-900">Gallery</h2>
+                    <p className="text-sm text-neutral-500">More moments from this event.</p>
+                  </div>
+                  <Badge>{galleryImages.length} photos</Badge>
+                </div>
+                <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+                  {galleryImages.map((imageUrl, index) => (
+                    <button
+                      key={`${imageUrl}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedImage(imageUrl)}
+                      className="shrink-0 overflow-hidden rounded-xl border border-[var(--border)] transition hover:opacity-90"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={imageUrl}
+                        alt={`${event.title} gallery image ${index + 1}`}
+                        className="h-28 w-40 object-cover sm:h-32 sm:w-48"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </section>
             )}
 
             <div>
@@ -926,6 +975,29 @@ export function EventDetailClient({ slug }: { slug: string }) {
           </div>
         </div>
       </div>
+
+      {selectedImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="relative max-w-5xl" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setSelectedImage(null)}
+              className="absolute right-3 top-3 z-10 rounded-full bg-black/70 px-3 py-1 text-sm font-medium text-white transition hover:bg-black"
+            >
+              Close
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={selectedImage}
+              alt={`${event.title} full-size gallery preview`}
+              className="max-h-[85vh] rounded-2xl object-contain shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
