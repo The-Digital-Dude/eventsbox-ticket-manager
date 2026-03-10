@@ -5,6 +5,10 @@ import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
 import { organizerDecisionSchema } from "@/src/lib/validators/admin";
 import { writeAuditLog } from "@/src/lib/services/audit";
+import {
+  sendOrganizerApprovedEmail,
+  sendOrganizerRejectedEmail,
+} from "@/src/lib/services/notifications";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -24,6 +28,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         approvedAt: parsed.data.action === "APPROVED" ? new Date() : null,
       },
     });
+
+    const organizerUser = await prisma.user.findUnique({
+      where: { id: updated.userId },
+      select: { email: true },
+    });
+
+    if (organizerUser) {
+      const organizerName = organizerUser.email;
+      if (parsed.data.action === "APPROVED") {
+        void sendOrganizerApprovedEmail({
+          to: organizerUser.email,
+          organizerName,
+        }).catch((error) => {
+          console.error("[admin organizer decision][approved email]", error);
+        });
+      } else if (parsed.data.action === "REJECTED") {
+        void sendOrganizerRejectedEmail({
+          to: organizerUser.email,
+          organizerName,
+          reason: parsed.data.reason ?? "No reason provided",
+        }).catch((error) => {
+          console.error("[admin organizer decision][rejected email]", error);
+        });
+      }
+    }
 
     await writeAuditLog({
       actorUserId: actor.sub,

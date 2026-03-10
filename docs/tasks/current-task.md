@@ -1,21 +1,21 @@
 # Current Task
 
 ## Active Task
-**Phase 12 — Attendee & Transaction Completions**
+**Phase 13 — Admin Governance + Scanner Operations**
 
 **Status:** DONE
 
-**Latest Handoff (2026-03-10):**
-- Added the shared Phase 12 schema for event series, complimentary tickets, and ticket transfer, plus a single migration SQL file at `prisma/migrations/20260310120000_add_comp_tickets_series_transfer/migration.sql`.
-- Organizers can now create public event series, assign events to them, and attendees can browse `/events/series/[id]` pages or jump from an event detail page via the new series badge.
-- Organizers can reserve complimentary inventory, issue comp tickets that create real PAID orders plus scannable QR tickets, and manage comp issuance from `/organizer/events/[id]/comp-tickets`.
-- Attendees can initiate ticket transfers from `/account/orders`, recipients can accept via `/transfer/accept?token=...`, and accepted transfers update buyer ownership details.
-- `npm run lint`, `npm run typecheck`, and `npm run test:integration` all pass (24 files, 78 tests).
+**Latest Handoff (2026-03-11):**
+- Admin organizer approvals and rejections now trigger fire-and-forget notification emails through `sendOrganizerApprovedEmail()` and `sendOrganizerRejectedEmail()`, wired from `app/api/admin/organizers/[id]/decision/route.ts`.
+- Organizers now have a second `/organizer/scanner` tab for a searchable attendee list with event selection, checked-in summaries, and manual ticket check-in backed by `GET/POST /api/organizer/events/[id]/checkin-list`.
+- Admins now have a financial dashboard at `/admin/analytics` backed by `GET /api/admin/analytics`, including revenue summary cards, refunds, top events, and a revenue-by-day chart.
+- Added Phase 13 integration coverage in `src/tests/integration/admin-analytics.test.ts` and `src/tests/integration/organizer-decision-notify.test.ts`.
+- `npm run lint`, `npm run typecheck`, and `npm run test:integration` all pass (26 files, 82 tests).
 
 ---
 
 ## Previous Task
-**Phase 11 — Security & Business Correctness**
+**Phase 12 — Attendee & Transaction Completions**
 
 **Status:** Completed on 2026-03-10
 

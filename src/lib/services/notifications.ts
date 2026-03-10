@@ -163,6 +163,52 @@ export async function sendOrganizerEventStatusEmail(input: {
   return sendEmail({ to: input.to, subject, text, html });
 }
 
+export async function sendOrganizerApprovedEmail(input: {
+  to: string;
+  organizerName: string;
+}) {
+  const subject = "Your EventsBox organizer application is approved";
+  const text = [
+    `Hi ${input.organizerName},`,
+    "",
+    "Your organizer application has been approved!",
+    "You can now create and publish events on EventsBox.",
+    "Log in to get started.",
+  ].join("\n");
+
+  const html = `
+    <p>Hi ${input.organizerName},</p>
+    <p>Your organizer application has been approved!</p>
+    <p>You can now create and publish events on EventsBox. Log in to get started.</p>
+  `;
+
+  return sendEmail({ to: input.to, subject, text, html });
+}
+
+export async function sendOrganizerRejectedEmail(input: {
+  to: string;
+  organizerName: string;
+  reason: string;
+}) {
+  const subject = "Your EventsBox organizer application was not approved";
+  const text = [
+    `Hi ${input.organizerName},`,
+    "",
+    "Your organizer application was not approved at this time.",
+    `Reason: ${input.reason}`,
+    "If you have questions, please contact support.",
+  ].join("\n");
+
+  const html = `
+    <p>Hi ${input.organizerName},</p>
+    <p>Your organizer application was not approved at this time.</p>
+    <p>Reason: ${input.reason}</p>
+    <p>If you have questions, please contact support.</p>
+  `;
+
+  return sendEmail({ to: input.to, subject, text, html });
+}
+
 export async function sendEventCancelledEmailToAttendee(input: {
   to: string;
   buyerName: string;
