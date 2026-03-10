@@ -213,7 +213,7 @@ describe("promo codes integration", () => {
     expect(maxUsePayload.data.message).toContain("limit");
   });
 
-  it("applies promo in checkout and increments promo usedCount", async () => {
+  it("applies promo in checkout without incrementing promo usedCount before payment", async () => {
     const promoCodeId = "ckpromo000000000000000001";
     const publishedEvent = {
       id: "event-1",
@@ -262,11 +262,6 @@ describe("promo codes integration", () => {
         }),
       }),
     );
-    expect(txPromoCodeUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: promoCodeId },
-        data: { usedCount: { increment: 1 } },
-      }),
-    );
+    expect(txPromoCodeUpdateMock).not.toHaveBeenCalled();
   });
 });

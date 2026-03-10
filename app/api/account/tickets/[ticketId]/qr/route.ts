@@ -44,7 +44,7 @@ export async function GET(
       },
     });
 
-    if (!ticket || ticket.order.status !== "PAID") {
+    if (!ticket || !ticket.order || ticket.order.status !== "PAID") {
       return fail(404, { code: "NOT_FOUND", message: "Ticket not found" });
     }
 

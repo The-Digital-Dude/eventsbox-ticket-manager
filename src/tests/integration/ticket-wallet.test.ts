@@ -88,4 +88,23 @@ describe("ticket wallet integration", () => {
     expect(payload.error.code).toBe("FORBIDDEN");
     expect(generateQrPngBufferMock).not.toHaveBeenCalled();
   });
+
+  it("returns 404 instead of crashing when the ticket order is missing", async () => {
+    qrTicketFindUniqueMock.mockResolvedValueOnce({
+      id: "ticket-1",
+      ticketNumber: "TKT-001",
+      order: null,
+    });
+
+    const req = new NextRequest("http://localhost/api/account/tickets/ticket-1/qr", {
+      method: "GET",
+    });
+
+    const res = await GET(req, { params: Promise.resolve({ ticketId: "ticket-1" }) });
+    const payload = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(payload.error.code).toBe("NOT_FOUND");
+    expect(generateQrPngBufferMock).not.toHaveBeenCalled();
+  });
 });

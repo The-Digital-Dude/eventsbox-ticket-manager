@@ -3,9 +3,13 @@
 ## Active Task
 **Phase 10 — Pre-Launch Bug Fixes**
 
-**Status:** TODO — see `docs/tasks/phase-10-plan.md` for full plan
+**Status:** IN PROGRESS — implementation landed; full acceptance is blocked by an unrelated integration DB failure in `src/tests/integration/attendee-account.test.ts`
 
 **Latest Handoff (2026-03-10):**
+- Phase 10 bug fixes landed for promo code usage timing, atomic promo max-use enforcement on payment success, and QR ticket null safety.
+- Added Phase 10 integration coverage in `src/tests/integration/checkout.test.ts` plus defensive QR null-safety coverage in `src/tests/integration/ticket-wallet.test.ts`.
+- `npm run lint` and `npm run typecheck` pass; targeted Phase 10 integration tests pass.
+- `npm run test:integration` still has an unrelated failure in `src/tests/integration/attendee-account.test.ts` because that test is attempting to reach the Neon database and receives a connection error.
 - Public event pages now expose venue seating layouts and a live seat-status endpoint for attendee-facing seat maps.
 - Seated-event checkout now requires seat selection, reserves seats during payment, and converts them to booked seats on successful Stripe webhook processing.
 - Event detail UI now polls live seat status and shows available, reserved, booked, and selected seat states.

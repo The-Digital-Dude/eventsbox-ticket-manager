@@ -191,13 +191,6 @@ export async function POST(req: NextRequest) {
         include: { items: true },
       });
 
-      if (promoCodeRecordId) {
-        await tx.promoCode.update({
-          where: { id: promoCodeRecordId },
-          data: { usedCount: { increment: 1 } },
-        });
-      }
-
       if (seatingConfig) {
         for (const seatId of uniqueSelectedSeatIds) {
           try {

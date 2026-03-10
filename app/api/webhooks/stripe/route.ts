@@ -182,6 +182,15 @@ async function handlePaymentSucceeded(intent: Stripe.PaymentIntent) {
       data: { status: "PAID", paidAt: new Date() },
     });
 
+    if (order.promoCodeId) {
+      await tx.$executeRaw`
+        UPDATE "PromoCode"
+        SET "usedCount" = "usedCount" + 1
+        WHERE id = ${order.promoCodeId}
+          AND ("maxUses" IS NULL OR "usedCount" < "maxUses")
+      `;
+    }
+
     const seatBookings = await markSeatBookingsBooked(tx, order.id);
 
     let seatCursor = 0;
