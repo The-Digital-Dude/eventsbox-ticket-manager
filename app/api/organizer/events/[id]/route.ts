@@ -4,6 +4,7 @@ import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
 import { eventUpdateSchema } from "@/src/lib/validators/event";
+import { sendEventDateChangedEmail } from "@/src/lib/services/notifications";
 
 const eventInclude = {
   category: { select: { id: true, name: true } },
@@ -91,6 +92,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
+    const oldStartAt = existing.startAt;
+
     const event = await prisma.event.update({
       where: { id },
       data: {
@@ -104,6 +107,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       },
       include: eventInclude,
     });
+
+    if (oldStartAt.getTime() !== event.startAt.getTime()) {
+      const orders = await prisma.order.findMany({
+        where: { eventId: event.id, status: "PAID" },
+        select: { id: true, buyerEmail: true, buyerName: true },
+      });
+
+      sendEventDateChangedEmail({
+        eventTitle: event.title,
+        oldStartAt,
+        newStartAt: event.startAt,
+        timezone: event.timezone,
+        venueName: event.venue?.name ?? null,
+        attendees: orders.map((o) => ({ email: o.buyerEmail, name: o.buyerName, orderId: o.id })),
+      }).catch((err) => console.error("[date-change-email]", err));
+    }
 
     return ok(event);
   } catch (error) {
