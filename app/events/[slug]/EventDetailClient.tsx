@@ -12,6 +12,7 @@ import { Input } from "@/src/components/ui/input";
 import { listSeatDescriptors } from "@/src/lib/venue-seating";
 import { formatCurrency } from "@/src/lib/currency";
 import { getVideoEmbedUrl } from "@/src/lib/video";
+import { GoogleMap } from "@/src/components/ui/google-map";
 import type {
   PublicSeatBookingState,
   SeatingSection,
@@ -60,6 +61,8 @@ type EventDetail = {
   venue: {
     name: string;
     addressLine1: string;
+    lat?: number | null;
+    lng?: number | null;
     seatingConfig?: VenueSeatingConfig | null;
     seatState?: Record<string, SeatState> | null;
   } | null;
@@ -643,6 +646,18 @@ export function EventDetailClient({ slug }: { slug: string }) {
                   </div>
                 )}
               </div>
+
+              {/* Show map if venue has coordinates or address */}
+              {(event.venue?.lat || event.venue?.lng || event.venue?.addressLine1) && (
+                <div className="mt-4">
+                  <GoogleMap
+                    lat={event.venue.lat}
+                    lng={event.venue.lng}
+                    address={[event.venue.addressLine1, event.city?.name, event.state?.name].filter(Boolean).join(", ")}
+                    venueName={event.venue.name}
+                  />
+                </div>
+              )}
             </div>
 
             {event.description && (

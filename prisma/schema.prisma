@@ -281,6 +281,8 @@ model Venue {
   stateId              String
   cityId               String
   categoryId           String?
+  lat                  Float?
+  lng                  Float?
   seatingConfig        Json?
   seatState            Json?
   seatingSchemaVersion Int              @default(1)
@@ -318,6 +320,8 @@ model Event {
   images             String[]         @default([])
   contactEmail       String?
   contactPhone       String?
+  lat                         Float?
+  lng                         Float?
   cancelPolicy                String?
   refundPolicy                String?
   cancellationDeadlineHours   Int?

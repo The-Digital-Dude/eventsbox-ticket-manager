@@ -16,6 +16,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
           id: true,
           name: true,
           addressLine1: true,
+          lat: true,
+          lng: true,
           seatingConfig: true,
           seatState: true,
         },
