@@ -302,8 +302,10 @@ model Event {
   images             String[]         @default([])
   contactEmail       String?
   contactPhone       String?
-  cancelPolicy       String?
-  refundPolicy       String?
+  cancelPolicy                String?
+  refundPolicy                String?
+  cancellationDeadlineHours   Int?
+  refundPercent               Int      @default(100)
   startAt            DateTime
   endAt              DateTime
   timezone           String           @default("Pacific/Auckland")

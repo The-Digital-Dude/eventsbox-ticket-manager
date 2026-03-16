@@ -70,6 +70,9 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [uploadingGalleryImage, setUploadingGalleryImage] = useState(false);
   const [cancelPolicy, setCancelPolicy] = useState("");
   const [refundPolicy, setRefundPolicy] = useState("");
+  const [allowCancellations, setAllowCancellations] = useState(false);
+  const [cancellationDeadlineHours, setCancellationDeadlineHours] = useState("48");
+  const [refundPercent, setRefundPercent] = useState<"0" | "50" | "100">("100");
   const [commissionPct, setCommissionPct] = useState("10");
   const [gstPct, setGstPct] = useState("15");
   const [platformFeeFixed, setPlatformFeeFixed] = useState("0");
@@ -123,6 +126,10 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setImages(Array.isArray(ev.images) ? ev.images : []);
       setCancelPolicy(ev.cancelPolicy ?? "");
       setRefundPolicy(ev.refundPolicy ?? "");
+      setAllowCancellations(ev.cancellationDeadlineHours != null);
+      setCancellationDeadlineHours(String(ev.cancellationDeadlineHours ?? 48));
+      const pct = ev.refundPercent ?? 100;
+      setRefundPercent(([0, 50, 100] as number[]).includes(pct) ? (String(pct) as "0" | "50" | "100") : "100");
       setCommissionPct(String(ev.commissionPct ?? 10));
       setGstPct(String(ev.gstPct ?? 15));
       setPlatformFeeFixed(String(ev.platformFeeFixed ?? 0));
@@ -162,6 +169,8 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         images,
         contactEmail: contactEmail || undefined, contactPhone: contactPhone || undefined,
         cancelPolicy: cancelPolicy || undefined, refundPolicy: refundPolicy || undefined,
+        cancellationDeadlineHours: allowCancellations ? Number(cancellationDeadlineHours) : null,
+        refundPercent: Number(refundPercent),
         commissionPct: Number(commissionPct), gstPct: Number(gstPct),
         platformFeeFixed: Number(platformFeeFixed),
       }),
@@ -454,6 +463,56 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
                 onChange={(e) => setRefundPolicy(e.target.value)}
               />
             </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold text-neutral-900">Cancellation Policy</h2>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <input
+                id="allow-cancellations"
+                type="checkbox"
+                checked={allowCancellations}
+                onChange={(e) => setAllowCancellations(e.target.checked)}
+                className="h-4 w-4 rounded border-[var(--border)] accent-[var(--theme-accent)]"
+              />
+              <Label htmlFor="allow-cancellations">Allow cancellations</Label>
+            </div>
+            {allowCancellations && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="cancellation-deadline">Cancellation deadline (hours before event)</Label>
+                  <Input
+                    id="cancellation-deadline"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={cancellationDeadlineHours}
+                    onChange={(e) => setCancellationDeadlineHours(e.target.value)}
+                    placeholder="e.g. 24, 48, 72"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="refund-percent">Refund amount</Label>
+                  <select
+                    id="refund-percent"
+                    className="app-select"
+                    value={refundPercent}
+                    onChange={(e) => setRefundPercent(e.target.value as "0" | "50" | "100")}
+                  >
+                    <option value="100">Full refund (100%)</option>
+                    <option value="50">Half refund (50%)</option>
+                    <option value="0">No refund (0%)</option>
+                  </select>
+                </div>
+              </div>
+            )}
+            {!allowCancellations && (
+              <p className="text-sm text-neutral-500">
+                Cancellations are disabled. Attendees will not be able to cancel their orders.
+              </p>
+            )}
           </div>
         </section>
 

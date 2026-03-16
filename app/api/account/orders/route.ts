@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       prisma.order.findMany({
         where,
         include: {
-          event: { select: { title: true, startAt: true, slug: true } },
+          event: { select: { title: true, startAt: true, slug: true, cancellationDeadlineHours: true, refundPercent: true } },
           cancellationRequest: {
             select: { id: true, status: true },
           },

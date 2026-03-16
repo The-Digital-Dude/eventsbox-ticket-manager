@@ -13,7 +13,7 @@ type OrderRow = {
   total: number | string;
   status: "PAID" | "REFUNDED";
   paidAt: string | null;
-  event: { title: string; startAt: string; slug: string };
+  event: { title: string; startAt: string; slug: string; cancellationDeadlineHours: number | null; refundPercent: number };
   items: Array<{
     quantity: number;
     ticketType: { name: string };
@@ -92,16 +92,25 @@ export function OrdersTableClient({ initialOrders }: { initialOrders: OrderRow[]
       return;
     }
 
+    const refundPct: number = payload.data?.refundPct ?? 100;
     setOrders((prev) =>
       prev.map((order) =>
         order.id === orderId
-          ? { ...order, cancellationRequest: { id: payload.data.requestId, status: "PENDING" } }
+          ? {
+              ...order,
+              status: "REFUNDED" as const,
+              cancellationRequest: { id: payload.data?.requestId ?? orderId, status: "APPROVED" as const },
+            }
           : order,
       ),
     );
     setReason("");
     setActiveOrderId(null);
-    toast.success("Cancellation request submitted");
+    toast.success(
+      refundPct === 0
+        ? "Order cancelled (no refund)"
+        : `Order cancelled — ${refundPct}% refund processed`,
+    );
   }
 
   async function requestTransfer(orderId: string, ticketId: string) {
@@ -181,11 +190,40 @@ export function OrdersTableClient({ initialOrders }: { initialOrders: OrderRow[]
             const isPendingCancellation = order.cancellationRequest?.status === "PENDING";
             const eventStarted = new Date(order.event.startAt).getTime() <= renderedAt;
 
+            const { cancellationDeadlineHours, refundPercent } = order.event;
+            const cancellationAllowed = cancellationDeadlineHours !== null;
+            const deadlineMs = cancellationAllowed
+              ? new Date(order.event.startAt).getTime() - cancellationDeadlineHours * 3600 * 1000
+              : null;
+            const pastDeadline = deadlineMs !== null && renderedAt > deadlineMs;
+            const deadlineDate = deadlineMs !== null ? new Date(deadlineMs) : null;
+
+            function formatDeadline(d: Date) {
+              return d.toLocaleString(undefined, {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+            }
+
             return (
               <Fragment key={order.id}>
                 <tr key={order.id}>
                   <td className="px-4 py-3">
                     <p className="font-medium text-neutral-900">{order.event.title}</p>
+                    {order.status === "PAID" && (
+                      <p className="mt-0.5 text-xs text-neutral-500">
+                        {!cancellationAllowed
+                          ? "Cancellations not allowed"
+                          : pastDeadline
+                          ? "Cancellation deadline passed"
+                          : deadlineDate
+                          ? `Cancel by ${formatDeadline(deadlineDate)} for ${refundPercent}% refund`
+                          : null}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-neutral-600">{formatDate(order.event.startAt)}</td>
                   <td className="px-4 py-3 text-neutral-600">{ticketSummary}</td>
@@ -198,7 +236,7 @@ export function OrdersTableClient({ initialOrders }: { initialOrders: OrderRow[]
                   <td className="px-4 py-3">
                     {isPendingCancellation ? (
                       <Badge className="bg-amber-100 text-amber-700 border-transparent">Cancellation Requested</Badge>
-                    ) : order.status === "PAID" ? (
+                    ) : order.status === "PAID" && cancellationAllowed && !pastDeadline ? (
                       <Button
                         size="sm"
                         variant="outline"
@@ -207,8 +245,12 @@ export function OrdersTableClient({ initialOrders }: { initialOrders: OrderRow[]
                           setReason("");
                         }}
                       >
-                        Request Cancellation
+                        Cancel Order
                       </Button>
+                    ) : order.status === "PAID" ? (
+                      <span className="text-xs text-neutral-400">
+                        {!cancellationAllowed ? "Not cancellable" : "Deadline passed"}
+                      </span>
                     ) : (
                       <span className="text-xs text-neutral-400">—</span>
                     )}
@@ -344,6 +386,12 @@ export function OrdersTableClient({ initialOrders }: { initialOrders: OrderRow[]
                   <tr key={`${order.id}-cancel-form`}>
                     <td colSpan={7} className="bg-neutral-50 px-4 py-3">
                       <div className="space-y-2">
+                        {deadlineDate && (
+                          <p className="text-xs text-neutral-600">
+                            Cancel by <strong>{formatDeadline(deadlineDate)}</strong> for <strong>{refundPercent}%</strong> refund.
+                            This action cannot be undone.
+                          </p>
+                        )}
                         <label htmlFor={`reason-${order.id}`} className="text-xs font-medium text-neutral-700">
                           Reason (optional)
                         </label>
@@ -354,11 +402,11 @@ export function OrdersTableClient({ initialOrders }: { initialOrders: OrderRow[]
                           rows={3}
                           maxLength={1000}
                           className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-neutral-700 outline-none focus:border-[var(--theme-accent)]"
-                          placeholder="Share your reason for cancellation request..."
+                          placeholder="Share your reason for cancellation..."
                         />
                         <div className="flex gap-2">
                           <Button size="sm" onClick={() => requestCancellation(order.id)} disabled={submitting}>
-                            {submitting ? "Submitting..." : "Submit Request"}
+                            {submitting ? "Processing..." : "Confirm Cancellation"}
                           </Button>
                           <Button
                             size="sm"
