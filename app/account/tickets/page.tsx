@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, Download, MapPin, QrCode } from "lucide-react";
+import { CalendarDays, Download, FileText, MapPin, QrCode } from "lucide-react";
 import { redirect } from "next/navigation";
 import { prisma } from "@/src/lib/db";
 import { requireAttendee } from "@/src/lib/auth/require-attendee";
@@ -8,7 +8,6 @@ import { Badge } from "@/src/components/ui/badge";
 type TicketCard = {
   id: string;
   ticketNumber: string;
-  seatLabel: string | null;
   checkedInAt: Date | null;
   eventTitle: string;
   eventSlug: string;
@@ -39,7 +38,7 @@ function buildTicketCards(
     };
     items: Array<{
       ticketType: { name: string };
-      tickets: Array<{ id: string; ticketNumber: string; seatLabel: string | null; checkedInAt: Date | null }>;
+      tickets: Array<{ id: string; ticketNumber: string; checkedInAt: Date | null }>;
     }>;
   }>,
 ) {
@@ -48,7 +47,6 @@ function buildTicketCards(
       item.tickets.map((ticket) => ({
         id: ticket.id,
         ticketNumber: ticket.ticketNumber,
-        seatLabel: ticket.seatLabel,
         checkedInAt: ticket.checkedInAt,
         eventTitle: order.event.title,
         eventSlug: order.event.slug,
@@ -108,7 +106,6 @@ async function loadAccountTickets() {
               select: {
                 id: true,
                 ticketNumber: true,
-                seatLabel: true,
                 checkedInAt: true,
               },
             },
@@ -174,7 +171,6 @@ function TicketSection({
                 <h3 className="text-lg font-semibold text-neutral-900">{ticket.eventTitle}</h3>
                 <p className="text-sm text-neutral-600">{ticket.ticketTypeName}</p>
                 <p className="font-mono text-xs text-neutral-500">{ticket.ticketNumber}</p>
-                {ticket.seatLabel ? <p className="text-xs text-neutral-600">{ticket.seatLabel}</p> : null}
               </div>
               {ticket.checkedInAt ? (
                 <Badge className="border-transparent bg-emerald-100 text-emerald-700">
@@ -224,6 +220,14 @@ function TicketSection({
                 >
                   <Download className="h-4 w-4" />
                   Download QR
+                </a>
+                <a
+                  href={`/api/account/tickets/${ticket.id}/pdf`}
+                  download={`ticket-${ticket.ticketNumber}.pdf`}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-neutral-900 transition hover:bg-neutral-50"
+                >
+                  <FileText className="h-4 w-4" />
+                  Download PDF
                 </a>
                 <Link
                   href={`/events/${ticket.eventSlug}`}
