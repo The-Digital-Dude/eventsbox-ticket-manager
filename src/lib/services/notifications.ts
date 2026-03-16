@@ -366,3 +366,44 @@ export async function sendWaitlistAvailabilityEmail(input: {
 
   return sendEmail({ to: input.to, subject, text, html });
 }
+
+export async function sendEventDateChangedEmail(input: {
+  eventTitle: string;
+  oldStartAt: Date;
+  newStartAt: Date;
+  timezone: string;
+  venueName: string | null;
+  attendees: Array<{ email: string; name: string; orderId: string }>;
+}): Promise<void> {
+  const subject = `Event date updated: ${input.eventTitle}`;
+
+  for (const attendee of input.attendees) {
+    try {
+      const text = [
+        `Hi ${attendee.name},`,
+        "",
+        `The date for "${input.eventTitle}" has changed.`,
+        `New date: ${new Date(input.newStartAt).toLocaleString()} (${input.timezone})`,
+        `Old date: ${new Date(input.oldStartAt).toLocaleString()} (${input.timezone})`,
+        ...(input.venueName ? [`Venue: ${input.venueName}`] : []),
+        "",
+        `View your order at /account/orders.`,
+      ].join("\n");
+
+      const html = `
+        <p>Hi ${attendee.name},</p>
+        <p>The date for "<strong>${input.eventTitle}</strong>" has changed.</p>
+        <p>
+          New date: <strong>${new Date(input.newStartAt).toLocaleString()} (${input.timezone})</strong><br/>
+          Old date: ${new Date(input.oldStartAt).toLocaleString()} (${input.timezone})<br/>
+          ${input.venueName ? `Venue: ${input.venueName}<br/>` : ""}
+        </p>
+        <p><a href="/account/orders">View your order</a></p>
+      `;
+
+      await sendEmail({ to: attendee.email, subject, text, html });
+    } catch (error) {
+      console.error(`[sendEventDateChangedEmail] Failed to send to ${attendee.email}:`, error);
+    }
+  }
+}
