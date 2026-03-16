@@ -28,6 +28,8 @@ export const eventCreateSchema = z.object({
   platformFeeFixed: z.coerce.number().min(0).default(0),
   tags: z.array(z.string().max(30)).max(10).default([]).optional(),
   audience: z.string().max(50).optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
 });
 
 export const eventUpdateSchema = eventCreateSchema.partial().extend({

@@ -8,6 +8,7 @@ import { PageHeader } from "@/src/components/shared/page-header";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { PlacesAutocomplete } from "@/src/components/ui/places-autocomplete";
 import { SearchableSelect } from "@/src/components/ui/searchable-select";
 import { TIMEZONES } from "@/src/lib/timezones";
 import { CURRENCIES } from "@/src/lib/currency";
@@ -63,6 +64,8 @@ export default function NewEventPage() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [audience, setAudience] = useState("");
+  const [lat, setLat] = useState<number | undefined>(undefined);
+  const [lng, setLng] = useState<number | undefined>(undefined);
 
   const cities = states.find((s) => s.id === stateId)?.cities ?? [];
 
@@ -115,6 +118,8 @@ export default function NewEventPage() {
         platformFeeFixed: Number(platformFeeFixed),
         tags,
         audience: audience || undefined,
+        lat,
+        lng,
       }),
     });
     const payload = await res.json();
@@ -194,6 +199,35 @@ export default function NewEventPage() {
                 placeholder="https://www.youtube.com/watch?v=... or https://vimeo.com/..."
               />
               <p className="text-xs text-neutral-500">Paste a YouTube or Vimeo link to show a video on your event page</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Search Location</Label>
+              <PlacesAutocomplete
+                placeholder="Start typing a location to search..."
+                onSelect={(place) => {
+                  if (place.lat !== undefined) setLat(place.lat);
+                  if (place.lng !== undefined) setLng(place.lng);
+                  if (place.countryCode) {
+                    const matched = countries.find((c) => c.code === place.countryCode);
+                    if (matched) {
+                      setCountryId(matched.id);
+                      setStateId("");
+                      setCityId("");
+                    }
+                  }
+                  if (place.state) {
+                    const matchedState = states.find(
+                      (s) => s.name.toLowerCase() === place.state!.toLowerCase(),
+                    );
+                    if (matchedState) {
+                      setStateId(matchedState.id);
+                      setCityId("");
+                    }
+                  }
+                  toast.success("Address auto-filled from Google Maps");
+                }}
+              />
+              <p className="text-xs text-neutral-500">Select from suggestions to auto-fill location fields below.</p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">

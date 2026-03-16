@@ -11,6 +11,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { PlacesAutocomplete } from "@/src/components/ui/places-autocomplete";
 import { SearchableSelect } from "@/src/components/ui/searchable-select";
 import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
@@ -53,6 +54,8 @@ export default function OrganizerVenuesPage() {
   const [stateId, setStateId] = useState("");
   const [cityId, setCityId] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [lat, setLat] = useState<number | undefined>(undefined);
+  const [lng, setLng] = useState<number | undefined>(undefined);
   const [countries, setCountries] = useState<CountryRow[]>([]);
   const [states, setStates] = useState<StateRow[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
@@ -122,6 +125,8 @@ export default function OrganizerVenuesPage() {
     setStateId("");
     setCityId("");
     setCategoryId("");
+    setLat(undefined);
+    setLng(undefined);
     setEditingVenueId(null);
     setStep("details");
   }
@@ -142,6 +147,8 @@ export default function OrganizerVenuesPage() {
         stateId,
         cityId,
         categoryId: categoryId || undefined,
+        lat,
+        lng,
         seatingConfig: payload.seatingConfig,
         seatState: payload.seatState,
         summary: payload.summary,
@@ -204,6 +211,36 @@ export default function OrganizerVenuesPage() {
 
         {step === "details" ? (
           <div className="space-y-5">
+            <div className="space-y-2">
+              <Label>Search Address</Label>
+              <PlacesAutocomplete
+                placeholder="Start typing an address to search..."
+                onSelect={(place) => {
+                  if (place.address) setAddressLine1(place.address);
+                  if (place.lat !== undefined) setLat(place.lat);
+                  if (place.lng !== undefined) setLng(place.lng);
+                  if (place.countryCode) {
+                    const matched = countries.find((c) => c.code === place.countryCode);
+                    if (matched) {
+                      setCountryId(matched.id);
+                      setStateId("");
+                      setCityId("");
+                    }
+                  }
+                  if (place.state) {
+                    const matchedState = states.find(
+                      (s) => s.name.toLowerCase() === place.state!.toLowerCase(),
+                    );
+                    if (matchedState) {
+                      setStateId(matchedState.id);
+                      setCityId("");
+                    }
+                  }
+                  toast.success("Address auto-filled from Google Maps");
+                }}
+              />
+              <p className="text-xs text-neutral-500">Select from suggestions to auto-fill address fields below.</p>
+            </div>
             <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-2"><Label>Venue Name</Label><Input value={name} onChange={(event) => setName(event.target.value)} /></div>
               <div className="space-y-2"><Label>Category</Label><select className="app-select" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">Select category (optional)</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>

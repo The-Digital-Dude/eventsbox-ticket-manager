@@ -44,6 +44,8 @@ export const venueRequestSchema = z.object({
   stateId: z.string().min(1),
   cityId: z.string().min(1),
   categoryId: z.string().optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
   seatingConfig: venueSeatingConfigSchema,
   seatState: seatStateSchema.optional(),
   summary: seatingSummarySchema,

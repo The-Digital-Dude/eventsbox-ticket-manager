@@ -62,6 +62,8 @@ export async function POST(req: NextRequest) {
         stateId: parsed.data.stateId,
         cityId: parsed.data.cityId,
         categoryId: parsed.data.categoryId,
+        lat: parsed.data.lat,
+        lng: parsed.data.lng,
         seatingConfig: parsed.data.seatingConfig as Prisma.InputJsonValue,
         seatState: parsed.data.seatState ? (parsed.data.seatState as Prisma.InputJsonValue) : undefined,
         seatingSchemaVersion: parsed.data.seatingConfig.schemaVersion,
