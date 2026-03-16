@@ -20,6 +20,7 @@ export const eventCreateSchema = z.object({
   startAt: z.string().datetime(),
   endAt: z.string().datetime(),
   timezone: z.string().default("Pacific/Auckland"),
+  currency: z.string().length(3).default('USD').optional(),
   commissionPct: z.coerce.number().min(0).max(100).default(10),
   gstPct: z.coerce.number().min(0).max(100).default(15),
   platformFeeFixed: z.coerce.number().min(0).default(0),

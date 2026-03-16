@@ -18,6 +18,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           startAt: true,
           endAt: true,
           timezone: true,
+          currency: true,
           venue: { select: { name: true, addressLine1: true } },
         },
       },

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Lock, CalendarDays } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
+import { formatCurrency } from "@/src/lib/currency";
 
 // Stripe instance (singleton)
 const stripePromise = typeof window !== "undefined" && process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
@@ -25,6 +26,7 @@ type OrderSummary = {
   event: {
     title: string;
     startAt: string;
+    currency: string;
     venue: { name: string } | null;
   };
   items: Array<{
@@ -40,7 +42,7 @@ function formatDate(iso: string) {
 }
 
 // Inner form — must be inside <Elements>
-function CheckoutForm({ orderId, total }: { orderId: string; total: number }) {
+function CheckoutForm({ orderId, total, currency }: { orderId: string; total: number; currency: string }) {
   const stripe = useStripe();
   const elements = useElements();
   const router = useRouter();
@@ -79,7 +81,7 @@ function CheckoutForm({ orderId, total }: { orderId: string; total: number }) {
         disabled={!stripe || !elements || paying}
       >
         <Lock className="h-4 w-4" />
-        {paying ? "Processing..." : `Pay $${total.toFixed(2)}`}
+        {paying ? "Processing..." : `Pay ${formatCurrency(total, currency)}`}
       </Button>
       <p className="text-center text-xs text-neutral-400">
         Secured by{" "}
@@ -162,7 +164,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderId: st
             <h1 className="mb-6 text-2xl font-bold tracking-tight text-neutral-900">Complete Payment</h1>
             {stripePromise ? (
               <Elements stripe={stripePromise} options={stripeOptions}>
-                <CheckoutForm orderId={orderId} total={Number(order.total)} />
+                <CheckoutForm orderId={orderId} total={Number(order.total)} currency={order.event.currency ?? 'USD'} />
               </Elements>
             ) : (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
@@ -191,17 +193,17 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderId: st
                 {order.items.map((item, i) => (
                   <div key={i} className="flex justify-between text-neutral-700">
                     <span>{item.ticketType.name} × {item.quantity}</span>
-                    <span>${Number(item.subtotal).toFixed(2)}</span>
+                    <span>{formatCurrency(Number(item.subtotal), order.event.currency ?? 'USD')}</span>
                   </div>
                 ))}
                 <div className="border-t border-[var(--border)] pt-2 space-y-1 text-neutral-600">
-                  <div className="flex justify-between"><span>Subtotal</span><span>${Number(order.subtotal).toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span>Platform fee</span><span>${Number(order.platformFee).toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span>GST</span><span>${Number(order.gst).toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(Number(order.subtotal), order.event.currency ?? 'USD')}</span></div>
+                  <div className="flex justify-between"><span>Platform fee</span><span>{formatCurrency(Number(order.platformFee), order.event.currency ?? 'USD')}</span></div>
+                  <div className="flex justify-between"><span>GST</span><span>{formatCurrency(Number(order.gst), order.event.currency ?? 'USD')}</span></div>
                 </div>
                 <div className="border-t border-[var(--border)] pt-2 flex justify-between text-base font-bold text-neutral-900">
                   <span>Total</span>
-                  <span>${Number(order.total).toFixed(2)}</span>
+                  <span>{formatCurrency(Number(order.total), order.event.currency ?? 'USD')}</span>
                 </div>
               </div>
             </section>

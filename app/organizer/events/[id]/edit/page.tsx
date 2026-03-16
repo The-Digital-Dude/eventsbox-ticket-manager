@@ -10,7 +10,9 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import Link from "next/link";
 import { TIMEZONES } from "@/src/lib/timezones";
+import { CURRENCIES } from "@/src/lib/currency";
 
+type CountryRow = { id: string; code: string; name: string };
 type StateRow = { id: string; name: string; cities: { id: string; name: string }[] };
 type CategoryRow = { id: string; name: string };
 type VenueRow = { id: string; name: string; status: string };
@@ -33,6 +35,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [countries, setCountries] = useState<CountryRow[]>([]);
   const [states, setStates] = useState<StateRow[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [venues, setVenues] = useState<VenueRow[]>([]);
@@ -41,6 +44,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [venueId, setVenueId] = useState("");
+  const [countryId, setCountryId] = useState("");
   const [stateId, setStateId] = useState("");
   const [cityId, setCityId] = useState("");
   const [startAt, setStartAt] = useState("");
@@ -52,6 +56,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
   const [cancelPolicy, setCancelPolicy] = useState("");
   const [refundPolicy, setRefundPolicy] = useState("");
+  const [currency, setCurrency] = useState("USD");
   const [commissionPct, setCommissionPct] = useState("10");
   const [gstPct, setGstPct] = useState("15");
   const [platformFeeFixed, setPlatformFeeFixed] = useState("0");
@@ -74,7 +79,8 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         fetch(`/api/organizer/events/${id}`).then((r) => r.json()),
       ]);
 
-      setStates(locRes?.data ?? []);
+      setCountries(locRes?.data?.countries ?? []);
+      setStates(locRes?.data?.states ?? []);
       setCategories(catRes?.data ?? []);
       setVenues((venRes?.data ?? []).filter((v: VenueRow) => v.status === "APPROVED"));
 
@@ -90,6 +96,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setDescription(ev.description ?? "");
       setCategoryId(ev.category?.id ?? "");
       setVenueId(ev.venue?.id ?? "");
+      setCountryId(ev.country?.id ?? "");
       setStateId(ev.state?.id ?? "");
       setCityId(ev.city?.id ?? "");
       setStartAt(toLocalDatetime(ev.startAt));
@@ -100,6 +107,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setHeroImage(ev.heroImage ?? "");
       setCancelPolicy(ev.cancelPolicy ?? "");
       setRefundPolicy(ev.refundPolicy ?? "");
+      setCurrency(ev.currency ?? "USD");
       setCommissionPct(String(ev.commissionPct ?? 10));
       setGstPct(String(ev.gstPct ?? 15));
       setPlatformFeeFixed(String(ev.platformFeeFixed ?? 0));
@@ -120,11 +128,13 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       body: JSON.stringify({
         title, description: description || undefined,
         categoryId: categoryId || undefined, venueId: venueId || undefined,
+        countryId: countryId || undefined,
         stateId: stateId || undefined, cityId: cityId || undefined,
         startAt, endAt, timezone,
         heroImage: heroImage || undefined,
         contactEmail: contactEmail || undefined, contactPhone: contactPhone || undefined,
         cancelPolicy: cancelPolicy || undefined, refundPolicy: refundPolicy || undefined,
+        currency,
         commissionPct: Number(commissionPct), gstPct: Number(gstPct),
         platformFeeFixed: Number(platformFeeFixed),
       }),
@@ -230,6 +240,13 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
                 </select>
               </div>
               <div className="space-y-2">
+                <Label>Country</Label>
+                <select className="app-select" value={countryId} onChange={(e) => { setCountryId(e.target.value); setStateId(""); setCityId(""); }}>
+                  <option value="">No country</option>
+                  {countries.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
                 <Label>State</Label>
                 <select className="app-select" value={stateId} onChange={(e) => { setStateId(e.target.value); setCityId(""); }}>
                   <option value="">No state</option>
@@ -303,6 +320,14 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
           <h2 className="mb-4 text-lg font-semibold text-neutral-900">Fee Configuration</h2>
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
+              <Label>Currency</Label>
+              <select className="app-select" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                {CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code}>{c.code} — {c.name} ({c.symbol})</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
               <Label>Platform Commission (%)</Label>
               <Input type="number" min="0" max="100" step="0.5" value={commissionPct} onChange={(e) => setCommissionPct(e.target.value)} />
             </div>
@@ -311,7 +336,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
               <Input type="number" min="0" max="100" step="0.5" value={gstPct} onChange={(e) => setGstPct(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Fixed Platform Fee ($)</Label>
+              <Label>Fixed Platform Fee</Label>
               <Input type="number" min="0" step="0.01" value={platformFeeFixed} onChange={(e) => setPlatformFeeFixed(e.target.value)} />
             </div>
           </div>

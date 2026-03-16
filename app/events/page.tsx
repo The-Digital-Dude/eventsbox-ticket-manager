@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarDays, MapPin, Ticket } from "lucide-react";
 import { prisma } from "@/src/lib/db";
 import { Badge } from "@/src/components/ui/badge";
+import { formatCurrency } from "@/src/lib/currency";
 
 export const revalidate = 60;
 
@@ -398,7 +399,7 @@ export default async function PublicEventsPage({
                           {lowestPrice !== null && (
                             <div className="flex items-center gap-2">
                               <Ticket className="h-4 w-4 shrink-0 text-[var(--theme-accent)]" />
-                              From <strong className="text-neutral-900">${lowestPrice.toFixed(2)}</strong>
+                              From <strong className="text-neutral-900">{formatCurrency(lowestPrice, event.currency ?? 'USD')}</strong>
                             </div>
                           )}
                         </div>

@@ -10,6 +10,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { listSeatDescriptors } from "@/src/lib/venue-seating";
+import { formatCurrency } from "@/src/lib/currency";
 import type {
   PublicSeatBookingState,
   SeatingSection,
@@ -46,6 +47,7 @@ type EventDetail = {
   contactPhone: string | null;
   cancelPolicy: string | null;
   refundPolicy: string | null;
+  currency: string;
   gstPct: number | string;
   commissionPct: number | string;
   platformFeeFixed: number | string;
@@ -292,6 +294,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
     : 0;
   const discountedSubtotal = parseFloat(Math.max(0, cartTotal - discountAmount).toFixed(2));
 
+  const currency = event?.currency ?? 'USD';
   const commissionPct = Number(event?.commissionPct ?? 10);
   const gstPct = Number(event?.gstPct ?? 15);
   const platformFeeFixed = Number(event?.platformFeeFixed ?? 0);
@@ -398,7 +401,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
       `Promo applied: ${
         promoData.discountType === "PERCENTAGE"
           ? `${promoData.discountValue}%`
-          : `$${Number(promoData.discountValue).toFixed(2)}`
+          : formatCurrency(Number(promoData.discountValue), currency)
       } off`,
     );
     setPromoError("");
@@ -653,7 +656,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
                             <p className="font-medium text-neutral-900">{linkedTicket.name}</p>
                             <Badge>{section.mapType.toUpperCase()}</Badge>
                             <Badge className="border-transparent bg-emerald-100 text-emerald-700">
-                              ${Number(linkedTicket.price).toFixed(2)}
+                              {formatCurrency(Number(linkedTicket.price), currency)}
                             </Badge>
                           </div>
                           <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -700,7 +703,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
                               GENERAL ADMISSION
                             </Badge>
                             <Badge className="border-transparent bg-emerald-100 text-emerald-700">
-                              ${Number(ticket.price).toFixed(2)}
+                              {formatCurrency(Number(ticket.price), currency)}
                             </Badge>
                           </div>
                           <span className="text-xs text-neutral-500">{available} available</span>
@@ -841,7 +844,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
                             ) : null}
                           </div>
                           <p className="shrink-0 text-lg font-bold text-neutral-900">
-                            ${Number(ticketType.price).toFixed(2)}
+                            {formatCurrency(Number(ticketType.price), currency)}
                           </p>
                         </div>
 
@@ -986,36 +989,36 @@ export function EventDetailClient({ slug }: { slug: string }) {
                       <span>
                         {ticketType.name} x {qty}
                       </span>
-                      <span>${(Number(ticketType.price) * qty).toFixed(2)}</span>
+                      <span>{formatCurrency(Number(ticketType.price) * qty, currency)}</span>
                     </div>
                   );
                 })}
                 <div className="my-2 border-t border-[var(--border)]" />
                 <div className="flex justify-between text-neutral-600">
                   <span>Subtotal</span>
-                  <span>${cartTotal.toFixed(2)}</span>
+                  <span>{formatCurrency(cartTotal, currency)}</span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-emerald-600">
                     <span>Discount</span>
-                    <span>- ${discountAmount.toFixed(2)}</span>
+                    <span>- {formatCurrency(discountAmount, currency)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-neutral-600">
                   <span>
                     Platform fee ({commissionPct}%
-                    {platformFeeFixed > 0 ? ` + $${platformFeeFixed.toFixed(2)}` : ""})
+                    {platformFeeFixed > 0 ? ` + ${formatCurrency(platformFeeFixed, currency)}` : ""})
                   </span>
-                  <span>${platformFee.toFixed(2)}</span>
+                  <span>{formatCurrency(platformFee, currency)}</span>
                 </div>
                 <div className="flex justify-between text-neutral-600">
                   <span>GST ({gstPct}%)</span>
-                  <span>${gst.toFixed(2)}</span>
+                  <span>{formatCurrency(gst, currency)}</span>
                 </div>
                 <div className="my-2 border-t border-[var(--border)]" />
                 <div className="flex justify-between text-base font-semibold text-neutral-900">
                   <span>Total</span>
-                  <span>${grandTotal.toFixed(2)}</span>
+                  <span>{formatCurrency(grandTotal, currency)}</span>
                 </div>
                 {requiresSeatSelection && (
                   <div className="mt-3 rounded-xl border border-[rgb(var(--theme-accent-rgb)/0.16)] bg-[rgb(var(--theme-accent-rgb)/0.05)] px-3 py-2 text-xs text-neutral-700">
@@ -1071,7 +1074,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
                       <p className="text-sm text-neutral-600">{session.email}</p>
                     </div>
                     <Button className="w-full" onClick={checkout} disabled={checkingOut}>
-                      {checkingOut ? "Processing..." : `Pay $${grandTotal.toFixed(2)}`}
+                      {checkingOut ? "Processing..." : `Pay ${formatCurrency(grandTotal, currency)}`}
                     </Button>
                     <p className="text-center text-xs text-neutral-400">Secured by Stripe</p>
                   </>
