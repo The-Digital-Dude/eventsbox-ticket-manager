@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
   const duration = req.nextUrl.searchParams.get("duration") || undefined;
   const from = req.nextUrl.searchParams.get("from")?.trim() || undefined;
   const to = req.nextUrl.searchParams.get("to")?.trim() || undefined;
+  const tag = req.nextUrl.searchParams.get("tag")?.trim() || undefined;
+  const audience = req.nextUrl.searchParams.get("audience")?.trim() || undefined;
 
   const fromDate = from ? new Date(from) : undefined;
   const toDate = to ? new Date(`${to}T23:59:59Z`) : undefined;
@@ -61,6 +63,8 @@ export async function GET(req: NextRequest) {
             },
           }
         : {}),
+      ...(tag ? { tags: { has: tag } } : {}),
+      ...(audience ? { audience } : {}),
       ...(q ? {
         OR: [
           { title: { contains: q, mode: "insensitive" } },

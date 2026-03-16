@@ -293,6 +293,47 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
                   {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
+              <div className="space-y-2">
+                <Label>Audience</Label>
+                <select className="app-select" value={audience} onChange={(e) => setAudience(e.target.value)}>
+                  <option value="">All Ages (default)</option>
+                  <option value="Families">Families</option>
+                  <option value="Kids (Under 12)">Kids (Under 12)</option>
+                  <option value="Teens (13-17)">Teens (13-17)</option>
+                  <option value="18+">18+</option>
+                  <option value="21+">21+</option>
+                  <option value="Professionals">Professionals</option>
+                  <option value="Seniors">Seniors</option>
+                </select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Tags</Label>
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[rgb(var(--theme-accent-rgb)/0.1)] px-3 py-1 text-sm text-[var(--theme-accent)]">
+                      {tag}
+                      <button type="button" onClick={() => removeTag(tag)} className="hover:opacity-70">×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <input
+                type="text"
+                value={tagInput}
+                placeholder="Add a tag..."
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    addTag(tagInput);
+                    setTagInput("");
+                  }
+                }}
+                className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--theme-accent-rgb)/0.25)]"
+              />
+              <p className="text-xs text-neutral-500">Press Enter or comma to add a tag. Max 10 tags, 30 chars each.</p>
             </div>
           </div>
         </section>

@@ -53,6 +53,8 @@ type EventDetail = {
   gstPct: number | string;
   commissionPct: number | string;
   platformFeeFixed: number | string;
+  tags: string[];
+  audience: string | null;
   category: { name: string } | null;
   series: { id: string; title: string } | null;
   venue: {
@@ -593,6 +595,11 @@ export function EventDetailClient({ slug }: { slug: string }) {
             <div>
               <div className="mb-3 flex flex-wrap gap-2">
                 {event.category && <Badge>{event.category.name}</Badge>}
+                {event.audience && (
+                  <span className="rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-xs text-blue-700">
+                    {event.audience}
+                  </span>
+                )}
                 {event.series ? (
                   <Link href={`/events/series/${event.series.id}`}>
                     <Badge className="border-transparent bg-sky-100 text-sky-700 transition hover:bg-sky-200">
@@ -601,6 +608,15 @@ export function EventDetailClient({ slug }: { slug: string }) {
                   </Link>
                 ) : null}
               </div>
+              {event.tags && event.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {event.tags.map((tag) => (
+                    <span key={tag} className="rounded-full border border-[var(--border)] px-3 py-1 text-xs text-neutral-600">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h1 className="text-3xl font-bold tracking-tight text-neutral-900">{event.title}</h1>
                 <Button type="button" variant="outline" onClick={shareEvent}>

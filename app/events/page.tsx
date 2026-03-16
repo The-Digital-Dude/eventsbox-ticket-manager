@@ -30,6 +30,8 @@ async function getPublishedEvents(
   maxPrice?: string,
   duration?: string,
   page = 1,
+  tag?: string,
+  audience?: string,
 ) {
   const fromDate = parseDateInput(from);
   const toDate = to ? parseDateInput(`${to}T23:59:59Z`) : undefined;
@@ -66,6 +68,8 @@ async function getPublishedEvents(
           },
         }
       : {}),
+    ...(tag ? { tags: { has: tag } } : {}),
+    ...(audience ? { audience } : {}),
     ...(q ? {
       OR: [
         { title: { contains: q, mode: "insensitive" as const } },
@@ -143,7 +147,7 @@ function buildQuery(sp: Record<string, string | undefined>, overrides: Record<st
   const merged: Record<string, string | number> = {};
   const keys = [
     "q", "category", "state", "from", "to",
-    "venueId", "cityId", "minPrice", "maxPrice", "duration", "page",
+    "venueId", "cityId", "minPrice", "maxPrice", "duration", "page", "tag", "audience",
   ] as const;
   for (const k of keys) {
     const v = k in overrides ? overrides[k] : sp[k];
@@ -167,6 +171,8 @@ export default async function PublicEventsPage({
     maxPrice?: string;
     duration?: string;
     page?: string;
+    tag?: string;
+    audience?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -185,6 +191,8 @@ export default async function PublicEventsPage({
       sp.maxPrice,
       sp.duration,
       page,
+      sp.tag,
+      sp.audience,
     ),
     getCategories(),
     getStates(),
@@ -203,6 +211,8 @@ export default async function PublicEventsPage({
       label: sp.duration === "short" ? "Duration: <3h" : sp.duration === "half" ? "Duration: 3-6h" : "Duration: 6h+",
       key: "duration",
     },
+    sp.tag && { label: `Tag: #${sp.tag}`, key: "tag" },
+    sp.audience && { label: `Audience: ${sp.audience}`, key: "audience" },
   ].filter(Boolean) as Array<{ label: string; key: string }>;
 
   return (
@@ -315,6 +325,31 @@ export default async function PublicEventsPage({
               <option value="short">Short (&lt;3h)</option>
               <option value="half">Half day (3-6h)</option>
               <option value="full">Full day (6h+)</option>
+            </select>
+
+            {/* Tag */}
+            <input
+              name="tag"
+              type="text"
+              defaultValue={sp.tag}
+              placeholder="Tag"
+              className="h-12 w-32 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+            />
+
+            {/* Audience */}
+            <select
+              name="audience"
+              defaultValue={sp.audience ?? ""}
+              className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+            >
+              <option value="">Any audience</option>
+              <option value="Families">Families</option>
+              <option value="Kids (Under 12)">Kids (Under 12)</option>
+              <option value="Teens (13-17)">Teens (13-17)</option>
+              <option value="18+">18+</option>
+              <option value="21+">21+</option>
+              <option value="Professionals">Professionals</option>
+              <option value="Seniors">Seniors</option>
             </select>
           </div>
         </form>
