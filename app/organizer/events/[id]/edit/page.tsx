@@ -53,6 +53,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [heroImage, setHeroImage] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
   const [cancelPolicy, setCancelPolicy] = useState("");
   const [refundPolicy, setRefundPolicy] = useState("");
@@ -60,8 +61,24 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [commissionPct, setCommissionPct] = useState("10");
   const [gstPct, setGstPct] = useState("15");
   const [platformFeeFixed, setPlatformFeeFixed] = useState("0");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [audience, setAudience] = useState("");
 
   const cities = states.find((s) => s.id === stateId)?.cities ?? [];
+
+  function addTag(value: string) {
+    const trimmed = value.trim().replace(/,+$/, "").trim();
+    if (!trimmed) return;
+    if (trimmed.length > 30) return toast.error("Tag must be 30 characters or fewer");
+    if (tags.length >= 10) return toast.error("Maximum 10 tags allowed");
+    if (tags.includes(trimmed)) return;
+    setTags((prev) => [...prev, trimmed]);
+  }
+
+  function removeTag(tag: string) {
+    setTags((prev) => prev.filter((t) => t !== tag));
+  }
 
   function toLocalDatetime(iso: string) {
     if (!iso) return "";
@@ -105,12 +122,15 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setContactEmail(ev.contactEmail ?? "");
       setContactPhone(ev.contactPhone ?? "");
       setHeroImage(ev.heroImage ?? "");
+      setVideoUrl(ev.videoUrl ?? "");
       setCancelPolicy(ev.cancelPolicy ?? "");
       setRefundPolicy(ev.refundPolicy ?? "");
       setCurrency(ev.currency ?? "USD");
       setCommissionPct(String(ev.commissionPct ?? 10));
       setGstPct(String(ev.gstPct ?? 15));
       setPlatformFeeFixed(String(ev.platformFeeFixed ?? 0));
+      setTags(Array.isArray(ev.tags) ? ev.tags : []);
+      setAudience(ev.audience ?? "");
       setReady(true);
     }
     load();
@@ -132,11 +152,14 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         stateId: stateId || undefined, cityId: cityId || undefined,
         startAt, endAt, timezone,
         heroImage: heroImage || undefined,
+        videoUrl: videoUrl || undefined,
         contactEmail: contactEmail || undefined, contactPhone: contactPhone || undefined,
         cancelPolicy: cancelPolicy || undefined, refundPolicy: refundPolicy || undefined,
         currency,
         commissionPct: Number(commissionPct), gstPct: Number(gstPct),
         platformFeeFixed: Number(platformFeeFixed),
+        tags,
+        audience: audience || undefined,
       }),
     });
     const payload = await res.json();
@@ -223,6 +246,16 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={heroImage} alt="Event hero preview" className="h-40 w-full rounded-xl object-cover" />
               )}
+            </div>
+            <div className="space-y-2">
+              <Label>Promo Video (optional)</Label>
+              <Input
+                type="url"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=... or https://vimeo.com/..."
+              />
+              <p className="text-xs text-neutral-500">Paste a YouTube or Vimeo link to show a video on your event page</p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">

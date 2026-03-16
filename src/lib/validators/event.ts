@@ -9,6 +9,7 @@ export const eventCreateSchema = z.object({
   stateId: z.string().optional(),
   cityId: z.string().optional(),
   heroImage: z.string().url().optional().or(z.literal("")),
+  videoUrl: z.string().url().optional().or(z.literal("")),
   images: z.array(z.string().url()).max(10).optional(),
   contactEmail: z.string().email().optional().or(z.literal("")),
   contactPhone: z.string().max(30).optional(),
@@ -25,6 +26,8 @@ export const eventCreateSchema = z.object({
   commissionPct: z.coerce.number().min(0).max(100).default(10),
   gstPct: z.coerce.number().min(0).max(100).default(15),
   platformFeeFixed: z.coerce.number().min(0).default(0),
+  tags: z.array(z.string().max(30)).max(10).default([]).optional(),
+  audience: z.string().max(50).optional(),
 });
 
 export const eventUpdateSchema = eventCreateSchema.partial().extend({

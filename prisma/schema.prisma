@@ -345,7 +345,10 @@ model Event {
   ticketTypes        TicketType[]
   orders             Order[]
   promoCodes         PromoCode[]
+  tags               String[]         @default([])
+  audience           String?
   isFeatured         Boolean          @default(false)
+  videoUrl           String?
   seatBookings       EventSeatBooking[]
   waitlist           Waitlist[]
 

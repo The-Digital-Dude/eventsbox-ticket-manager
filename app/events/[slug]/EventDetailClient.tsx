@@ -11,6 +11,7 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { listSeatDescriptors } from "@/src/lib/venue-seating";
 import { formatCurrency } from "@/src/lib/currency";
+import { getVideoEmbedUrl } from "@/src/lib/video";
 import type {
   PublicSeatBookingState,
   SeatingSection,
@@ -39,6 +40,7 @@ type EventDetail = {
   slug: string;
   heroImage: string | null;
   images: string[];
+  videoUrl: string | null;
   description: string | null;
   startAt: string;
   endAt: string;
@@ -634,6 +636,21 @@ export function EventDetailClient({ slug }: { slug: string }) {
                   {event.description}
                 </p>
               </section>
+            )}
+
+            {event.videoUrl && getVideoEmbedUrl(event.videoUrl) && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold mb-3">Event Preview</h3>
+                <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black">
+                  <iframe
+                    src={getVideoEmbedUrl(event.videoUrl)!}
+                    title="Event preview video"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="absolute inset-0 h-full w-full"
+                  />
+                </div>
+              </div>
             )}
 
             {(event.venue?.seatingConfig?.sections.length ?? 0) > 0 || event.ticketTypes.some((t) => !t.sectionId) ? (

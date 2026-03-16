@@ -51,6 +51,7 @@ export default function NewEventPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [heroImage, setHeroImage] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
   const [cancelPolicy, setCancelPolicy] = useState("");
   const [refundPolicy, setRefundPolicy] = useState("");
@@ -58,8 +59,24 @@ export default function NewEventPage() {
   const [commissionPct, setCommissionPct] = useState("10");
   const [gstPct, setGstPct] = useState("15");
   const [platformFeeFixed, setPlatformFeeFixed] = useState("0");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [audience, setAudience] = useState("");
 
   const cities = states.find((s) => s.id === stateId)?.cities ?? [];
+
+  function addTag(value: string) {
+    const trimmed = value.trim().replace(/,+$/, "").trim();
+    if (!trimmed) return;
+    if (trimmed.length > 30) return toast.error("Tag must be 30 characters or fewer");
+    if (tags.length >= 10) return toast.error("Maximum 10 tags allowed");
+    if (tags.includes(trimmed)) return;
+    setTags((prev) => [...prev, trimmed]);
+  }
+
+  function removeTag(tag: string) {
+    setTags((prev) => prev.filter((t) => t !== tag));
+  }
 
   useEffect(() => {
     Promise.all([
@@ -89,11 +106,14 @@ export default function NewEventPage() {
         stateId: stateId || undefined,
         cityId: cityId || undefined, startAt, endAt, timezone,
         heroImage: heroImage || undefined,
+        videoUrl: videoUrl || undefined,
         contactEmail: contactEmail || undefined, contactPhone: contactPhone || undefined,
         cancelPolicy: cancelPolicy || undefined, refundPolicy: refundPolicy || undefined,
         currency,
         commissionPct: Number(commissionPct), gstPct: Number(gstPct),
         platformFeeFixed: Number(platformFeeFixed),
+        tags,
+        audience: audience || undefined,
       }),
     });
     const payload = await res.json();
@@ -164,6 +184,16 @@ export default function NewEventPage() {
                 <img src={heroImage} alt="Event hero preview" className="h-40 w-full rounded-xl object-cover" />
               )}
             </div>
+            <div className="space-y-2">
+              <Label>Promo Video (optional)</Label>
+              <Input
+                type="url"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=... or https://vimeo.com/..."
+              />
+              <p className="text-xs text-neutral-500">Paste a YouTube or Vimeo link to show a video on your event page</p>
+            </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Category</Label>
@@ -200,6 +230,47 @@ export default function NewEventPage() {
                   {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
+              <div className="space-y-2">
+                <Label>Audience</Label>
+                <select className="app-select" value={audience} onChange={(e) => setAudience(e.target.value)}>
+                  <option value="">All Ages (default)</option>
+                  <option value="Families">Families</option>
+                  <option value="Kids (Under 12)">Kids (Under 12)</option>
+                  <option value="Teens (13-17)">Teens (13-17)</option>
+                  <option value="18+">18+</option>
+                  <option value="21+">21+</option>
+                  <option value="Professionals">Professionals</option>
+                  <option value="Seniors">Seniors</option>
+                </select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Tags</Label>
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[rgb(var(--theme-accent-rgb)/0.1)] px-3 py-1 text-sm text-[var(--theme-accent)]">
+                      {tag}
+                      <button type="button" onClick={() => removeTag(tag)} className="hover:opacity-70">×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <input
+                type="text"
+                value={tagInput}
+                placeholder="Add a tag..."
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    addTag(tagInput);
+                    setTagInput("");
+                  }
+                }}
+                className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--theme-accent-rgb)/0.25)]"
+              />
+              <p className="text-xs text-neutral-500">Press Enter or comma to add a tag. Max 10 tags, 30 chars each.</p>
             </div>
           </div>
         </section>
