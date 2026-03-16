@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -9,24 +9,11 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import Link from "next/link";
+import { TIMEZONES } from "@/src/lib/timezones";
 
 type StateRow = { id: string; name: string; cities: { id: string; name: string }[] };
 type CategoryRow = { id: string; name: string };
 type VenueRow = { id: string; name: string; status: string };
-type SeriesRow = {
-  id: string;
-  title: string;
-  description: string | null;
-  _count: { events: number };
-};
-type EditableTicketType = {
-  id: string;
-  name: string;
-  quantity: number;
-  sold: number;
-  reservedQty: number;
-  compIssued: number;
-};
 
 const nav = [
   { href: "/organizer/status", label: "Status" },
@@ -49,14 +36,11 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [states, setStates] = useState<StateRow[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [venues, setVenues] = useState<VenueRow[]>([]);
-  const [series, setSeries] = useState<SeriesRow[]>([]);
-  const [ticketTypes, setTicketTypes] = useState<EditableTicketType[]>([]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [venueId, setVenueId] = useState("");
-  const [seriesId, setSeriesId] = useState("");
   const [stateId, setStateId] = useState("");
   const [cityId, setCityId] = useState("");
   const [startAt, setStartAt] = useState("");
@@ -66,17 +50,11 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [contactPhone, setContactPhone] = useState("");
   const [heroImage, setHeroImage] = useState("");
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
-  const [images, setImages] = useState<string[]>([]);
-  const [uploadingGalleryImage, setUploadingGalleryImage] = useState(false);
   const [cancelPolicy, setCancelPolicy] = useState("");
   const [refundPolicy, setRefundPolicy] = useState("");
-  const [allowCancellations, setAllowCancellations] = useState(false);
-  const [cancellationDeadlineHours, setCancellationDeadlineHours] = useState("48");
-  const [refundPercent, setRefundPercent] = useState<"0" | "50" | "100">("100");
   const [commissionPct, setCommissionPct] = useState("10");
   const [gstPct, setGstPct] = useState("15");
   const [platformFeeFixed, setPlatformFeeFixed] = useState("0");
-  const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
   const cities = states.find((s) => s.id === stateId)?.cities ?? [];
 
@@ -89,18 +67,16 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
 
   useEffect(() => {
     async function load() {
-      const [locRes, catRes, venRes, seriesRes, evRes] = await Promise.all([
+      const [locRes, catRes, venRes, evRes] = await Promise.all([
         fetch("/api/public/locations").then((r) => r.json()),
         fetch("/api/public/categories").then((r) => r.json()),
         fetch("/api/organizer/venues").then((r) => r.json()),
-        fetch("/api/organizer/series").then((r) => r.json()),
         fetch(`/api/organizer/events/${id}`).then((r) => r.json()),
       ]);
 
       setStates(locRes?.data ?? []);
       setCategories(catRes?.data ?? []);
       setVenues((venRes?.data ?? []).filter((v: VenueRow) => v.status === "APPROVED"));
-      setSeries(seriesRes?.data ?? []);
 
       const ev = evRes?.data;
       if (!ev) { toast.error("Event not found"); router.push("/organizer/events"); return; }
@@ -114,7 +90,6 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setDescription(ev.description ?? "");
       setCategoryId(ev.category?.id ?? "");
       setVenueId(ev.venue?.id ?? "");
-      setSeriesId(ev.series?.id ?? "");
       setStateId(ev.state?.id ?? "");
       setCityId(ev.city?.id ?? "");
       setStartAt(toLocalDatetime(ev.startAt));
@@ -123,26 +98,11 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setContactEmail(ev.contactEmail ?? "");
       setContactPhone(ev.contactPhone ?? "");
       setHeroImage(ev.heroImage ?? "");
-      setImages(Array.isArray(ev.images) ? ev.images : []);
       setCancelPolicy(ev.cancelPolicy ?? "");
       setRefundPolicy(ev.refundPolicy ?? "");
-      setAllowCancellations(ev.cancellationDeadlineHours != null);
-      setCancellationDeadlineHours(String(ev.cancellationDeadlineHours ?? 48));
-      const pct = ev.refundPercent ?? 100;
-      setRefundPercent(([0, 50, 100] as number[]).includes(pct) ? (String(pct) as "0" | "50" | "100") : "100");
       setCommissionPct(String(ev.commissionPct ?? 10));
       setGstPct(String(ev.gstPct ?? 15));
       setPlatformFeeFixed(String(ev.platformFeeFixed ?? 0));
-      setTicketTypes(
-        (ev.ticketTypes ?? []).map((ticket: EditableTicketType) => ({
-          id: ticket.id,
-          name: ticket.name,
-          quantity: ticket.quantity,
-          sold: ticket.sold,
-          reservedQty: ticket.reservedQty ?? 0,
-          compIssued: ticket.compIssued ?? 0,
-        })),
-      );
       setReady(true);
     }
     load();
@@ -160,41 +120,18 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       body: JSON.stringify({
         title, description: description || undefined,
         categoryId: categoryId || undefined, venueId: venueId || undefined,
-        seriesId: seriesId || null,
         stateId: stateId || undefined, cityId: cityId || undefined,
-        startAt: new Date(startAt).toISOString(),
-        endAt: new Date(endAt).toISOString(),
-        timezone,
+        startAt, endAt, timezone,
         heroImage: heroImage || undefined,
-        images,
         contactEmail: contactEmail || undefined, contactPhone: contactPhone || undefined,
         cancelPolicy: cancelPolicy || undefined, refundPolicy: refundPolicy || undefined,
-        cancellationDeadlineHours: allowCancellations ? Number(cancellationDeadlineHours) : null,
-        refundPercent: Number(refundPercent),
         commissionPct: Number(commissionPct), gstPct: Number(gstPct),
         platformFeeFixed: Number(platformFeeFixed),
       }),
     });
     const payload = await res.json();
-    if (!res.ok) {
-      setSaving(false);
-      return toast.error(payload?.error?.message ?? "Failed to save event");
-    }
-
-    for (const ticket of ticketTypes) {
-      const ticketRes = await fetch(`/api/organizer/events/${id}/tickets/${ticket.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reservedQty: ticket.reservedQty }),
-      });
-      if (!ticketRes.ok) {
-        const ticketPayload = await ticketRes.json();
-        setSaving(false);
-        return toast.error(ticketPayload?.error?.message ?? `Failed to update comp reservation for ${ticket.name}`);
-      }
-    }
-
     setSaving(false);
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to save event");
     toast.success("Event updated");
     router.push(`/organizer/events/${id}`);
   }
@@ -213,43 +150,6 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
     if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to upload image");
     setHeroImage(payload.data.url);
     toast.success("Hero image uploaded");
-  }
-
-  async function uploadGallery(file: File) {
-    if (images.length >= 10) {
-      toast.error("You can upload up to 10 gallery images");
-      return;
-    }
-
-    setUploadingGalleryImage(true);
-    const fd = new FormData();
-    fd.append("file", file);
-
-    const res = await fetch("/api/organizer/uploads/event-image?type=gallery", {
-      method: "POST",
-      body: fd,
-    });
-    const payload = await res.json();
-    setUploadingGalleryImage(false);
-
-    if (!res.ok) {
-      toast.error(payload?.error?.message ?? "Failed to upload image");
-      return;
-    }
-
-    const url = payload?.data?.url;
-    if (!url) {
-      toast.error("Upload did not return an image URL");
-      return;
-    }
-
-    setImages((current) => {
-      if (current.length >= 10) {
-        return current;
-      }
-      return [...current, url];
-    });
-    toast.success("Gallery image uploaded");
   }
 
   if (!ready) {
@@ -314,61 +214,6 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
                 <img src={heroImage} alt="Event hero preview" className="h-40 w-full rounded-xl object-cover" />
               )}
             </div>
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <Label>Event Gallery</Label>
-                  <p className="mt-1 text-xs text-neutral-500">
-                    Add up to 10 extra photos that will appear on the event page.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-medium text-neutral-500">{images.length} / 10</span>
-                  <input
-                    ref={galleryInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
-                    className="hidden"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      event.target.value = "";
-                      if (!file) return;
-                      void uploadGallery(file);
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={uploadingGalleryImage || images.length >= 10}
-                    onClick={() => galleryInputRef.current?.click()}
-                  >
-                    {uploadingGalleryImage ? "Uploading..." : "Add Photo"}
-                  </Button>
-                </div>
-              </div>
-              {images.length > 0 ? (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {images.map((imageUrl, index) => (
-                    <div key={imageUrl} className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-neutral-50">
-                      <button
-                        type="button"
-                        onClick={() => setImages((current) => current.filter((entry) => entry !== imageUrl))}
-                        className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-sm font-semibold text-white transition hover:bg-black"
-                        aria-label={`Remove gallery image ${index + 1}`}
-                      >
-                        ×
-                      </button>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={imageUrl} alt={`Gallery preview ${index + 1}`} className="h-36 w-full object-cover" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-[var(--border)] bg-neutral-50 px-4 py-6 text-sm text-neutral-500">
-                  No gallery images yet.
-                </div>
-              )}
-            </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Category</Label>
@@ -383,18 +228,6 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
                   <option value="">No venue</option>
                   {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                 </select>
-              </div>
-              <div className="space-y-2">
-                <Label>Series</Label>
-                <select className="app-select" value={seriesId} onChange={(e) => setSeriesId(e.target.value)}>
-                  <option value="">No series</option>
-                  {series.map((entry) => <option key={entry.id} value={entry.id}>{entry.title}</option>)}
-                </select>
-                <p className="text-xs text-neutral-500">
-                  {seriesId
-                    ? `This event is assigned to ${series.find((entry) => entry.id === seriesId)?.title ?? "a series"}.`
-                    : "Group related published events together on one public series page."}
-                </p>
               </div>
               <div className="space-y-2">
                 <Label>State</Label>
@@ -428,9 +261,9 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             <div className="space-y-2">
               <Label>Timezone</Label>
               <select className="app-select" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
-                <option value="Pacific/Auckland">Pacific/Auckland (NZT)</option>
-                <option value="Australia/Sydney">Australia/Sydney (AEST)</option>
-                <option value="UTC">UTC</option>
+                {TIMEZONES.map((tz) => (
+                  <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -467,56 +300,6 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         </section>
 
         <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-neutral-900">Cancellation Policy</h2>
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <input
-                id="allow-cancellations"
-                type="checkbox"
-                checked={allowCancellations}
-                onChange={(e) => setAllowCancellations(e.target.checked)}
-                className="h-4 w-4 rounded border-[var(--border)] accent-[var(--theme-accent)]"
-              />
-              <Label htmlFor="allow-cancellations">Allow cancellations</Label>
-            </div>
-            {allowCancellations && (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="cancellation-deadline">Cancellation deadline (hours before event)</Label>
-                  <Input
-                    id="cancellation-deadline"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={cancellationDeadlineHours}
-                    onChange={(e) => setCancellationDeadlineHours(e.target.value)}
-                    placeholder="e.g. 24, 48, 72"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="refund-percent">Refund amount</Label>
-                  <select
-                    id="refund-percent"
-                    className="app-select"
-                    value={refundPercent}
-                    onChange={(e) => setRefundPercent(e.target.value as "0" | "50" | "100")}
-                  >
-                    <option value="100">Full refund (100%)</option>
-                    <option value="50">Half refund (50%)</option>
-                    <option value="0">No refund (0%)</option>
-                  </select>
-                </div>
-              </div>
-            )}
-            {!allowCancellations && (
-              <p className="text-sm text-neutral-500">
-                Cancellations are disabled. Attendees will not be able to cancel their orders.
-              </p>
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold text-neutral-900">Fee Configuration</h2>
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
@@ -532,63 +315,6 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
               <Input type="number" min="0" step="0.01" value={platformFeeFixed} onChange={(e) => setPlatformFeeFixed(e.target.value)} />
             </div>
           </div>
-        </section>
-
-        <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-neutral-900">Comp Ticket Reservations</h2>
-          {ticketTypes.length === 0 ? (
-            <p className="text-sm text-neutral-500">
-              Add ticket types on the event page first, then reserve complimentary ticket slots here.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {ticketTypes.map((ticket) => {
-                const publicAvailable = Math.max(0, ticket.quantity - ticket.sold - ticket.reservedQty);
-                const remainingCompSlots = Math.max(0, ticket.reservedQty - ticket.compIssued);
-
-                return (
-                  <div key={ticket.id} className="rounded-xl border border-[var(--border)] p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-neutral-900">{ticket.name}</p>
-                        <p className="mt-1 text-xs text-neutral-500">
-                          {ticket.sold} sold of {ticket.quantity} total. {ticket.compIssued} comp tickets already issued.
-                        </p>
-                      </div>
-                      <div className="w-full max-w-[180px] space-y-2">
-                        <Label htmlFor={`reserved-${ticket.id}`}>Reserved (Comp) Qty</Label>
-                        <Input
-                          id={`reserved-${ticket.id}`}
-                          type="number"
-                          min={ticket.compIssued}
-                          max={Math.max(ticket.compIssued, ticket.quantity - ticket.sold)}
-                          value={ticket.reservedQty}
-                          onChange={(event) => {
-                            const value = Number(event.target.value);
-                            setTicketTypes((current) =>
-                              current.map((entry) =>
-                                entry.id === ticket.id
-                                  ? {
-                                      ...entry,
-                                      reservedQty: Number.isNaN(value)
-                                        ? entry.reservedQty
-                                        : Math.max(ticket.compIssued, value),
-                                    }
-                                  : entry,
-                              ),
-                            );
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <p className="mt-2 text-xs text-neutral-500">
-                      {ticket.reservedQty} of {ticket.quantity} reserved for complimentary tickets. Public available: {publicAvailable}. Remaining comp slots: {remainingCompSlots}.
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </section>
 
         <div className="flex gap-3">

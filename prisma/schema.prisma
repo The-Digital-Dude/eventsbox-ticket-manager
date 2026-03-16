@@ -233,12 +233,25 @@ model Category {
   events    Event[]
 }
 
+model Country {
+  id        String   @id @default(cuid())
+  code      String   @unique  // ISO 3166-1 alpha-2: "US", "BD", "AU", "GB"
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  states    State[]
+  venues    Venue[]
+  events    Event[]
+}
+
 model State {
   id        String   @id @default(cuid())
   code      String   @unique
   name      String   @unique
+  countryId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  country   Country? @relation(fields: [countryId], references: [id])
   cities    City[]
   venues    Venue[]
   events    Event[]
@@ -264,6 +277,7 @@ model Venue {
   name                 String
   addressLine1         String
   addressLine2         String?
+  countryId            String?
   stateId              String
   cityId               String
   categoryId           String?
@@ -278,6 +292,7 @@ model Venue {
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
   organizerProfile     OrganizerProfile @relation(fields: [organizerProfileId], references: [id], onDelete: Cascade)
+  country              Country?         @relation(fields: [countryId], references: [id])
   state                State            @relation(fields: [stateId], references: [id])
   city                 City             @relation(fields: [cityId], references: [id])
   category             Category?        @relation(fields: [categoryId], references: [id])
@@ -293,6 +308,7 @@ model Event {
   seriesId           String?
   categoryId         String?
   venueId            String?
+  countryId          String?
   stateId            String?
   cityId             String?
   title              String
@@ -308,11 +324,12 @@ model Event {
   refundPercent               Int      @default(100)
   startAt            DateTime
   endAt              DateTime
-  timezone           String           @default("Pacific/Auckland")
+  timezone           String           @default("UTC")
   status             EventStatus      @default(DRAFT)
   rejectionReason    String?
   submittedAt        DateTime?
   publishedAt        DateTime?
+  currency           String           @default("USD")
   commissionPct      Decimal          @default(10) @db.Decimal(5, 2)
   gstPct             Decimal          @default(15) @db.Decimal(5, 2)
   platformFeeFixed   Decimal          @default(0) @db.Decimal(10, 2)
@@ -322,6 +339,7 @@ model Event {
   series             EventSeries?     @relation(fields: [seriesId], references: [id])
   category           Category?        @relation(fields: [categoryId], references: [id])
   venue              Venue?           @relation(fields: [venueId], references: [id])
+  country            Country?         @relation(fields: [countryId], references: [id])
   state              State?           @relation(fields: [stateId], references: [id])
   city               City?            @relation(fields: [cityId], references: [id])
   ticketTypes        TicketType[]

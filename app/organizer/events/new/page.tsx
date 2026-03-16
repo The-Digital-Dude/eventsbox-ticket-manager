@@ -8,6 +8,7 @@ import { PageHeader } from "@/src/components/shared/page-header";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { TIMEZONES } from "@/src/lib/timezones";
 
 type StateRow = { id: string; name: string; cities: { id: string; name: string }[] };
 type CategoryRow = { id: string; name: string };
@@ -42,7 +43,7 @@ export default function NewEventPage() {
   const [cityId, setCityId] = useState("");
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
-  const [timezone, setTimezone] = useState("Pacific/Auckland");
+  const [timezone, setTimezone] = useState("UTC");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [heroImage, setHeroImage] = useState("");
@@ -79,10 +80,7 @@ export default function NewEventPage() {
       body: JSON.stringify({
         title, description, categoryId: categoryId || undefined,
         venueId: venueId || undefined, stateId: stateId || undefined,
-        cityId: cityId || undefined,
-        startAt: new Date(startAt).toISOString(),
-        endAt: new Date(endAt).toISOString(),
-        timezone,
+        cityId: cityId || undefined, startAt, endAt, timezone,
         heroImage: heroImage || undefined,
         contactEmail: contactEmail || undefined, contactPhone: contactPhone || undefined,
         cancelPolicy: cancelPolicy || undefined, refundPolicy: refundPolicy || undefined,
@@ -206,9 +204,9 @@ export default function NewEventPage() {
             <div className="space-y-2">
               <Label>Timezone</Label>
               <select className="app-select" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
-                <option value="Pacific/Auckland">Pacific/Auckland (NZT)</option>
-                <option value="Australia/Sydney">Australia/Sydney (AEST)</option>
-                <option value="UTC">UTC</option>
+                {TIMEZONES.map((tz) => (
+                  <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+                ))}
               </select>
             </div>
           </div>
