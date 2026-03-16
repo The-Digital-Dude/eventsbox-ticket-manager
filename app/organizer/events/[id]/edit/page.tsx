@@ -8,6 +8,7 @@ import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { SearchableSelect } from "@/src/components/ui/searchable-select";
 import Link from "next/link";
 import { TIMEZONES } from "@/src/lib/timezones";
 import { CURRENCIES } from "@/src/lib/currency";
@@ -274,24 +275,34 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
               </div>
               <div className="space-y-2">
                 <Label>Country</Label>
-                <select className="app-select" value={countryId} onChange={(e) => { setCountryId(e.target.value); setStateId(""); setCityId(""); }}>
-                  <option value="">No country</option>
-                  {countries.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <SearchableSelect
+                  options={[{ value: "", label: "No country" }, ...countries.map((c) => ({ value: c.id, label: c.name }))]}
+                  value={countryId}
+                  onChange={(v) => { setCountryId(v); setStateId(""); setCityId(""); }}
+                  placeholder="No country"
+                  searchPlaceholder="Search countries..."
+                />
               </div>
               <div className="space-y-2">
                 <Label>State</Label>
-                <select className="app-select" value={stateId} onChange={(e) => { setStateId(e.target.value); setCityId(""); }}>
-                  <option value="">No state</option>
-                  {states.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+                <SearchableSelect
+                  options={[{ value: "", label: "No state" }, ...states.map((s) => ({ value: s.id, label: s.name }))]}
+                  value={stateId}
+                  onChange={(v) => { setStateId(v); setCityId(""); }}
+                  placeholder="No state"
+                  searchPlaceholder="Search states..."
+                />
               </div>
               <div className="space-y-2">
                 <Label>City</Label>
-                <select className="app-select" value={cityId} onChange={(e) => setCityId(e.target.value)}>
-                  <option value="">No city</option>
-                  {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <SearchableSelect
+                  options={[{ value: "", label: "No city" }, ...cities.map((c) => ({ value: c.id, label: c.name }))]}
+                  value={cityId}
+                  onChange={setCityId}
+                  placeholder="No city"
+                  searchPlaceholder="Search cities..."
+                  disabled={!stateId}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Audience</Label>
@@ -351,11 +362,13 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             </div>
             <div className="space-y-2">
               <Label>Timezone</Label>
-              <select className="app-select" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
-                {TIMEZONES.map((tz) => (
-                  <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
-                ))}
-              </select>
+              <SearchableSelect
+                options={TIMEZONES.map((tz) => ({ value: tz, label: tz.replace(/_/g, ' ') }))}
+                value={timezone}
+                onChange={setTimezone}
+                placeholder="Select timezone"
+                searchPlaceholder="Search timezones..."
+              />
             </div>
           </div>
         </section>

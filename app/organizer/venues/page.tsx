@@ -11,6 +11,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { SearchableSelect } from "@/src/components/ui/searchable-select";
 import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
 type CountryRow = { id: string; code: string; name: string };
@@ -209,8 +210,27 @@ export default function OrganizerVenuesPage() {
               <div className="space-y-2 md:col-span-2"><Label>Address line 1</Label><Input value={addressLine1} onChange={(event) => setAddressLine1(event.target.value)} /></div>
               <div className="space-y-2 md:col-span-2"><Label>Address line 2</Label><Input value={addressLine2} onChange={(event) => setAddressLine2(event.target.value)} /></div>
               <div className="space-y-2"><Label>Country</Label><select className="app-select" value={countryId} onChange={(event) => { setCountryId(event.target.value); setStateId(""); setCityId(""); }}><option value="">Select country (optional)</option>{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select></div>
-              <div className="space-y-2"><Label>State</Label><select className="app-select" value={stateId} onChange={(event) => { setStateId(event.target.value); setCityId(""); }}><option value="">Select state</option>{states.map((state) => <option key={state.id} value={state.id}>{state.name}</option>)}</select></div>
-              <div className="space-y-2"><Label>City</Label><select className="app-select" value={cityId} onChange={(event) => setCityId(event.target.value)}><option value="">Select city</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></div>
+              <div className="space-y-2">
+                <Label>State</Label>
+                <SearchableSelect
+                  options={[{ value: "", label: "Select state" }, ...states.map((s) => ({ value: s.id, label: s.name }))]}
+                  value={stateId}
+                  onChange={(v) => { setStateId(v); setCityId(""); }}
+                  placeholder="Select state"
+                  searchPlaceholder="Search states..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>City</Label>
+                <SearchableSelect
+                  options={[{ value: "", label: "Select city" }, ...cities.map((c) => ({ value: c.id, label: c.name }))]}
+                  value={cityId}
+                  onChange={setCityId}
+                  placeholder="Select city"
+                  searchPlaceholder="Search cities..."
+                  disabled={!stateId}
+                />
+              </div>
             </div>
             <div className="flex gap-3">
               <Button onClick={beginCreateWithSeating}>Next: Seating Configuration</Button>

@@ -7,6 +7,7 @@ import { PageHeader } from "@/src/components/shared/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
+import { SearchableSelect } from "@/src/components/ui/searchable-select";
 
 type CountryRow = { id: string; code: string; name: string; isActive: boolean };
 type StateRow = { id: string; code: string; name: string };
@@ -140,10 +141,13 @@ export default function AdminLocationsPage() {
         </TabsContent>
         <TabsContent value="cities" className="mt-4 space-y-3 rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
           <div className="grid gap-2 md:grid-cols-3">
-            <select className="app-select" value={cityStateId} onChange={(e) => setCityStateId(e.target.value)}>
-              <option value="">Choose state</option>
-              {states.map((state) => <option key={state.id} value={state.id}>{state.name}</option>)}
-            </select>
+            <SearchableSelect
+              options={[{ value: "", label: "Choose state" }, ...states.map((s) => ({ value: s.id, label: s.name }))]}
+              value={cityStateId}
+              onChange={setCityStateId}
+              placeholder="Choose state"
+              searchPlaceholder="Search states..."
+            />
             <Input placeholder="City name" value={cityName} onChange={(e) => setCityName(e.target.value)} />
             <Button onClick={addCity}>Add City</Button>
           </div>
