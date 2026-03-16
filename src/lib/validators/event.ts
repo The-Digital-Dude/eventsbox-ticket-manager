@@ -5,6 +5,7 @@ export const eventCreateSchema = z.object({
   description: z.string().max(5000).optional(),
   categoryId: z.string().optional(),
   venueId: z.string().optional(),
+  countryId: z.string().optional(),
   stateId: z.string().optional(),
   cityId: z.string().optional(),
   heroImage: z.string().url().optional().or(z.literal("")),

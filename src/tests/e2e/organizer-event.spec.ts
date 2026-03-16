@@ -40,9 +40,9 @@ test("organizer creates event, adds ticket, and submits for approval", async ({ 
   expect(res.ok()).toBeTruthy();
 
   res = await organizer.get("/api/public/locations");
-  const states = (await res.json()).data as Array<{ id: string; cities: Array<{ id: string }> }>;
-  const stateId = states[0]?.id;
-  const cityId = states[0]?.cities?.[0]?.id;
+  const locationsData = (await res.json()).data as { states: Array<{ id: string; cities: Array<{ id: string }> }> };
+  const stateId = locationsData.states[0]?.id;
+  const cityId = locationsData.states[0]?.cities?.[0]?.id;
   expect(stateId).toBeTruthy();
   expect(cityId).toBeTruthy();
 

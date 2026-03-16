@@ -40,6 +40,7 @@ export const venueRequestSchema = z.object({
   name: z.string().min(2),
   addressLine1: z.string().min(3),
   addressLine2: z.string().optional(),
+  countryId: z.string().optional(),
   stateId: z.string().min(1),
   cityId: z.string().min(1),
   categoryId: z.string().optional(),

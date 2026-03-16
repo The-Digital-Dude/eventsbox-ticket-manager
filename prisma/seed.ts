@@ -53,6 +53,23 @@ async function main() {
     categoryMap[name] = cat.id;
   }
 
+  // ── Countries ─────────────────────────────────────────────────────────────
+  const bd = await prisma.country.upsert({ where: { code: "BD" }, update: {}, create: { code: "BD", name: "Bangladesh" } });
+  await prisma.country.upsert({ where: { code: "US" }, update: {}, create: { code: "US", name: "United States" } });
+  await prisma.country.upsert({ where: { code: "GB" }, update: {}, create: { code: "GB", name: "United Kingdom" } });
+  await prisma.country.upsert({ where: { code: "AU" }, update: {}, create: { code: "AU", name: "Australia" } });
+  await prisma.country.upsert({ where: { code: "NZ" }, update: {}, create: { code: "NZ", name: "New Zealand" } });
+  await prisma.country.upsert({ where: { code: "IN" }, update: {}, create: { code: "IN", name: "India" } });
+  await prisma.country.upsert({ where: { code: "CA" }, update: {}, create: { code: "CA", name: "Canada" } });
+  await prisma.country.upsert({ where: { code: "DE" }, update: {}, create: { code: "DE", name: "Germany" } });
+  await prisma.country.upsert({ where: { code: "FR" }, update: {}, create: { code: "FR", name: "France" } });
+  await prisma.country.upsert({ where: { code: "SG" }, update: {}, create: { code: "SG", name: "Singapore" } });
+  await prisma.country.upsert({ where: { code: "JP" }, update: {}, create: { code: "JP", name: "Japan" } });
+  await prisma.country.upsert({ where: { code: "AE" }, update: {}, create: { code: "AE", name: "United Arab Emirates" } });
+  await prisma.country.upsert({ where: { code: "ZA" }, update: {}, create: { code: "ZA", name: "South Africa" } });
+  await prisma.country.upsert({ where: { code: "NG" }, update: {}, create: { code: "NG", name: "Nigeria" } });
+  await prisma.country.upsert({ where: { code: "BR" }, update: {}, create: { code: "BR", name: "Brazil" } });
+
   // ── States & Cities ───────────────────────────────────────────────────────
   const states = [
     { code: "BD-DHA", name: "Dhaka", cities: ["Dhaka", "Gazipur"] },
@@ -60,8 +77,8 @@ async function main() {
   ];
   const dhaka = await prisma.state.upsert({
     where: { code: "BD-DHA" },
-    update: { name: "Dhaka" },
-    create: { code: "BD-DHA", name: "Dhaka" },
+    update: { name: "Dhaka", countryId: bd.id },
+    create: { code: "BD-DHA", name: "Dhaka", countryId: bd.id },
   });
   const dhakaCity = await prisma.city.upsert({
     where: { stateId_name: { stateId: dhaka.id, name: "Dhaka" } },
@@ -71,8 +88,8 @@ async function main() {
   for (const stateData of states) {
     const state = await prisma.state.upsert({
       where: { code: stateData.code },
-      update: { name: stateData.name },
-      create: { code: stateData.code, name: stateData.name },
+      update: { name: stateData.name, countryId: bd.id },
+      create: { code: stateData.code, name: stateData.name, countryId: bd.id },
     });
     for (const cityName of stateData.cities) {
       await prisma.city.upsert({

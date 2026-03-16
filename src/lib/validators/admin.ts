@@ -22,6 +22,12 @@ export const categorySchema = z.object({
   isActive: z.boolean().default(true),
 });
 
+export const countrySchema = z.object({
+  code: z.string().length(2).toUpperCase(),
+  name: z.string().min(2),
+  isActive: z.boolean().default(true),
+});
+
 export const stateSchema = z.object({
   code: z.string().min(2),
   name: z.string().min(2),

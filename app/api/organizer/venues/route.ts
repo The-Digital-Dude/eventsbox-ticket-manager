@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
         name: parsed.data.name,
         addressLine1: parsed.data.addressLine1,
         addressLine2: parsed.data.addressLine2,
+        countryId: parsed.data.countryId,
         stateId: parsed.data.stateId,
         cityId: parsed.data.cityId,
         categoryId: parsed.data.categoryId,

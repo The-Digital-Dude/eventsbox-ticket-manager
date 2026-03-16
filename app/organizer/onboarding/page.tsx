@@ -127,7 +127,7 @@ export default function OrganizerOnboardingPage() {
       if (!active) return;
 
       if (locationsPayload?.data) {
-        setStates(locationsPayload.data ?? []);
+        setStates(locationsPayload.data?.states ?? locationsPayload.data ?? []);
       }
 
       if (onboardingPayload?.data) {

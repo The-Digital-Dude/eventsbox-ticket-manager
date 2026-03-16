@@ -63,9 +63,9 @@ test("organizer onboarding + admin approval + venue approval", async ({ baseURL 
   await expect(await res.text()).toContain("Organizer tools are now active");
 
   res = await organizer.get("/api/public/locations");
-  const locations = (await res.json()).data as Array<{ id: string; cities: Array<{ id: string }> }>;
-  const stateId = locations[0].id;
-  const cityId = locations[0].cities[0].id;
+  const locationsData = (await res.json()).data as { states: Array<{ id: string; cities: Array<{ id: string }> }> };
+  const stateId = locationsData.states[0].id;
+  const cityId = locationsData.states[0].cities[0].id;
 
   res = await organizer.post("/api/organizer/venues", {
     data: {

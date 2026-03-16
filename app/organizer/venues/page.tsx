@@ -13,6 +13,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
+type CountryRow = { id: string; code: string; name: string };
 type CityRow = { id: string; name: string };
 type StateRow = { id: string; name: string; cities: CityRow[] };
 type CategoryRow = { id: string; name: string };
@@ -47,9 +48,11 @@ export default function OrganizerVenuesPage() {
   const [name, setName] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
   const [addressLine2, setAddressLine2] = useState("");
+  const [countryId, setCountryId] = useState("");
   const [stateId, setStateId] = useState("");
   const [cityId, setCityId] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [countries, setCountries] = useState<CountryRow[]>([]);
   const [states, setStates] = useState<StateRow[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [step, setStep] = useState<Step>("details");
@@ -65,7 +68,8 @@ export default function OrganizerVenuesPage() {
     const l = await lRes.json();
     const c = await cRes.json();
     setVenues(v?.data ?? []);
-    setStates(l?.data ?? []);
+    setCountries(l?.data?.countries ?? []);
+    setStates(l?.data?.states ?? []);
     setCategories(c?.data ?? []);
   }
 
@@ -75,7 +79,8 @@ export default function OrganizerVenuesPage() {
       ([v, l, c]) => {
         if (!active) return;
         setVenues(v?.data ?? []);
-        setStates(l?.data ?? []);
+        setCountries(l?.data?.countries ?? []);
+        setStates(l?.data?.states ?? []);
         setCategories(c?.data ?? []);
       },
     );
@@ -112,6 +117,7 @@ export default function OrganizerVenuesPage() {
     setName("");
     setAddressLine1("");
     setAddressLine2("");
+    setCountryId("");
     setStateId("");
     setCityId("");
     setCategoryId("");
@@ -131,6 +137,7 @@ export default function OrganizerVenuesPage() {
         name,
         addressLine1,
         addressLine2: addressLine2 || undefined,
+        countryId: countryId || undefined,
         stateId,
         cityId,
         categoryId: categoryId || undefined,
@@ -201,6 +208,7 @@ export default function OrganizerVenuesPage() {
               <div className="space-y-2"><Label>Category</Label><select className="app-select" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">Select category (optional)</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>
               <div className="space-y-2 md:col-span-2"><Label>Address line 1</Label><Input value={addressLine1} onChange={(event) => setAddressLine1(event.target.value)} /></div>
               <div className="space-y-2 md:col-span-2"><Label>Address line 2</Label><Input value={addressLine2} onChange={(event) => setAddressLine2(event.target.value)} /></div>
+              <div className="space-y-2"><Label>Country</Label><select className="app-select" value={countryId} onChange={(event) => { setCountryId(event.target.value); setStateId(""); setCityId(""); }}><option value="">Select country (optional)</option>{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select></div>
               <div className="space-y-2"><Label>State</Label><select className="app-select" value={stateId} onChange={(event) => { setStateId(event.target.value); setCityId(""); }}><option value="">Select state</option>{states.map((state) => <option key={state.id} value={state.id}>{state.name}</option>)}</select></div>
               <div className="space-y-2"><Label>City</Label><select className="app-select" value={cityId} onChange={(event) => setCityId(event.target.value)}><option value="">Select city</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}</select></div>
             </div>
