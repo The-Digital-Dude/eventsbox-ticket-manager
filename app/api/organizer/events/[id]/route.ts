@@ -7,7 +7,7 @@ import { eventUpdateSchema } from "@/src/lib/validators/event";
 
 const eventInclude = {
   category: { select: { id: true, name: true } },
-  venue: { select: { id: true, name: true, addressLine1: true } },
+  venue: { select: { id: true, name: true, addressLine1: true, seatingConfig: true } },
   state: { select: { id: true, name: true } },
   city: { select: { id: true, name: true } },
   series: { select: { id: true, title: true } },

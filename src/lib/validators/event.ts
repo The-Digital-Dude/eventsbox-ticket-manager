@@ -34,6 +34,7 @@ export const ticketTypeCreateSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(1000).optional(),
   kind: z.enum(["DIRECT", "COMBO"]).default("DIRECT"),
+  sectionId: z.string().optional().nullable(),
   price: z.coerce.number().min(0),
   quantity: z.coerce.number().int().min(1),
   reservedQty: z.coerce.number().int().min(0).default(0),

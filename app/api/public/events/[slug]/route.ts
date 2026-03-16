@@ -31,6 +31,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
           name: true,
           description: true,
           kind: true,
+          sectionId: true,
           price: true,
           quantity: true,
           sold: true,

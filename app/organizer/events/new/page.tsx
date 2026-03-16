@@ -79,7 +79,10 @@ export default function NewEventPage() {
       body: JSON.stringify({
         title, description, categoryId: categoryId || undefined,
         venueId: venueId || undefined, stateId: stateId || undefined,
-        cityId: cityId || undefined, startAt, endAt, timezone,
+        cityId: cityId || undefined,
+        startAt: new Date(startAt).toISOString(),
+        endAt: new Date(endAt).toISOString(),
+        timezone,
         heroImage: heroImage || undefined,
         contactEmail: contactEmail || undefined, contactPhone: contactPhone || undefined,
         cancelPolicy: cancelPolicy || undefined, refundPolicy: refundPolicy || undefined,

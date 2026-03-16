@@ -12,6 +12,11 @@
 - Validation passed with `npm run lint`, `npm run typecheck`, `npm run test:integration`, and `npm run build` (28 integration files, 88 tests).
 - `npx prisma migrate dev --name add-event-gallery-and-unsubscribe` was blocked by pre-existing migration drift in the shared development database, so Phase 14 ships with a checked-in SQL migration at `prisma/migrations/20260311024757_add_event_gallery_and_unsubscribe/migration.sql`, applied manually via `prisma db execute`, plus a regenerated Prisma client.
 
+**Hotfix Note (2026-03-14):**
+- Homepage stats in `app/page.tsx` now degrade gracefully when Prisma cannot reach the database, so `/` still renders with zeroed stats instead of crashing during transient Neon connectivity issues.
+- Added `src/tests/integration/home-page.test.ts` to cover the homepage fallback behavior.
+- Local `.env` was corrected so `DATABASE_URL` stays on the Neon pooled host while `DIRECT_DATABASE_URL` uses the verified non-pooler direct host.
+
 ---
 
 ## Previous Task

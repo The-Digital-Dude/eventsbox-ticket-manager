@@ -1,61 +1,81 @@
 import Link from "next/link";
+import { Prisma } from "@prisma/client";
 import { CalendarDays, MapPin, QrCode, Shield, Ticket } from "lucide-react";
 import { prisma } from "@/src/lib/db";
 
 export const revalidate = 60;
 
+const featuredEventInclude = {
+  category: { select: { name: true } },
+  city: { select: { name: true } },
+  ticketTypes: {
+    where: { isActive: true },
+    orderBy: { price: "asc" },
+    select: { price: true, quantity: true, sold: true },
+    take: 1,
+  },
+} satisfies Prisma.EventInclude;
+
+type HomePageStats = {
+  eventCount: number;
+  orderCount: number;
+  featuredEvents: Prisma.EventGetPayload<{ include: typeof featuredEventInclude }>[];
+};
+
+function isDatabaseUnavailable(error: unknown) {
+  return error instanceof Error && (
+    error.name === "PrismaClientInitializationError" ||
+    error.message.includes("Can't reach database server")
+  );
+}
+
 async function getStats() {
   const now = new Date();
 
-  const [eventCount, orderCount, featuredEvents] = await Promise.all([
-    prisma.event.count({ where: { status: "PUBLISHED" } }),
-    prisma.order.count({ where: { status: "PAID" } }),
-    prisma.event.findMany({
+  try {
+    const [eventCount, orderCount, featuredEvents] = await Promise.all([
+      prisma.event.count({ where: { status: "PUBLISHED" } }),
+      prisma.order.count({ where: { status: "PAID" } }),
+      prisma.event.findMany({
+        where: {
+          isFeatured: true,
+          status: "PUBLISHED",
+          startAt: { gte: now },
+        },
+        include: featuredEventInclude,
+        orderBy: { startAt: "asc" },
+        take: 6,
+      }),
+    ]);
+
+    if (featuredEvents.length >= 3) {
+      return { eventCount, orderCount, featuredEvents };
+    }
+
+    const fallbackEvents = await prisma.event.findMany({
       where: {
-        isFeatured: true,
         status: "PUBLISHED",
         startAt: { gte: now },
+        id: { notIn: featuredEvents.map((event) => event.id) },
       },
-      include: {
-        category: { select: { name: true } },
-        city: { select: { name: true } },
-        ticketTypes: {
-          where: { isActive: true },
-          orderBy: { price: "asc" },
-          select: { price: true, quantity: true, sold: true },
-          take: 1,
-        },
-      },
+      include: featuredEventInclude,
       orderBy: { startAt: "asc" },
-      take: 6,
-    }),
-  ]);
+      take: 3 - featuredEvents.length,
+    });
 
-  if (featuredEvents.length >= 3) {
-    return { eventCount, orderCount, featuredEvents };
+    return { eventCount, orderCount, featuredEvents: [...featuredEvents, ...fallbackEvents] };
+  } catch (error) {
+    if (isDatabaseUnavailable(error)) {
+      console.error("[app/page.tsx][getStats] Homepage stats unavailable because the database could not be reached.", error);
+      return {
+        eventCount: 0,
+        orderCount: 0,
+        featuredEvents: [],
+      } satisfies HomePageStats;
+    }
+
+    throw error;
   }
-
-  const fallbackEvents = await prisma.event.findMany({
-    where: {
-      status: "PUBLISHED",
-      startAt: { gte: now },
-      id: { notIn: featuredEvents.map((event) => event.id) },
-    },
-    include: {
-      category: { select: { name: true } },
-      city: { select: { name: true } },
-      ticketTypes: {
-        where: { isActive: true },
-        orderBy: { price: "asc" },
-        select: { price: true, quantity: true, sold: true },
-        take: 1,
-      },
-    },
-    orderBy: { startAt: "asc" },
-    take: 3 - featuredEvents.length,
-  });
-
-  return { eventCount, orderCount, featuredEvents: [...featuredEvents, ...fallbackEvents] };
 }
 
 function formatDate(iso: Date) {

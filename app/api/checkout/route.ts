@@ -70,10 +70,16 @@ export async function POST(req: NextRequest) {
     }
 
     if (seatingConfig) {
-      if (uniqueSelectedSeatIds.length !== totalRequestedTickets) {
+      // Only ticket types linked to a section require seat selection
+      const totalSeatedTickets = items.reduce((sum, item) => {
+        const tt = event.ticketTypes.find((t) => t.id === item.ticketTypeId);
+        return tt?.sectionId ? sum + item.quantity : sum;
+      }, 0);
+
+      if (uniqueSelectedSeatIds.length !== totalSeatedTickets) {
         return fail(400, {
           code: "SEAT_SELECTION_REQUIRED",
-          message: `Select ${totalRequestedTickets} seat${totalRequestedTickets === 1 ? "" : "s"} before checkout`,
+          message: `Select ${totalSeatedTickets} seat${totalSeatedTickets === 1 ? "" : "s"} before checkout`,
         });
       }
 
@@ -83,6 +89,33 @@ export async function POST(req: NextRequest) {
           code: "INVALID_SEAT",
           message: `Seat ${invalidSeatId} is not available for this venue`,
         });
+      }
+
+      // Each section must get exactly the right number of seats
+      const sectionRequired = new Map<string, number>();
+      for (const item of items) {
+        const tt = event.ticketTypes.find((t) => t.id === item.ticketTypeId);
+        if (tt?.sectionId) {
+          sectionRequired.set(tt.sectionId, (sectionRequired.get(tt.sectionId) ?? 0) + item.quantity);
+        }
+      }
+
+      const sectionSelected = new Map<string, number>();
+      for (const seatId of uniqueSelectedSeatIds) {
+        const descriptor = seatDescriptorMap[seatId];
+        if (descriptor) {
+          sectionSelected.set(descriptor.sectionId, (sectionSelected.get(descriptor.sectionId) ?? 0) + 1);
+        }
+      }
+
+      for (const [sectionId, required] of sectionRequired) {
+        const selected = sectionSelected.get(sectionId) ?? 0;
+        if (selected !== required) {
+          return fail(400, {
+            code: "SEAT_SECTION_MISMATCH",
+            message: `Please select ${required} seat${required === 1 ? "" : "s"} from the correct section`,
+          });
+        }
       }
     } else if (uniqueSelectedSeatIds.length > 0) {
       return fail(400, {

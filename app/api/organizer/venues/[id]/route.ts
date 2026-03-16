@@ -27,7 +27,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const computed = computeSeatingSummary(parsed.data.seatingConfig.sections);
-    if (computed.totalSeats !== parsed.data.summary.totalSeats || computed.totalTables !== parsed.data.summary.totalTables) {
+    const deletedCount = parsed.data.seatState
+      ? Object.values(parsed.data.seatState).filter((s: { deleted?: boolean }) => s.deleted).length
+      : 0;
+    const adjustedTotalSeats = computed.totalSeats - deletedCount;
+    if (adjustedTotalSeats !== parsed.data.summary.totalSeats || computed.totalTables !== parsed.data.summary.totalTables) {
       return fail(400, {
         code: "SEATING_SUMMARY_MISMATCH",
         message: "Seating summary does not match seating configuration",

@@ -11,11 +11,18 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import Link from "next/link";
 
+type VenueSection = {
+  id: string;
+  name: string;
+  mapType: string;
+};
+
 type TicketType = {
   id: string;
   name: string;
   description: string | null;
   kind: string;
+  sectionId: string | null;
   price: number | string;
   quantity: number;
   sold: number;
@@ -45,7 +52,12 @@ type EventDetail = {
   platformFeeFixed: number | string;
   rejectionReason: string | null;
   category: { id: string; name: string } | null;
-  venue: { id: string; name: string; addressLine1: string } | null;
+  venue: {
+    id: string;
+    name: string;
+    addressLine1: string;
+    seatingConfig: { sections: VenueSection[] } | null;
+  } | null;
   ticketTypes: TicketType[];
   _count: { orders: number; waitlist: number };
   orders: Array<{ total: number | string; platformFee: number | string; gst: number | string }>;
@@ -103,6 +115,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [tName, setTName] = useState("");
   const [tDescription, setTDescription] = useState("");
   const [tKind, setTKind] = useState("DIRECT");
+  const [tSectionId, setTSectionId] = useState("");
   const [tPrice, setTPrice] = useState("");
   const [tQuantity, setTQuantity] = useState("");
   const [tMaxPerOrder, setTMaxPerOrder] = useState("10");
@@ -138,7 +151,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: tName, description: tDescription || undefined,
-        kind: tKind, price: Number(tPrice), quantity: Number(tQuantity),
+        kind: tKind, sectionId: tSectionId || null,
+        price: Number(tPrice), quantity: Number(tQuantity),
         maxPerOrder: Number(tMaxPerOrder),
       }),
     });
@@ -146,7 +160,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     setTicketSaving(false);
     if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to add ticket");
     toast.success("Ticket type added");
-    setTName(""); setTDescription(""); setTPrice(""); setTQuantity(""); setTMaxPerOrder("10"); setTKind("DIRECT");
+    setTName(""); setTDescription(""); setTPrice(""); setTQuantity(""); setTMaxPerOrder("10"); setTKind("DIRECT"); setTSectionId("");
     setShowTicketForm(false);
     await load();
   }
@@ -384,6 +398,20 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   <option value="COMBO">Combo</option>
                 </select>
               </div>
+              {(event.venue?.seatingConfig?.sections ?? []).length > 0 && (
+                <div className="space-y-2">
+                  <Label>Seating Section</Label>
+                  <select className="app-select" value={tSectionId} onChange={(e) => setTSectionId(e.target.value)}>
+                    <option value="">— General Admission (no assigned seat) —</option>
+                    {(event.venue!.seatingConfig!.sections).map((s) => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.mapType})</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-neutral-500">
+                    Link to a section so buyers pick a specific seat. Leave blank for standing / GA tickets.
+                  </p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Price ($) <span className="text-red-500">*</span></Label>
                 <Input type="number" min="0" step="0.01" value={tPrice} onChange={(e) => setTPrice(e.target.value)} placeholder="0.00" />
@@ -414,9 +442,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 <div key={ticket.id} className="rounded-xl border border-[var(--border)] p-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium text-neutral-900">{ticket.name}</span>
                         <Badge>{ticket.kind}</Badge>
+                        {ticket.sectionId ? (
+                          <Badge className="border-transparent bg-sky-100 text-sky-700">
+                            {event.venue?.seatingConfig?.sections.find((s) => s.id === ticket.sectionId)?.name ?? "Seated"}
+                          </Badge>
+                        ) : (
+                          <Badge className="border-transparent bg-neutral-100 text-neutral-500">GA</Badge>
+                        )}
                         {!ticket.isActive && <Badge className="bg-neutral-100 text-neutral-500">Inactive</Badge>}
                       </div>
                       {ticket.description && <p className="mt-1 text-sm text-neutral-500">{ticket.description}</p>}

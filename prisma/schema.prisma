@@ -351,6 +351,7 @@ model EventSeries {
 model TicketType {
   id          String         @id @default(cuid())
   eventId     String
+  sectionId   String?
   name        String
   description String?
   kind        TicketTypeKind @default(DIRECT)

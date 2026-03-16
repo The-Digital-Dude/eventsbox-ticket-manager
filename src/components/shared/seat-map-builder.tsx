@@ -77,7 +77,11 @@ export function SeatMapBuilder({
   const [dragStartX, setDragStartX] = useState(0);
   const [dragBaseOffset, setDragBaseOffset] = useState(0);
 
-  const summary = useMemo(() => calcSummary(sections), [sections]);
+  const summary = useMemo(() => {
+    const base = calcSummary(sections);
+    const deletedCount = Object.values(seatState).filter((s) => s.deleted).length;
+    return { ...base, totalSeats: base.totalSeats - deletedCount };
+  }, [sections, seatState]);
 
   function normalizeRowStarts(nextSections: SeatingSection[]) {
     let running = 0;
@@ -110,11 +114,12 @@ export function SeatMapBuilder({
     });
   }
 
-  function deleteSelectedSeats() {
+  function deleteSelectedSeatsForSection(section: SeatingSection) {
+    const prefix = `${section.name || section.id}-`;
     setSeatState((prev) => {
       const next = { ...prev };
       for (const [id, state] of Object.entries(next)) {
-        if (state.selected) {
+        if (id.startsWith(prefix) && state.selected) {
           next[id] = { ...state, selected: false, deleted: true };
         }
       }
@@ -225,15 +230,26 @@ export function SeatMapBuilder({
           <p className="text-sm font-semibold text-neutral-900">{section.name}</p>
           <div className="flex items-center gap-2">
             {!compact ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => deleteSection(section.id)}
-                className="h-7 px-2 text-xs"
-              >
-                Delete Section
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => deleteSelectedSeatsForSection(section)}
+                  className="h-7 px-2 text-xs"
+                >
+                  Delete Selected Seats
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => deleteSection(section.id)}
+                  className="h-7 px-2 text-xs"
+                >
+                  Delete Section
+                </Button>
+              </>
             ) : null}
             <Badge>{section.mapType.toUpperCase()}</Badge>
           </div>
@@ -336,7 +352,7 @@ export function SeatMapBuilder({
                     className="space-y-2 overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 p-3"
                     style={compact ? { width: `${compactColumnInnerWidth}px` } : undefined}
                   >
-                    <p className="text-xs font-medium uppercase tracking-wide text-neutral-600">Column {column.index}</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-neutral-600">Section {column.index}</p>
                     {Array.from({ length: column.rows }).map((_, rowIdx) => {
                       const rLabel = rowLabel(section.rowStart + rowIdx + 1);
                       return (
@@ -430,7 +446,7 @@ export function SeatMapBuilder({
       <div className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.16)] bg-gradient-to-br from-white via-white to-[rgb(var(--theme-accent-rgb)/0.04)] p-6 shadow-sm">
         <div className="mb-5 grid gap-5 md:grid-cols-3">
           <div className="space-y-2">
-            <Label>Section Name</Label>
+            <Label>Ticket Class</Label>
             <select
               className="app-select"
               value={sectionName}
@@ -472,7 +488,7 @@ export function SeatMapBuilder({
           <div className="space-y-4 rounded-xl bg-[rgb(var(--theme-accent-rgb)/0.05)] p-4 md:p-5">
             <div className="grid gap-4 lg:grid-cols-[minmax(240px,320px)_1fr] lg:items-end">
               <div className="max-w-xs space-y-2">
-                <Label>Number of Columns</Label>
+                <Label>Number of Sections</Label>
                 <Input type="number" min={1} max={50} value={columnCount} onChange={(event) => ensureColumns(Number(event.target.value || 1))} />
               </div>
               <p className="text-xs text-neutral-600">
@@ -485,7 +501,7 @@ export function SeatMapBuilder({
                   key={`cfg-col-${idx}`}
                   className="space-y-2 rounded-xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-white/95 p-3 shadow-[0_10px_30px_rgb(var(--theme-accent-rgb)/0.06)]"
                 >
-                  <p className="text-sm font-medium">Column {idx + 1}</p>
+                  <p className="text-sm font-medium">Section {idx + 1}</p>
                   <div className="space-y-2">
                     <Label>Rows</Label>
                     <Input
@@ -535,7 +551,6 @@ export function SeatMapBuilder({
         <div className="mt-5 border-t border-[rgb(var(--theme-accent-rgb)/0.14)] pt-4">
           <div className="flex flex-wrap gap-3">
           <Button type="button" onClick={addSection}>Add Section</Button>
-          <Button type="button" variant="outline" onClick={deleteSelectedSeats}>Delete Selected Seats</Button>
           <Button type="button" variant="outline" onClick={() => setIsPreviewOpen(true)}>Preview Sections</Button>
           <Button type="button" onClick={handleSave} disabled={isSaving}>{isSaving ? "Saving..." : saveLabel}</Button>
           </div>
