@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { ok } from "@/src/lib/http/response";
 
+const DURATION_SHORT_MS = 3 * 60 * 60 * 1000;
+const DURATION_HALF_MS = 6 * 60 * 60 * 1000;
+
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim() || undefined;
   const categoryId =
@@ -12,6 +15,11 @@ export async function GET(req: NextRequest) {
     req.nextUrl.searchParams.get("state") ||
     req.nextUrl.searchParams.get("stateId") ||
     undefined;
+  const venueId = req.nextUrl.searchParams.get("venueId") || undefined;
+  const cityId = req.nextUrl.searchParams.get("cityId") || undefined;
+  const minPriceRaw = req.nextUrl.searchParams.get("minPrice");
+  const maxPriceRaw = req.nextUrl.searchParams.get("maxPrice");
+  const duration = req.nextUrl.searchParams.get("duration") || undefined;
   const from = req.nextUrl.searchParams.get("from")?.trim() || undefined;
   const to = req.nextUrl.searchParams.get("to")?.trim() || undefined;
 
@@ -20,16 +28,36 @@ export async function GET(req: NextRequest) {
   const hasValidFrom = Boolean(fromDate && !Number.isNaN(fromDate.getTime()));
   const hasValidTo = Boolean(toDate && !Number.isNaN(toDate.getTime()));
 
+  const minPrice = minPriceRaw !== null && minPriceRaw !== "" ? parseFloat(minPriceRaw) : undefined;
+  const maxPrice = maxPriceRaw !== null && maxPriceRaw !== "" ? parseFloat(maxPriceRaw) : undefined;
+  const hasMinPrice = minPrice !== undefined && !Number.isNaN(minPrice);
+  const hasMaxPrice = maxPrice !== undefined && !Number.isNaN(maxPrice);
+
   const events = await prisma.event.findMany({
     where: {
       status: "PUBLISHED",
       ...(categoryId ? { categoryId } : {}),
       ...(stateId ? { stateId } : {}),
+      ...(venueId ? { venueId } : {}),
+      ...(cityId ? { cityId } : {}),
       ...(hasValidFrom || hasValidTo
         ? {
             startAt: {
               ...(hasValidFrom ? { gte: fromDate } : {}),
               ...(hasValidTo ? { lte: toDate } : {}),
+            },
+          }
+        : {}),
+      ...(hasMinPrice || hasMaxPrice
+        ? {
+            ticketTypes: {
+              some: {
+                isActive: true,
+                price: {
+                  ...(hasMinPrice ? { gte: minPrice } : {}),
+                  ...(hasMaxPrice ? { lte: maxPrice } : {}),
+                },
+              },
             },
           }
         : {}),
@@ -55,5 +83,17 @@ export async function GET(req: NextRequest) {
     orderBy: { startAt: "asc" },
   });
 
-  return ok(events);
+  // Duration filter applied in JS (Prisma cannot compute endAt-startAt)
+  const filtered =
+    duration && duration !== "any"
+      ? events.filter((e) => {
+          const ms = e.endAt.getTime() - e.startAt.getTime();
+          if (duration === "short") return ms < DURATION_SHORT_MS;
+          if (duration === "half") return ms >= DURATION_SHORT_MS && ms < DURATION_HALF_MS;
+          if (duration === "full") return ms >= DURATION_HALF_MS;
+          return true;
+        })
+      : events;
+
+  return ok(filtered);
 }

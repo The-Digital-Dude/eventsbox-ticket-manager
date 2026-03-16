@@ -7,6 +7,9 @@ export const revalidate = 60;
 
 const PAGE_SIZE = 12;
 
+const DURATION_SHORT_MS = 3 * 60 * 60 * 1000;
+const DURATION_HALF_MS = 6 * 60 * 60 * 1000;
+
 function parseDateInput(input?: string) {
   if (!input) return undefined;
   const date = new Date(input);
@@ -20,20 +23,45 @@ async function getPublishedEvents(
   stateId?: string,
   from?: string,
   to?: string,
+  venueId?: string,
+  cityId?: string,
+  minPrice?: string,
+  maxPrice?: string,
+  duration?: string,
   page = 1,
 ) {
   const fromDate = parseDateInput(from);
   const toDate = to ? parseDateInput(`${to}T23:59:59Z`) : undefined;
 
+  const minPriceNum = minPrice && minPrice !== "" ? parseFloat(minPrice) : undefined;
+  const maxPriceNum = maxPrice && maxPrice !== "" ? parseFloat(maxPrice) : undefined;
+  const hasMinPrice = minPriceNum !== undefined && !Number.isNaN(minPriceNum);
+  const hasMaxPrice = maxPriceNum !== undefined && !Number.isNaN(maxPriceNum);
+
   const where = {
     status: "PUBLISHED" as const,
     ...(categoryId ? { categoryId } : {}),
     ...(stateId ? { stateId } : {}),
+    ...(venueId ? { venueId } : {}),
+    ...(cityId ? { cityId } : {}),
     ...(fromDate || toDate
       ? {
           startAt: {
             ...(fromDate ? { gte: fromDate } : {}),
             ...(toDate ? { lte: toDate } : {}),
+          },
+        }
+      : {}),
+    ...(hasMinPrice || hasMaxPrice
+      ? {
+          ticketTypes: {
+            some: {
+              isActive: true,
+              price: {
+                ...(hasMinPrice ? { gte: minPriceNum } : {}),
+                ...(hasMaxPrice ? { lte: maxPriceNum } : {}),
+              },
+            },
           },
         }
       : {}),
@@ -45,29 +73,40 @@ async function getPublishedEvents(
     } : {}),
   };
 
-  const [events, total] = await Promise.all([
-    prisma.event.findMany({
-      where,
-      include: {
-        category: { select: { name: true } },
-        venue: { select: { name: true } },
-        state: { select: { name: true } },
-        city: { select: { name: true } },
-        ticketTypes: {
-          where: { isActive: true },
-          orderBy: { price: "asc" },
-          select: { price: true, quantity: true, sold: true, reservedQty: true },
-          take: 1,
-        },
+  const allEvents = await prisma.event.findMany({
+    where,
+    include: {
+      category: { select: { name: true } },
+      venue: { select: { name: true } },
+      state: { select: { name: true } },
+      city: { select: { name: true } },
+      ticketTypes: {
+        where: { isActive: true },
+        orderBy: { price: "asc" },
+        select: { price: true, quantity: true, sold: true, reservedQty: true },
+        take: 1,
       },
-      orderBy: { startAt: "asc" },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-    }),
-    prisma.event.count({ where }),
-  ]);
+    },
+    orderBy: { startAt: "asc" },
+  });
 
-  return { events, total, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+  // Duration filter applied in JS (Prisma cannot compute endAt-startAt)
+  const durationFiltered =
+    duration && duration !== "any"
+      ? allEvents.filter((e) => {
+          const ms = e.endAt.getTime() - e.startAt.getTime();
+          if (duration === "short") return ms < DURATION_SHORT_MS;
+          if (duration === "half") return ms >= DURATION_SHORT_MS && ms < DURATION_HALF_MS;
+          if (duration === "full") return ms >= DURATION_HALF_MS;
+          return true;
+        })
+      : allEvents;
+
+  const total = durationFiltered.length;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const events = durationFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  return { events, total, pages };
 }
 
 async function getCategories() {
@@ -78,22 +117,92 @@ async function getStates() {
   return prisma.state.findMany({ orderBy: { name: "asc" } });
 }
 
+async function getVenues() {
+  return prisma.venue.findMany({
+    where: { status: "APPROVED" },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+}
+
+async function getCitiesForState(stateId?: string) {
+  if (!stateId) return [];
+  return prisma.city.findMany({
+    where: { stateId },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+}
+
 function formatDate(iso: Date | string) {
   return new Date(iso).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+}
+
+function buildQuery(sp: Record<string, string | undefined>, overrides: Record<string, string | number | undefined>) {
+  const merged: Record<string, string | number> = {};
+  const keys = [
+    "q", "category", "state", "from", "to",
+    "venueId", "cityId", "minPrice", "maxPrice", "duration", "page",
+  ] as const;
+  for (const k of keys) {
+    const v = k in overrides ? overrides[k] : sp[k];
+    if (v !== undefined && v !== "") merged[k] = v;
+  }
+  return merged;
 }
 
 export default async function PublicEventsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string; state?: string; from?: string; to?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    category?: string;
+    state?: string;
+    from?: string;
+    to?: string;
+    venueId?: string;
+    cityId?: string;
+    minPrice?: string;
+    maxPrice?: string;
+    duration?: string;
+    page?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
-  const [{ events, total, pages }, categories, states] = await Promise.all([
-    getPublishedEvents(sp.q, sp.category, sp.state, sp.from, sp.to, page),
+
+  const [{ events, total, pages }, categories, states, venues, cities] = await Promise.all([
+    getPublishedEvents(
+      sp.q,
+      sp.category,
+      sp.state,
+      sp.from,
+      sp.to,
+      sp.venueId,
+      sp.cityId,
+      sp.minPrice,
+      sp.maxPrice,
+      sp.duration,
+      page,
+    ),
     getCategories(),
     getStates(),
+    getVenues(),
+    getCitiesForState(sp.state),
   ]);
+
+  const activeFilters = [
+    sp.from && { label: `From: ${sp.from}`, key: "from" },
+    sp.to && { label: `To: ${sp.to}`, key: "to" },
+    sp.venueId && { label: `Venue: ${venues.find((v) => v.id === sp.venueId)?.name ?? sp.venueId}`, key: "venueId" },
+    sp.cityId && { label: `City: ${cities.find((c) => c.id === sp.cityId)?.name ?? sp.cityId}`, key: "cityId" },
+    sp.minPrice && { label: `Min $${sp.minPrice}`, key: "minPrice" },
+    sp.maxPrice && { label: `Max $${sp.maxPrice}`, key: "maxPrice" },
+    sp.duration && sp.duration !== "any" && {
+      label: sp.duration === "short" ? "Duration: <3h" : sp.duration === "half" ? "Duration: 3-6h" : "Duration: 6h+",
+      key: "duration",
+    },
+  ].filter(Boolean) as Array<{ label: string; key: string }>;
 
   return (
     <div className="min-h-screen bg-[var(--page-bg,#f8f8f8)]">
@@ -102,83 +211,126 @@ export default async function PublicEventsPage({
         <h1 className="text-4xl font-bold tracking-tight text-neutral-900 md:text-5xl">Find Events Near You</h1>
         <p className="mt-3 text-lg text-neutral-600">Discover concerts, workshops, sports, and more.</p>
 
-        <form method="GET" action="/events" className="mx-auto mt-8 flex max-w-2xl flex-col gap-3 sm:flex-row">
-          <input
-            name="q"
-            defaultValue={sp.q}
-            type="search"
-            placeholder="Search events..."
-            className="h-12 flex-1 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--theme-accent-rgb)/0.3)]"
-          />
-          <select
-            name="category"
-            defaultValue={sp.category}
-            className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
-          >
-            <option value="">All categories</option>
-            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <select
-            name="state"
-            defaultValue={sp.state}
-            className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
-          >
-            <option value="">All locations</option>
-            {states.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <input
-            name="from"
-            type="date"
-            defaultValue={sp.from}
-            className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
-          />
-          <input
-            name="to"
-            type="date"
-            defaultValue={sp.to}
-            className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
-          />
-          <button
-            type="submit"
-            className="h-12 rounded-xl bg-[var(--theme-accent)] px-6 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
-          >
-            Search
-          </button>
+        <form method="GET" action="/events" className="mx-auto mt-8 flex max-w-4xl flex-col gap-3">
+          {/* Row 1: search + category + state + dates + submit */}
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              name="q"
+              defaultValue={sp.q}
+              type="search"
+              placeholder="Search events..."
+              className="h-12 flex-1 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[rgb(var(--theme-accent-rgb)/0.3)]"
+            />
+            <select
+              name="category"
+              defaultValue={sp.category}
+              className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+            >
+              <option value="">All categories</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <select
+              name="state"
+              defaultValue={sp.state}
+              className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+            >
+              <option value="">All locations</option>
+              {states.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <input
+              name="from"
+              type="date"
+              defaultValue={sp.from}
+              className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+            />
+            <input
+              name="to"
+              type="date"
+              defaultValue={sp.to}
+              className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+            />
+            <button
+              type="submit"
+              className="h-12 rounded-xl bg-[var(--theme-accent)] px-6 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+            >
+              Search
+            </button>
+          </div>
+
+          {/* Row 2: advanced filters */}
+          <div className="flex flex-col gap-3 sm:flex-row">
+            {/* City dropdown — only shown when a state is selected */}
+            {cities.length > 0 ? (
+              <select
+                name="cityId"
+                defaultValue={sp.cityId}
+                className="h-12 flex-1 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+              >
+                <option value="">All cities</option>
+                {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            ) : (
+              /* Hidden input preserves value if state changes make cities disappear */
+              sp.cityId ? <input type="hidden" name="cityId" value="" /> : null
+            )}
+
+            {/* Venue dropdown */}
+            <select
+              name="venueId"
+              defaultValue={sp.venueId}
+              className="h-12 flex-1 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+            >
+              <option value="">All venues</option>
+              {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+
+            {/* Price range */}
+            <input
+              name="minPrice"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={sp.minPrice}
+              placeholder="Min price"
+              className="h-12 w-32 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+            />
+            <input
+              name="maxPrice"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={sp.maxPrice}
+              placeholder="Max price"
+              className="h-12 w-32 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+            />
+
+            {/* Duration */}
+            <select
+              name="duration"
+              defaultValue={sp.duration ?? "any"}
+              className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+            >
+              <option value="any">Any duration</option>
+              <option value="short">Short (&lt;3h)</option>
+              <option value="half">Half day (3-6h)</option>
+              <option value="full">Full day (6h+)</option>
+            </select>
+          </div>
         </form>
-        {(sp.from || sp.to) && (
-          <div className="mx-auto mt-3 flex max-w-2xl flex-wrap justify-center gap-2">
-            {sp.from && (
+
+        {/* Active filter chips */}
+        {activeFilters.length > 0 && (
+          <div className="mx-auto mt-3 flex max-w-4xl flex-wrap justify-center gap-2">
+            {activeFilters.map(({ label, key }) => (
               <Link
-                href={{
-                  query: {
-                    ...(sp.q ? { q: sp.q } : {}),
-                    ...(sp.category ? { category: sp.category } : {}),
-                    ...(sp.state ? { state: sp.state } : {}),
-                    ...(sp.to ? { to: sp.to } : {}),
-                  },
-                }}
+                key={key}
+                href={{ query: buildQuery(sp, { [key]: undefined, page: undefined }) }}
                 className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs text-neutral-700"
               >
-                From: {sp.from}
+                {label}
                 <span aria-hidden>×</span>
               </Link>
-            )}
-            {sp.to && (
-              <Link
-                href={{
-                  query: {
-                    ...(sp.q ? { q: sp.q } : {}),
-                    ...(sp.category ? { category: sp.category } : {}),
-                    ...(sp.state ? { state: sp.state } : {}),
-                    ...(sp.from ? { from: sp.from } : {}),
-                  },
-                }}
-                className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs text-neutral-700"
-              >
-                To: {sp.to}
-                <span aria-hidden>×</span>
-              </Link>
-            )}
+            ))}
           </div>
         )}
       </div>
@@ -262,7 +414,7 @@ export default async function PublicEventsPage({
               <div className="mt-10 flex items-center justify-center gap-2">
                 {page > 1 && (
                   <Link
-                    href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.category ? { category: sp.category } : {}), ...(sp.state ? { state: sp.state } : {}), ...(sp.from ? { from: sp.from } : {}), ...(sp.to ? { to: sp.to } : {}), page: page - 1 } }}
+                    href={{ query: buildQuery(sp, { page: page - 1 }) }}
                     className="rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 transition"
                   >
                     ← Previous
@@ -277,7 +429,7 @@ export default async function PublicEventsPage({
                       )}
                       <Link
                         key={p}
-                        href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.category ? { category: sp.category } : {}), ...(sp.state ? { state: sp.state } : {}), ...(sp.from ? { from: sp.from } : {}), ...(sp.to ? { to: sp.to } : {}), page: p } }}
+                        href={{ query: buildQuery(sp, { page: p }) }}
                         className={`rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition ${
                           p === page
                             ? "border-[var(--theme-accent)] bg-[var(--theme-accent)] text-white"
@@ -291,7 +443,7 @@ export default async function PublicEventsPage({
                 }
                 {page < pages && (
                   <Link
-                    href={{ query: { ...(sp.q ? { q: sp.q } : {}), ...(sp.category ? { category: sp.category } : {}), ...(sp.state ? { state: sp.state } : {}), ...(sp.from ? { from: sp.from } : {}), ...(sp.to ? { to: sp.to } : {}), page: page + 1 } }}
+                    href={{ query: buildQuery(sp, { page: page + 1 }) }}
                     className="rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 transition"
                   >
                     Next →
