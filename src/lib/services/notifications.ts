@@ -48,10 +48,13 @@ async function sendEmail(payload: EmailPayload): Promise<EmailSendResult> {
     return { sent: false, skipped: true as const, reason: "MISSING_CONFIG" as const };
   }
 
+  const to =
+    env.NODE_ENV === "development" && env.EMAIL_DEV_OVERRIDE ? env.EMAIL_DEV_OVERRIDE : payload.to;
+
   try {
     const result = await client.emails.send({
       from: env.EMAIL_FROM,
-      to: payload.to,
+      to,
       subject: payload.subject,
       text: payload.text,
       html: payload.html,
