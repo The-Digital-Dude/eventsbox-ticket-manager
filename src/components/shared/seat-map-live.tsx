@@ -160,52 +160,60 @@ function renderSeatRows(
   onSeatToggle?: (seatId: string) => void,
 ) {
   return (
-    <div className="space-y-3 overflow-x-auto pb-2">
-      {section.columns?.map((column, columnIndex) => {
-        const offsetBefore = (section.columns ?? [])
-          .slice(0, columnIndex)
-          .reduce((sum, entry) => sum + entry.seats, 0);
+    <div className="overflow-x-auto rounded-xl pb-2">
+      <div className="flex min-w-max gap-3">
+        {section.columns?.map((column, columnIndex) => {
+          const offsetBefore = (section.columns ?? [])
+            .slice(0, columnIndex)
+            .reduce((sum, entry) => sum + entry.seats, 0);
 
-        return (
-          <div key={`${section.id}-col-${column.index}`} className="space-y-2">
-            {Array.from({ length: column.rows }).map((_, rowIdx) => {
-              const rLabel = rowLabel(section.rowStart + rowIdx + 1);
-              return (
-                <div key={`${section.id}-${column.index}-${rowIdx}`} className="flex items-center gap-2">
-                  <span className="inline-flex h-6 min-w-7 items-center justify-center rounded-md bg-neutral-900 px-2 text-xs text-white">
-                    {rLabel}
-                  </span>
-                  <div className="flex gap-1">
-                    {Array.from({ length: column.seats }).map((_, seatIdx) => {
-                      const seatNo = offsetBefore + seatIdx + 1;
-                      const seatId = buildSeatId(section, rLabel, seatNo);
-                      if (seatState?.[seatId]?.deleted) {
-                        return null;
-                      }
+          return (
+            <div
+              key={`${section.id}-col-${column.index}`}
+              className="flex flex-col gap-1 rounded-lg border border-neutral-100 bg-neutral-50 p-2"
+            >
+              <p className="mb-1 text-center text-[10px] font-medium text-neutral-400 uppercase tracking-wide">
+                Col {columnIndex + 1}
+              </p>
+              {Array.from({ length: column.rows }).map((_, rowIdx) => {
+                const rLabel = rowLabel(section.rowStart + rowIdx + 1);
+                return (
+                  <div key={`${section.id}-${column.index}-${rowIdx}`} className="flex items-center gap-1">
+                    <span className="inline-flex h-6 min-w-[26px] items-center justify-center rounded-md bg-neutral-900 px-1.5 text-[10px] font-semibold text-white">
+                      {rLabel}
+                    </span>
+                    <div className="flex gap-1">
+                      {Array.from({ length: column.seats }).map((_, seatIdx) => {
+                        const seatNo = offsetBefore + seatIdx + 1;
+                        const seatId = buildSeatId(section, rLabel, seatNo);
+                        if (seatState?.[seatId]?.deleted) {
+                          return null;
+                        }
 
-                      return (
-                        <SeatCell
-                          key={seatId}
-                          seatId={seatId}
-                          label={String(seatNo)}
-                          state={bookingStates[seatId]}
-                          selected={selectedSeatIds.includes(seatId)}
-                          onToggle={onSeatToggle}
-                          style={{
-                            width: 24,
-                            height: 24,
-                            transform: `translateX(${seatState?.[seatId]?.offset ?? 0}px)`,
-                          }}
-                        />
-                      );
-                    })}
+                        return (
+                          <SeatCell
+                            key={seatId}
+                            seatId={seatId}
+                            label={String(seatNo)}
+                            state={bookingStates[seatId]}
+                            selected={selectedSeatIds.includes(seatId)}
+                            onToggle={onSeatToggle}
+                            style={{
+                              width: 24,
+                              height: 24,
+                              transform: `translateX(${seatState?.[seatId]?.offset ?? 0}px)`,
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -243,8 +251,16 @@ export function SeatMapLive({
         <div key={section.id} className={buildSectionClass(compact)}>
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm font-semibold text-neutral-900">{section.name}</p>
-            <Badge>{section.mapType.toUpperCase()}</Badge>
+            <Badge className="text-xs">{section.mapType === "table" ? "TABLES" : "SEATS"}</Badge>
           </div>
+
+          {section.mapType === "seats" && (
+            <div className="mb-3 flex items-center justify-center">
+              <div className="w-2/3 rounded-md border border-neutral-300 bg-neutral-100 py-1 text-center text-[11px] font-medium text-neutral-500 tracking-widest uppercase">
+                Stage
+              </div>
+            </div>
+          )}
 
           {section.mapType === "table" && section.tableConfig
             ? renderTableSection(

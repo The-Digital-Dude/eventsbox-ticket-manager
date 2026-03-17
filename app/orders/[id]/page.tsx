@@ -76,7 +76,7 @@ export default function OrderConfirmationPage({ params }: { params: Promise<{ id
   const [polling, setPolling] = useState(isPending);
 
   async function loadOrder() {
-    const res = await fetch(`/api/orders/${id}`);
+    const res = await fetch(`/api/orders/${id}`, { cache: "no-store" });
     if (!res.ok) { setNotFound(true); setLoading(false); return; }
     const payload = await res.json();
     setOrder(payload.data);

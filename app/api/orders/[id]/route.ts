@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
 
+export const dynamic = "force-dynamic";
+
 // Public order lookup — used on confirmation page
 // Secured by knowing the orderId (UUID-style) — no auth needed
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
