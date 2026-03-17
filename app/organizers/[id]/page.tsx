@@ -65,7 +65,7 @@ export default async function OrganizerPublicProfilePage({
     notFound();
   }
 
-  const displayName = organizer.brandName ?? organizer.companyName ?? "EventsBox Organizer";
+  const displayName = [organizer.brandName, organizer.companyName].find(v => v && v !== "N/A") ?? "EventsBox Organizer";
 
   return (
     <div className="min-h-screen bg-[var(--page-bg,#f8f8f8)]">
@@ -83,7 +83,7 @@ export default async function OrganizerPublicProfilePage({
               {displayName}
             </h1>
             <div className="space-y-2 text-neutral-600">
-              <p>{organizer.companyName ?? "Independent organizer"}</p>
+              <p>{(organizer.companyName && organizer.companyName !== "N/A") ? organizer.companyName : "Independent organizer"}</p>
               {organizer.website && (
                 <a
                   href={organizer.website}

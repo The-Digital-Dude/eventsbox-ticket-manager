@@ -7,7 +7,7 @@ import { organizerOnboardingSchema } from "@/src/lib/validators/organizer";
 
 function toDbOptional(value?: string) {
   const trimmed = value?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : "N/A";
+  return trimmed && trimmed.length > 0 ? trimmed : null;
 }
 
 export async function GET(req: NextRequest) {

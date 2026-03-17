@@ -788,9 +788,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
             <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
               <h2 className="mb-3 text-lg font-semibold text-neutral-900">Organiser</h2>
               <p className="font-medium text-neutral-900">
-                {event.organizerProfile.brandName ??
-                  event.organizerProfile.companyName ??
-                  "Event Organiser"}
+                {[event.organizerProfile.brandName, event.organizerProfile.companyName].find(v => v && v !== "N/A") ?? "Event Organiser"}
               </p>
               <div className="mt-2 space-y-1 text-sm text-neutral-600">
                 {event.contactEmail && (
@@ -809,9 +807,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
                 className="mt-4 inline-flex text-sm font-medium text-[var(--theme-accent)] transition hover:underline"
               >
                 More events by{" "}
-                {event.organizerProfile.brandName ??
-                  event.organizerProfile.companyName ??
-                  "this organiser"}
+                {[event.organizerProfile.brandName, event.organizerProfile.companyName].find(v => v && v !== "N/A") ?? "this organiser"}
               </Link>
             </section>
           </div>
