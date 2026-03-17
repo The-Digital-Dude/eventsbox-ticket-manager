@@ -766,41 +766,6 @@ export function EventDetailClient({ slug }: { slug: string }) {
               </section>
             ) : null}
 
-            {event.venue?.seatingConfig && (
-              <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
-                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-neutral-900">Seating plan</h2>
-                    <p className="mt-1 text-sm text-neutral-600">
-                      Pick your seats and watch live availability update automatically.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <Badge className="border-transparent bg-red-100 text-red-700">
-                      {bookedSeatCount} booked
-                    </Badge>
-                    {reservedSeatCount > 0 ? (
-                      <Badge className="border-transparent bg-amber-100 text-amber-700">
-                        {reservedSeatCount} reserved
-                      </Badge>
-                    ) : null}
-                    {selectedSeatIds.length > 0 ? (
-                      <Badge className="border-transparent bg-sky-100 text-sky-700">
-                        {selectedSeatIds.length} selected
-                      </Badge>
-                    ) : null}
-                    {seatAvailabilityLoading ? <Badge>Refreshing…</Badge> : null}
-                  </div>
-                </div>
-                <SeatMapLive
-                  config={event.venue.seatingConfig}
-                  seatState={event.venue.seatState}
-                  bookingStates={seatAvailability}
-                  selectedSeatIds={selectedSeatIds}
-                  onSeatToggle={toggleSeatSelection}
-                />
-              </section>
-            )}
 
             {(event.cancelPolicy || event.refundPolicy) && (
               <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
