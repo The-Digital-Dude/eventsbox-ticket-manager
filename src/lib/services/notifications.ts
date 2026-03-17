@@ -1,7 +1,6 @@
 import { Resend } from "resend";
 import { prisma } from "@/src/lib/db";
 import { env } from "@/src/lib/env";
-import { generateQrDataUrl } from "@/src/lib/qr";
 
 let resendClient: Resend | null | undefined;
 
@@ -86,67 +85,110 @@ export async function sendOrderConfirmationEmail(input: {
   }>;
   orderUrl: string;
 }) {
-  const formattedStartAt = new Intl.DateTimeFormat(undefined, {
+  const formattedStartAt = new Intl.DateTimeFormat("en-US", {
     dateStyle: "full",
     timeStyle: "short",
     timeZone: input.timezone,
   }).format(new Date(input.startAt));
-  const ticketsWithQr = await Promise.all(
-    input.tickets.map(async (ticket) => ({
-      ...ticket,
-      qrDataUrl: await generateQrDataUrl(ticket.id),
-    })),
-  );
-  const subject = `Order confirmed: ${input.eventTitle}`;
+
+  const subject = `Booking confirmed: ${input.eventTitle}`;
+
   const text = [
     `Hi ${input.buyerName},`,
     "",
-    `Your order (${input.orderId}) is confirmed for ${input.eventTitle}.`,
+    `Your booking is confirmed for ${input.eventTitle}!`,
+    "",
+    `Order ID: ${input.orderId}`,
     `Date: ${formattedStartAt} (${input.timezone})`,
     `Venue: ${input.venueName ?? "Venue TBA"}`,
     "",
-    "Tickets:",
-    ...ticketsWithQr.map(
-      (ticket) => `- ${ticket.ticketTypeName} · ${ticket.ticketNumber} · QR value: ${ticket.id}`,
-    ),
+    "Your Tickets:",
+    ...input.tickets.map((t, i) => `  ${i + 1}. ${t.ticketTypeName} — ${t.ticketNumber}`),
     "",
-    `View your tickets: ${input.orderUrl}`,
+    `View your tickets & QR codes: ${input.orderUrl}`,
+    "",
+    "Present your QR code at the door for entry.",
     "",
     "Thanks for booking with EventsBox.",
   ].join("\n");
 
+  const ticketRows = input.tickets
+    .map(
+      (ticket, i) => `
+        <tr>
+          <td style="padding:12px 16px;border-bottom:1px solid #f3f4f6;font-size:14px;color:#374151">
+            ${i + 1}.
+          </td>
+          <td style="padding:12px 16px;border-bottom:1px solid #f3f4f6;font-size:14px;font-weight:600;color:#111827">
+            ${ticket.ticketTypeName}
+          </td>
+          <td style="padding:12px 16px;border-bottom:1px solid #f3f4f6;font-size:13px;font-family:monospace;color:#6b7280">
+            ${ticket.ticketNumber}
+          </td>
+        </tr>
+      `,
+    )
+    .join("");
+
   const html = `
-    <div style="font-family:sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#111827">
-      <p>Hi ${input.buyerName},</p>
-      <p>
-        Your order (<strong>${input.orderId}</strong>) is confirmed for
-        <strong>${input.eventTitle}</strong>.
-      </p>
-      <p>
-        Date: ${formattedStartAt} (${input.timezone})<br/>
-        Venue: ${input.venueName ?? "Venue TBA"}
-      </p>
-      <div style="margin-top:24px">
-        ${ticketsWithQr
-          .map(
-            (ticket) => `
-              <div style="margin-bottom:20px;padding:16px;border:1px solid #e5e7eb;border-radius:16px">
-                <p style="margin:0 0 8px;font-weight:600">${ticket.ticketTypeName}</p>
-                <p style="margin:0 0 12px;font-size:13px;color:#6b7280">${ticket.ticketNumber}</p>
-                <img
-                  src="${ticket.qrDataUrl}"
-                  alt="QR code for ${ticket.ticketNumber}"
-                  width="180"
-                  height="180"
-                  style="display:block;border:1px solid #e5e7eb;border-radius:12px"
-                />
-              </div>
-            `,
-          )
-          .join("")}
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff">
+
+      <!-- Header -->
+      <div style="background:#1e1b4b;padding:32px 24px;text-align:center;border-radius:12px 12px 0 0">
+        <h1 style="margin:0;font-size:22px;color:#ffffff;font-weight:700">Booking Confirmed!</h1>
+        <p style="margin:8px 0 0;font-size:14px;color:#a5b4fc">Your tickets are ready</p>
       </div>
-      <p><a href="${input.orderUrl}">View your tickets</a></p>
-      <p>Thanks for booking with EventsBox.</p>
+
+      <!-- Body -->
+      <div style="padding:32px 24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+
+        <p style="margin:0 0 24px;font-size:15px;color:#374151">Hi <strong>${input.buyerName}</strong>,</p>
+
+        <!-- Event card -->
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin-bottom:24px">
+          <h2 style="margin:0 0 12px;font-size:17px;color:#111827">${input.eventTitle}</h2>
+          <p style="margin:0 0 6px;font-size:13px;color:#6b7280">
+            <strong style="color:#374151">Date:</strong> ${formattedStartAt} (${input.timezone})
+          </p>
+          <p style="margin:0;font-size:13px;color:#6b7280">
+            <strong style="color:#374151">Venue:</strong> ${input.venueName ?? "Venue TBA"}
+          </p>
+        </div>
+
+        <!-- Tickets table -->
+        <h3 style="margin:0 0 12px;font-size:15px;color:#111827">Your Tickets (${input.tickets.length})</h3>
+        <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:24px">
+          <thead>
+            <tr style="background:#f3f4f6">
+              <th style="padding:10px 16px;text-align:left;font-size:12px;color:#6b7280;font-weight:600">#</th>
+              <th style="padding:10px 16px;text-align:left;font-size:12px;color:#6b7280;font-weight:600">TICKET TYPE</th>
+              <th style="padding:10px 16px;text-align:left;font-size:12px;color:#6b7280;font-weight:600">TICKET NUMBER</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ticketRows}
+          </tbody>
+        </table>
+
+        <!-- CTA -->
+        <div style="text-align:center;margin-bottom:24px">
+          <a href="${input.orderUrl}"
+            style="display:inline-block;padding:14px 32px;background:#1e1b4b;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;border-radius:8px">
+            View Tickets &amp; QR Codes
+          </a>
+          <p style="margin:10px 0 0;font-size:12px;color:#9ca3af">
+            Present your QR code at the door for entry
+          </p>
+        </div>
+
+        <!-- Order ID -->
+        <div style="border-top:1px solid #f3f4f6;padding-top:16px;text-align:center">
+          <p style="margin:0;font-size:12px;color:#9ca3af">
+            Order ID: <span style="font-family:monospace">${input.orderId}</span>
+          </p>
+        </div>
+
+      </div>
     </div>
   `;
 
@@ -321,10 +363,18 @@ export async function sendPasswordResetEmail(input: {
 export async function sendWelcomeEmail(input: {
   to: string;
   otp: string;
+  role?: string;
 }) {
+  const roleLabel =
+    input.role === "ORGANIZER" ? "Organizer Account" :
+    input.role === "ADMIN" ? "Admin Account" :
+    "Attendee Account";
+
   const subject = "Welcome to EventsBox — your verification code";
   const text = [
     "Welcome to EventsBox!",
+    "",
+    `You are creating an ${roleLabel}.`,
     "",
     `Your verification code is: ${input.otp}`,
     "",
@@ -335,6 +385,7 @@ export async function sendWelcomeEmail(input: {
   const html = `
     <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
       <p style="font-size:14px;color:#6b7280;margin-bottom:8px">Welcome to EventsBox</p>
+      <p style="font-size:16px;color:#111827;margin-bottom:4px">You are creating an <strong>${roleLabel}</strong>.</p>
       <p style="font-size:16px;color:#111827;margin-bottom:24px">Enter this code to verify your email address:</p>
       <div style="background:#f3f4f6;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px">
         <span style="font-size:36px;font-weight:700;letter-spacing:12px;color:#1e1b4b;font-family:monospace">${input.otp}</span>
