@@ -9,12 +9,13 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { PlacesAutocomplete } from "@/src/components/ui/places-autocomplete";
+import { matchLocation } from "@/src/lib/location-match";
 import { SearchableSelect } from "@/src/components/ui/searchable-select";
 import { TIMEZONES } from "@/src/lib/timezones";
 import { CURRENCIES } from "@/src/lib/currency";
 
 type CountryRow = { id: string; code: string; name: string };
-type StateRow = { id: string; name: string; cities: { id: string; name: string }[] };
+type StateRow = { id: string; name: string; countryId: string | null; cities: { id: string; name: string }[] };
 type CategoryRow = { id: string; name: string };
 type VenueRow = { id: string; name: string };
 
@@ -67,7 +68,7 @@ export default function NewEventPage() {
   const [lat, setLat] = useState<number | undefined>(undefined);
   const [lng, setLng] = useState<number | undefined>(undefined);
 
-  const cities = states.find((s) => s.id === stateId)?.cities ?? [];
+  const filteredStates = countryId ? states.filter((s) => s.countryId === countryId) : [];
 
   function addTag(value: string) {
     const trimmed = value.trim().replace(/,+$/, "").trim();
@@ -207,24 +208,11 @@ export default function NewEventPage() {
                 onSelect={(place) => {
                   if (place.lat !== undefined) setLat(place.lat);
                   if (place.lng !== undefined) setLng(place.lng);
-                  if (place.countryCode) {
-                    const matched = countries.find((c) => c.code === place.countryCode);
-                    if (matched) {
-                      setCountryId(matched.id);
-                      setStateId("");
-                      setCityId("");
-                    }
-                  }
-                  if (place.state) {
-                    const matchedState = states.find(
-                      (s) => s.name.toLowerCase() === place.state!.toLowerCase(),
-                    );
-                    if (matchedState) {
-                      setStateId(matchedState.id);
-                      setCityId("");
-                    }
-                  }
-                  toast.success("Address auto-filled from Google Maps");
+                  const { countryId: cId, stateId: sId, cityId: ciId } = matchLocation(place, { countries, states });
+                  if (cId) setCountryId(cId);
+                  if (sId) setStateId(sId); else setStateId("");
+                  if (ciId) setCityId(ciId); else setCityId("");
+                  toast.success("Location auto-filled from Google Maps");
                 }}
               />
               <p className="text-xs text-neutral-500">Select from suggestions to auto-fill location fields below.</p>
@@ -256,24 +244,15 @@ export default function NewEventPage() {
               </div>
               <div className="space-y-2">
                 <Label>State</Label>
-                <SearchableSelect
-                  options={[{ value: "", label: "Select state (optional)" }, ...states.map((s) => ({ value: s.id, label: s.name }))]}
-                  value={stateId}
-                  onChange={(v) => { setStateId(v); setCityId(""); }}
-                  placeholder="Select state (optional)"
-                  searchPlaceholder="Search states..."
-                />
+                <div className="flex h-10 w-full items-center rounded-xl border border-[var(--border)] bg-neutral-50 px-3 text-sm cursor-not-allowed select-none">
+                  {stateId ? <span className="text-neutral-900">{states.find((s) => s.id === stateId)?.name ?? "—"}</span> : <span className="text-neutral-400">Auto-filled from address search</span>}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>City</Label>
-                <SearchableSelect
-                  options={[{ value: "", label: "Select city (optional)" }, ...cities.map((c) => ({ value: c.id, label: c.name }))]}
-                  value={cityId}
-                  onChange={setCityId}
-                  placeholder="Select city (optional)"
-                  searchPlaceholder="Search cities..."
-                  disabled={!stateId}
-                />
+                <div className="flex h-10 w-full items-center rounded-xl border border-[var(--border)] bg-neutral-50 px-3 text-sm cursor-not-allowed select-none">
+                  {cityId ? <span className="text-neutral-900">{states.flatMap((s) => s.cities).find((c) => c.id === cityId)?.name ?? "—"}</span> : <span className="text-neutral-400">Auto-filled from address search</span>}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Audience</Label>

@@ -12,12 +12,12 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { PlacesAutocomplete } from "@/src/components/ui/places-autocomplete";
-import { SearchableSelect } from "@/src/components/ui/searchable-select";
+import { matchLocation } from "@/src/lib/location-match";
 import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
 type CountryRow = { id: string; code: string; name: string };
 type CityRow = { id: string; name: string };
-type StateRow = { id: string; name: string; cities: CityRow[] };
+type StateRow = { id: string; name: string; countryId: string | null; cities: CityRow[] };
 type CategoryRow = { id: string; name: string };
 type VenueRow = {
   id: string;
@@ -93,7 +93,7 @@ export default function OrganizerVenuesPage() {
     };
   }, []);
 
-  const cities = useMemo(() => states.find((state) => state.id === stateId)?.cities ?? [], [states, stateId]);
+  const filteredStates = useMemo(() => countryId ? states.filter((s) => s.countryId === countryId) : [], [states, countryId]);
 
   function validateDetails() {
     if (!name.trim()) {
@@ -203,10 +203,24 @@ export default function OrganizerVenuesPage() {
       <PageHeader title="Venue Requests" subtitle="Step 1: venue details. Step 2: seating configuration." />
 
       <div className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center gap-2">
-          <Badge className={step === "details" ? "border-transparent bg-[var(--theme-accent)] text-white" : ""}>Step 1 Details</Badge>
-          <Badge className={step === "seating" ? "border-transparent bg-[var(--theme-accent)] text-white" : ""}>Step 2 Seating</Badge>
-          {editingVenue ? <Badge>Edit mode: {editingVenue.name}</Badge> : null}
+        <div className="mb-6 flex items-center gap-3">
+          <button
+            onClick={() => setStep("details")}
+            className={`cursor-pointer rounded-full px-5 py-2 text-sm font-semibold transition ${step === "details" ? "bg-[var(--theme-accent)] text-white shadow-sm" : "border border-[var(--border)] text-neutral-600 hover:bg-neutral-50"}`}
+          >
+            Step 1 · Details
+          </button>
+          <button
+            onClick={() => setStep("seating")}
+            className={`cursor-pointer rounded-full px-5 py-2 text-sm font-semibold transition ${step === "seating" ? "bg-[var(--theme-accent)] text-white shadow-sm" : "border border-[var(--border)] text-neutral-600 hover:bg-neutral-50"}`}
+          >
+            Step 2 · Seating
+          </button>
+          {editingVenue ? (
+            <span className="rounded-full border border-[var(--border)] px-4 py-2 text-sm font-medium text-neutral-500">
+              Edit mode: {editingVenue.name}
+            </span>
+          ) : null}
         </div>
 
         {step === "details" ? (
@@ -219,23 +233,10 @@ export default function OrganizerVenuesPage() {
                   if (place.address) setAddressLine1(place.address);
                   if (place.lat !== undefined) setLat(place.lat);
                   if (place.lng !== undefined) setLng(place.lng);
-                  if (place.countryCode) {
-                    const matched = countries.find((c) => c.code === place.countryCode);
-                    if (matched) {
-                      setCountryId(matched.id);
-                      setStateId("");
-                      setCityId("");
-                    }
-                  }
-                  if (place.state) {
-                    const matchedState = states.find(
-                      (s) => s.name.toLowerCase() === place.state!.toLowerCase(),
-                    );
-                    if (matchedState) {
-                      setStateId(matchedState.id);
-                      setCityId("");
-                    }
-                  }
+                  const { countryId: cId, stateId: sId, cityId: ciId } = matchLocation(place, { countries, states });
+                  if (cId) setCountryId(cId);
+                  if (sId) setStateId(sId); else setStateId("");
+                  if (ciId) setCityId(ciId); else setCityId("");
                   toast.success("Address auto-filled from Google Maps");
                 }}
               />
@@ -249,24 +250,15 @@ export default function OrganizerVenuesPage() {
               <div className="space-y-2"><Label>Country</Label><select className="app-select" value={countryId} onChange={(event) => { setCountryId(event.target.value); setStateId(""); setCityId(""); }}><option value="">Select country (optional)</option>{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select></div>
               <div className="space-y-2">
                 <Label>State</Label>
-                <SearchableSelect
-                  options={[{ value: "", label: "Select state" }, ...states.map((s) => ({ value: s.id, label: s.name }))]}
-                  value={stateId}
-                  onChange={(v) => { setStateId(v); setCityId(""); }}
-                  placeholder="Select state"
-                  searchPlaceholder="Search states..."
-                />
+                <div className="flex h-10 w-full items-center rounded-xl border border-[var(--border)] bg-neutral-50 px-3 text-sm cursor-not-allowed select-none">
+                  {stateId ? <span className="text-neutral-900">{states.find((s) => s.id === stateId)?.name ?? "—"}</span> : <span className="text-neutral-400">Auto-filled from address search</span>}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>City</Label>
-                <SearchableSelect
-                  options={[{ value: "", label: "Select city" }, ...cities.map((c) => ({ value: c.id, label: c.name }))]}
-                  value={cityId}
-                  onChange={setCityId}
-                  placeholder="Select city"
-                  searchPlaceholder="Search cities..."
-                  disabled={!stateId}
-                />
+                <div className="flex h-10 w-full items-center rounded-xl border border-[var(--border)] bg-neutral-50 px-3 text-sm cursor-not-allowed select-none">
+                  {cityId ? <span className="text-neutral-900">{states.flatMap((s) => s.cities).find((c) => c.id === cityId)?.name ?? "—"}</span> : <span className="text-neutral-400">Auto-filled from address search</span>}
+                </div>
               </div>
             </div>
             <div className="flex gap-3">
