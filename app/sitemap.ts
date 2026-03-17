@@ -2,6 +2,8 @@ import type { MetadataRoute } from "next";
 import { prisma } from "@/src/lib/db";
 import { env } from "@/src/lib/env";
 
+export const dynamic = "force-dynamic";
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const publishedEvents = await prisma.event.findMany({
     where: { status: "PUBLISHED" },
