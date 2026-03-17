@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const emailDelivery = await sendWelcomeEmail({ to: user.email, otp });
+    const emailDelivery = await sendWelcomeEmail({ to: user.email, otp, role: user.role });
     if (!emailDelivery.sent) {
       console.error("Welcome email dispatch failed:", {
         email: user.email,

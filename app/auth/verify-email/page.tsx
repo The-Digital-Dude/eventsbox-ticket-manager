@@ -90,7 +90,13 @@ function VerifyEmailContent() {
     }
 
     setVerified(true);
-    const destination = redirectTarget ?? (payload.data?.role === "ATTENDEE" ? "/account/dashboard" : "/auth/login");
+    const role = payload.data?.role;
+    const defaultDestination =
+      role === "ATTENDEE" ? "/account/dashboard" :
+      role === "ORGANIZER" ? "/organizer/dashboard" :
+      role === "ADMIN" ? "/admin/dashboard" :
+      "/account/dashboard";
+    const destination = redirectTarget ?? defaultDestination;
     setTimeout(() => router.push(destination), 2500);
   }
 
@@ -121,7 +127,7 @@ function VerifyEmailContent() {
         <CheckCircle2 className="h-14 w-14 text-emerald-500" />
         <div>
           <p className="text-lg font-semibold text-neutral-900">Email verified!</p>
-          <p className="mt-1 text-sm text-neutral-500">Redirecting you to your dashboard...</p>
+          <p className="mt-1 text-sm text-neutral-500">Redirecting you to your account...</p>
         </div>
       </div>
     );
