@@ -1,8 +1,9 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/src/lib/db";
-import { fail, ok } from "@/src/lib/http/response";
+import { fail } from "@/src/lib/http/response";
 import { rateLimitRedis } from "@/src/lib/http/rate-limit-redis";
 import { verifyOtpSchema } from "@/src/lib/validators/auth";
+import { issueSession } from "@/src/lib/auth/session";
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,7 +42,9 @@ export async function POST(req: NextRequest) {
       prisma.user.update({ where: { id: user.id }, data: { emailVerified: true } }),
     ]);
 
-    return ok({ verified: true });
+    const response = NextResponse.json({ success: true, data: { verified: true, role: user.role } });
+    await issueSession({ id: user.id, email: user.email, role: user.role }, response);
+    return response;
   } catch (error) {
     console.error("[app/api/auth/verify-email/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to verify email" });

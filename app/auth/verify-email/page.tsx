@@ -90,7 +90,8 @@ function VerifyEmailContent() {
     }
 
     setVerified(true);
-    setTimeout(() => router.push(loginHref), 2500);
+    const destination = redirectTarget ?? (payload.data?.role === "ATTENDEE" ? "/account/dashboard" : "/auth/login");
+    setTimeout(() => router.push(destination), 2500);
   }
 
   async function handleResend() {
@@ -120,7 +121,7 @@ function VerifyEmailContent() {
         <CheckCircle2 className="h-14 w-14 text-emerald-500" />
         <div>
           <p className="text-lg font-semibold text-neutral-900">Email verified!</p>
-          <p className="mt-1 text-sm text-neutral-500">Redirecting you to login...</p>
+          <p className="mt-1 text-sm text-neutral-500">Redirecting you to your dashboard...</p>
         </div>
       </div>
     );
