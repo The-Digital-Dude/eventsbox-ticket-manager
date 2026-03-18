@@ -91,8 +91,10 @@ const seatedEvent = {
   ticketTypes: [
     {
       id: "ticket-1",
+      sectionId: "main",
       isActive: true,
       sold: 0,
+      reservedQty: 0,
       quantity: 100,
       maxPerOrder: 10,
       price: new Prisma.Decimal(25),

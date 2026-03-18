@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Building2, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
@@ -13,6 +13,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { PlacesAutocomplete } from "@/src/components/ui/places-autocomplete";
 import { matchLocation } from "@/src/lib/location-match";
+import { nav } from "@/app/organizer/nav";
 import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
 type CountryRow = { id: string; code: string; name: string };
@@ -32,19 +33,6 @@ type VenueRow = {
 
 type Step = "details" | "seating";
 
-const nav = [
-  { href: "/organizer/status", label: "Status" },
-  { href: "/organizer/onboarding", label: "Onboarding" },
-  { href: "/organizer/dashboard", label: "Dashboard" },
-  { href: "/organizer/events", label: "Events" },
-  { href: "/organizer/promo-codes", label: "Promo Codes" },
-  { href: "/organizer/cancellation-requests", label: "Cancellations" },
-  { href: "/organizer/analytics", label: "Analytics" },
-  { href: "/organizer/payout", label: "Payout" },
-  { href: "/organizer/venues", label: "Venues" },
-  { href: "/organizer/scanner", label: "Scanner" },
-];
-
 export default function OrganizerVenuesPage() {
   const [venues, setVenues] = useState<VenueRow[]>([]);
   const [name, setName] = useState("");
@@ -61,39 +49,28 @@ export default function OrganizerVenuesPage() {
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [step, setStep] = useState<Step>("details");
   const [editingVenueId, setEditingVenueId] = useState<string | null>(null);
-
-  async function load() {
-    const [vRes, lRes, cRes] = await Promise.all([
-      fetch("/api/organizer/venues"),
-      fetch("/api/public/locations"),
-      fetch("/api/public/categories"),
-    ]);
-    const v = await vRes.json();
-    const l = await lRes.json();
-    const c = await cRes.json();
-    setVenues(v?.data ?? []);
-    setCountries(l?.data?.countries ?? []);
-    setStates(l?.data?.states ?? []);
-    setCategories(c?.data ?? []);
-  }
+  const [loading, setLoading] = useState(true);
+  const [refetch, setRefetch] = useState(0);
 
   useEffect(() => {
-    let active = true;
-    Promise.all([fetch("/api/organizer/venues").then((res) => res.json()), fetch("/api/public/locations").then((res) => res.json()), fetch("/api/public/categories").then((res) => res.json())]).then(
-      ([v, l, c]) => {
-        if (!active) return;
-        setVenues(v?.data ?? []);
-        setCountries(l?.data?.countries ?? []);
-        setStates(l?.data?.states ?? []);
-        setCategories(c?.data ?? []);
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const filteredStates = useMemo(() => countryId ? states.filter((s) => s.countryId === countryId) : [], [states, countryId]);
+    async function load() {
+      setLoading(true);
+      const [vRes, lRes, cRes] = await Promise.all([
+        fetch("/api/organizer/venues"),
+        fetch("/api/public/locations"),
+        fetch("/api/public/categories"),
+      ]);
+      const v = await vRes.json();
+      const l = await lRes.json();
+      const c = await cRes.json();
+      setVenues(v?.data ?? []);
+      setCountries(l?.data?.countries ?? []);
+      setStates(l?.data?.states ?? []);
+      setCategories(c?.data ?? []);
+      setLoading(false);
+    }
+    void load();
+  }, [refetch]);
 
   function validateDetails() {
     if (!name.trim()) {
@@ -163,7 +140,7 @@ export default function OrganizerVenuesPage() {
 
     toast.success("Venue and seating configuration submitted");
     resetForm();
-    await load();
+    setRefetch(c => c + 1);
   }
 
   async function saveExistingVenueSeating(
@@ -188,7 +165,7 @@ export default function OrganizerVenuesPage() {
 
     toast.success("Venue seating updated");
     resetForm();
-    await load();
+    setRefetch(c => c + 1);
   }
 
   function startEditSeating(venueId: string) {
@@ -197,6 +174,17 @@ export default function OrganizerVenuesPage() {
   }
 
   const editingVenue = venues.find((venue) => venue.id === editingVenueId) ?? null;
+
+  if (loading) {
+    return (
+      <SidebarLayout role="organizer" title="Organizer" items={nav}>
+        <PageHeader title="Venue Requests" subtitle="Step 1: venue details. Step 2: seating configuration." />
+        <div className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+          <div className="h-64 animate-pulse rounded-xl bg-neutral-100" />
+        </div>
+      </SidebarLayout>
+    );
+  }
 
   return (
     <SidebarLayout role="organizer" title="Organizer" items={nav}>

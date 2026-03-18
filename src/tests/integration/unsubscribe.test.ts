@@ -34,6 +34,12 @@ vi.mock("@/src/lib/db", () => ({
       findUnique: userFindUniqueMock,
       update: userUpdateMock,
     },
+    platformConfig: {
+      findUnique: vi.fn().mockResolvedValue({
+        smtpFromName: "EventsBox",
+        smtpFromEmail: "noreply@eventsbox.com",
+      }),
+    },
   },
 }));
 

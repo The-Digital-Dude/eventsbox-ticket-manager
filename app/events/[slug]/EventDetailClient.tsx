@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Building2, CalendarDays, Mail, MapPin, Phone, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { SeatMapLive } from "@/src/components/shared/seat-map-live";
@@ -69,6 +69,15 @@ type EventDetail = {
   state: { name: string } | null;
   city: { name: string } | null;
   ticketTypes: TicketType[];
+  addOns: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    price: string | number;
+    maxPerOrder: number;
+    totalStock: number | null;
+    remainingStock: number | null;
+  }>;
   organizerProfile: {
     id: string;
     companyName: string | null;
@@ -112,11 +121,16 @@ function formatDateTime(iso: string) {
 
 export function EventDetailClient({ slug }: { slug: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const refCode = searchParams.get("ref");
+  
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [session, setSession] = useState<CheckoutSessionState>("loading");
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [cartAddOns, setCartAddOns] = useState<Record<string, number>>({});
+  const [affiliateCode, setAffiliateCode] = useState<string | null>(null);
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
   const [checkingOut, setCheckingOut] = useState(false);
@@ -134,7 +148,6 @@ export function EventDetailClient({ slug }: { slug: string }) {
   const [selectedSeatIds, setSelectedSeatIds] = useState<string[]>([]);
   const [seatAvailability, setSeatAvailability] = useState<Record<string, PublicSeatBookingState>>({});
   const [expandedSectionId, setExpandedSectionId] = useState<string | null>(null);
-  const [seatAvailabilityLoading, setSeatAvailabilityLoading] = useState(false);
   const [seatPollIntervalMs, setSeatPollIntervalMs] = useState(10_000);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -152,6 +165,14 @@ export function EventDetailClient({ slug }: { slug: string }) {
         setLoading(false);
       });
   }, [slug]);
+
+  useEffect(() => {
+    if (refCode) {
+      setAffiliateCode(refCode);
+      // Fire and forget tracking
+      fetch(`/api/public/affiliate/${refCode}`).catch(() => {});
+    }
+  }, [refCode]);
 
   useEffect(() => {
     let active = true;
@@ -205,17 +226,12 @@ export function EventDetailClient({ slug }: { slug: string }) {
   useEffect(() => {
     if (!event?.venue?.seatingConfig) {
       setSeatAvailability({});
-      setSeatAvailabilityLoading(false);
       return;
     }
 
     let active = true;
 
-    async function loadSeatAvailability(showLoading: boolean) {
-      if (showLoading) {
-        setSeatAvailabilityLoading(true);
-      }
-
+    async function loadSeatAvailability() {
       try {
         const response = await fetch(`/api/public/events/${slug}/seats`, {
           cache: "no-store",
@@ -233,20 +249,20 @@ export function EventDetailClient({ slug }: { slug: string }) {
         setSeatAvailability(payload.data.statuses ?? {});
         setSeatPollIntervalMs(payload.data.refreshIntervalMs ?? 10_000);
       } finally {
-        if (active) {
-          setSeatAvailabilityLoading(false);
-        }
+        // if (active) {
+        //   setSeatAvailabilityLoading(false);
+        // }
       }
     }
 
-    void loadSeatAvailability(true);
+    void loadSeatAvailability();
 
     const interval = window.setInterval(() => {
       if (document.visibilityState === "hidden") {
         return;
       }
 
-      void loadSeatAvailability(false);
+      void loadSeatAvailability();
     }, seatPollIntervalMs);
 
     return () => {
@@ -284,22 +300,41 @@ export function EventDetailClient({ slug }: { slug: string }) {
     });
   }
 
+  function setAddOnQty(addOnId: string, qty: number) {
+    setCartAddOns((prev) => {
+      if (qty <= 0) {
+        const next = { ...prev };
+        delete next[addOnId];
+        return next;
+      }
+      return { ...prev, [addOnId]: qty };
+    });
+  }
+
   const cartItems = Object.entries(cart).filter(([, qty]) => qty > 0);
-  const cartTotal = cartItems.reduce((sum, [ticketTypeId, qty]) => {
+  const ticketSubtotal = cartItems.reduce((sum, [ticketTypeId, qty]) => {
     const ticketType = event?.ticketTypes.find((item) => item.id === ticketTypeId);
     return sum + Number(ticketType?.price ?? 0) * qty;
   }, 0);
+
+  const cartAddOnItems = Object.entries(cartAddOns).filter(([, qty]) => qty > 0);
+  const addOnSubtotal = cartAddOnItems.reduce((sum, [addOnId, qty]) => {
+    const addOn = event?.addOns.find((item) => item.id === addOnId);
+    return sum + Number(addOn?.price ?? 0) * qty;
+  }, 0);
+
+  const subtotal = ticketSubtotal + addOnSubtotal;
 
   const discountAmount = appliedPromo
     ? parseFloat(
         (
           appliedPromo.discountType === "PERCENTAGE"
-            ? cartTotal * (appliedPromo.discountValue / 100)
-            : Math.min(appliedPromo.discountValue, cartTotal)
+            ? ticketSubtotal * (appliedPromo.discountValue / 100)
+            : Math.min(appliedPromo.discountValue, ticketSubtotal)
         ).toFixed(2),
       )
     : 0;
-  const discountedSubtotal = parseFloat(Math.max(0, cartTotal - discountAmount).toFixed(2));
+  const discountedSubtotal = parseFloat(Math.max(0, subtotal - discountAmount).toFixed(2));
 
   const currency = event?.currency ?? 'USD';
   const commissionPct = Number(event?.commissionPct ?? 10);
@@ -310,7 +345,6 @@ export function EventDetailClient({ slug }: { slug: string }) {
   );
   const gst = parseFloat(((discountedSubtotal + platformFee) * (gstPct / 100)).toFixed(2));
   const grandTotal = parseFloat((discountedSubtotal + platformFee + gst).toFixed(2));
-  const totalSelectedTickets = cartItems.reduce((sum, [, qty]) => sum + qty, 0);
   const requiresSeatSelection = Boolean(
     event?.venue?.seatingConfig &&
     event.ticketTypes.some((t) => t.sectionId),
@@ -320,8 +354,6 @@ export function EventDetailClient({ slug }: { slug: string }) {
     const tt = event?.ticketTypes.find((t) => t.id === ticketTypeId);
     return tt?.sectionId ? sum + qty : sum;
   }, 0);
-  const bookedSeatCount = Object.values(seatAvailability).filter((seat) => seat.status === "BOOKED").length;
-  const reservedSeatCount = Object.values(seatAvailability).filter((seat) => seat.status === "RESERVED").length;
 
   useEffect(() => {
     setSelectedSeatIds((prev) => prev.slice(0, totalSeatedTickets));
@@ -477,8 +509,16 @@ export function EventDetailClient({ slug }: { slug: string }) {
         buyerName: buyerName.trim(),
         buyerEmail: buyerEmail.trim(),
         items: cartItems.map(([ticketTypeId, quantity]) => ({ ticketTypeId, quantity })),
+        ...(Object.keys(cartAddOns).length > 0
+          ? {
+              addOns: Object.entries(cartAddOns)
+                .filter(([, qty]) => qty > 0)
+                .map(([addOnId, quantity]) => ({ addOnId, quantity })),
+            }
+          : {}),
         ...(requiresSeatSelection ? { selectedSeatIds } : {}),
         ...(appliedPromo ? { promoCodeId: appliedPromo.promoCodeId } : {}),
+        ...(affiliateCode ? { affiliateCode } : {}),
       }),
     });
     const payload = await res.json();
@@ -962,6 +1002,75 @@ export function EventDetailClient({ slug }: { slug: string }) {
               )}
             </section>
 
+            {event.addOns && event.addOns.length > 0 && (
+              <section className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm lg:p-6">
+                <h2 className="mb-4 text-xl font-bold tracking-tight text-neutral-900">Event Add-ons</h2>
+                <div className="space-y-4">
+                  {event.addOns.map((addOn) => {
+                    const qty = cartAddOns[addOn.id] || 0;
+                    const available = addOn.remainingStock !== null ? addOn.remainingStock : addOn.maxPerOrder;
+                    const isSoldOut = addOn.remainingStock === 0;
+
+                    return (
+                      <div
+                        key={addOn.id}
+                        className={`flex flex-col gap-3 rounded-xl border p-4 transition-colors ${
+                          qty > 0
+                            ? "border-[var(--theme-accent)] bg-[rgb(var(--theme-accent-rgb)/0.03)]"
+                            : "border-[var(--border)] bg-white hover:border-neutral-300"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-1">
+                            <h3 className="font-semibold text-neutral-900">{addOn.name}</h3>
+                            {addOn.description && (
+                              <p className="text-sm text-neutral-600 line-clamp-2">{addOn.description}</p>
+                            )}
+                            {isSoldOut ? (
+                              <Badge className="bg-red-50 text-red-700 border-red-200">
+                                Sold Out
+                              </Badge>
+                            ) : null}
+                          </div>
+                          <p className="shrink-0 text-lg font-bold text-neutral-900">
+                            {formatCurrency(Number(addOn.price), currency)}
+                          </p>
+                        </div>
+
+                        {!isSoldOut && (
+                          <div className="mt-3 flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setAddOnQty(addOn.id, Math.max(0, qty - 1))}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-neutral-700 transition hover:bg-neutral-100"
+                            >
+                              -
+                            </button>
+                            <span className="w-6 text-center text-sm font-semibold">{qty}</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setAddOnQty(
+                                  addOn.id,
+                                  Math.min(addOn.maxPerOrder, available, qty + 1),
+                                )
+                              }
+                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-neutral-700 transition hover:bg-neutral-100"
+                            >
+                              +
+                            </button>
+                            <span className="text-xs text-neutral-400">
+                              Max {addOn.maxPerOrder} per order
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             {cartItems.length > 0 && (
               <section className="rounded-2xl border border-[var(--border)] bg-white p-5 text-sm shadow-sm">
                 <h3 className="mb-3 font-semibold text-neutral-900">Promo Code</h3>
@@ -1002,10 +1111,23 @@ export function EventDetailClient({ slug }: { slug: string }) {
                     </div>
                   );
                 })}
+                {cartAddOnItems.map(([addOnId, qty]) => {
+                  const addOn = event.addOns.find((item) => item.id === addOnId);
+                  if (!addOn) return null;
+
+                  return (
+                    <div key={addOnId} className="flex justify-between py-1 text-neutral-600">
+                      <span>
+                        + {addOn.name} x {qty}
+                      </span>
+                      <span>{formatCurrency(Number(addOn.price) * qty, currency)}</span>
+                    </div>
+                  );
+                })}
                 <div className="my-2 border-t border-[var(--border)]" />
                 <div className="flex justify-between text-neutral-600">
                   <span>Subtotal</span>
-                  <span>{formatCurrency(cartTotal, currency)}</span>
+                  <span>{formatCurrency(subtotal, currency)}</span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-emerald-600">

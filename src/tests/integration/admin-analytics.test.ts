@@ -7,12 +7,14 @@ const {
   findManyMock,
   findManyOrderItemsMock,
   requireRoleMock,
+  groupByMock,
 } = vi.hoisted(() => ({
   aggregateMock: vi.fn(),
   countMock: vi.fn(),
   findManyMock: vi.fn(),
   findManyOrderItemsMock: vi.fn(),
   requireRoleMock: vi.fn(),
+  groupByMock: vi.fn(),
 }));
 
 vi.mock("@/src/lib/db", () => ({
@@ -21,6 +23,7 @@ vi.mock("@/src/lib/db", () => ({
       aggregate: aggregateMock,
       count: countMock,
       findMany: findManyMock,
+      groupBy: groupByMock,
     },
     orderItem: {
       findMany: findManyOrderItemsMock,
@@ -41,8 +44,10 @@ describe("admin analytics integration", () => {
     findManyMock.mockReset();
     findManyOrderItemsMock.mockReset();
     requireRoleMock.mockReset();
+    groupByMock.mockReset();
 
     requireRoleMock.mockResolvedValue({ sub: "admin-1", role: "SUPER_ADMIN" });
+    groupByMock.mockResolvedValue([]);
     aggregateMock
       .mockResolvedValueOnce({
         _sum: {

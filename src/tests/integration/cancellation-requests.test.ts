@@ -13,6 +13,7 @@ const {
   sendOrganizerCancellationRequestEmailMock,
   sendCancellationRejectedEmailMock,
   writeAuditLogMock,
+  getStripeClientMock,
 } = vi.hoisted(() => ({
   requireAttendeeMock: vi.fn(),
   requireRoleMock: vi.fn(),
@@ -25,6 +26,11 @@ const {
   sendOrganizerCancellationRequestEmailMock: vi.fn(),
   sendCancellationRejectedEmailMock: vi.fn(),
   writeAuditLogMock: vi.fn(),
+  getStripeClientMock: vi.fn(),
+}));
+
+vi.mock("@/src/lib/stripe/client", () => ({
+  getStripeClient: getStripeClientMock,
 }));
 
 vi.mock("@/src/lib/auth/require-attendee", () => ({
@@ -42,6 +48,7 @@ vi.mock("@/src/lib/services/order-refund", () => ({
 vi.mock("@/src/lib/services/notifications", () => ({
   sendOrganizerCancellationRequestEmail: sendOrganizerCancellationRequestEmailMock,
   sendCancellationRejectedEmail: sendCancellationRejectedEmailMock,
+  sendOrderRefundedEmail: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("@/src/lib/services/audit", () => ({
@@ -50,16 +57,19 @@ vi.mock("@/src/lib/services/audit", () => ({
 
 vi.mock("@/src/lib/db", () => ({
   prisma: {
+    $transaction: vi.fn().mockResolvedValue([{}, { id: "cancel-1", status: "PENDING" }]),
     attendeeProfile: {
       findUnique: attendeeProfileFindUniqueMock,
     },
     order: {
       findFirst: orderFindFirstMock,
+      update: vi.fn(),
     },
     cancellationRequest: {
       create: cancellationRequestCreateMock,
       findFirst: cancellationRequestFindFirstMock,
       update: cancellationRequestUpdateMock,
+      upsert: vi.fn().mockResolvedValue({ id: "cancel-1", status: "PENDING" }),
     },
   },
 }));
@@ -71,6 +81,10 @@ describe("cancellation requests integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    getStripeClientMock.mockReturnValue({
+      refunds: { create: vi.fn().mockResolvedValue({ id: "re_123" }) },
+    });
+
     requireAttendeeMock.mockResolvedValue({
       user: { id: "attendee-user-1", email: "attendee@example.com" },
     });
@@ -80,7 +94,16 @@ describe("cancellation requests integration", () => {
     orderFindFirstMock.mockResolvedValue({
       id: "order-1",
       buyerEmail: "attendee@example.com",
-      event: { title: "Concert", contactEmail: "organizer@example.com" },
+      buyerName: "Attendee",
+      total: 100,
+      stripePaymentIntentId: "pi_123",
+      event: {
+        title: "Concert",
+        contactEmail: "organizer@example.com",
+        cancellationDeadlineHours: 24,
+        refundPercent: 100,
+        startAt: new Date(Date.now() + 48 * 3600 * 1000), // 48 hours in future
+      },
       cancellationRequest: null,
     });
     cancellationRequestCreateMock.mockResolvedValue({ id: "cancel-1", status: "PENDING" });
@@ -119,14 +142,9 @@ describe("cancellation requests integration", () => {
 
     const res = await attendeeCancelPost(req, { params: Promise.resolve({ orderId: "order-1" }) });
     const payload = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(payload.data.status).toBe("PENDING");
-    expect(cancellationRequestCreateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ orderId: "order-1", status: "PENDING" }),
-      }),
-    );
+expect(res.status).toBe(200);
+expect(payload.data.refunded).toBe(true);
+expect(payload.data.refundPct).toBe(100);
   });
 
   it("returns 409 on duplicate cancellation request", async () => {

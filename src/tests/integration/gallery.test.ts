@@ -26,6 +26,9 @@ vi.mock("@/src/lib/db", () => ({
       findFirst: eventFindFirstMock,
       update: eventUpdateMock,
     },
+    order: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   },
 }));
 
@@ -43,6 +46,8 @@ describe("event gallery integration", () => {
       status: "DRAFT",
       images: [],
       ticketTypes: [],
+      startAt: new Date(),
+      endAt: new Date(),
       category: null,
       venue: null,
       state: null,
@@ -57,6 +62,8 @@ describe("event gallery integration", () => {
       status: "DRAFT",
       images: ["https://example.com/a.jpg"],
       ticketTypes: [],
+      startAt: new Date(),
+      endAt: new Date(),
       category: null,
       venue: null,
       state: null,

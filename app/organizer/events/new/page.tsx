@@ -13,24 +13,12 @@ import { matchLocation } from "@/src/lib/location-match";
 import { SearchableSelect } from "@/src/components/ui/searchable-select";
 import { TIMEZONES } from "@/src/lib/timezones";
 import { CURRENCIES } from "@/src/lib/currency";
+import { nav } from "@/app/organizer/nav";
 
 type CountryRow = { id: string; code: string; name: string };
 type StateRow = { id: string; name: string; countryId: string | null; cities: { id: string; name: string }[] };
 type CategoryRow = { id: string; name: string };
 type VenueRow = { id: string; name: string };
-
-const nav = [
-  { href: "/organizer/status", label: "Status" },
-  { href: "/organizer/onboarding", label: "Onboarding" },
-  { href: "/organizer/dashboard", label: "Dashboard" },
-  { href: "/organizer/events", label: "Events" },
-  { href: "/organizer/promo-codes", label: "Promo Codes" },
-  { href: "/organizer/cancellation-requests", label: "Cancellations" },
-  { href: "/organizer/analytics", label: "Analytics" },
-  { href: "/organizer/payout", label: "Payout" },
-  { href: "/organizer/venues", label: "Venues" },
-  { href: "/organizer/scanner", label: "Scanner" },
-];
 
 export default function NewEventPage() {
   const router = useRouter();
@@ -67,8 +55,6 @@ export default function NewEventPage() {
   const [audience, setAudience] = useState("");
   const [lat, setLat] = useState<number | undefined>(undefined);
   const [lng, setLng] = useState<number | undefined>(undefined);
-
-  const filteredStates = countryId ? states.filter((s) => s.countryId === countryId) : [];
 
   function addTag(value: string) {
     const trimmed = value.trim().replace(/,+$/, "").trim();

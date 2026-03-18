@@ -75,6 +75,7 @@ const nav = [
   { href: "/organizer/dashboard", label: "Dashboard" },
   { href: "/organizer/events", label: "Events" },
   { href: "/organizer/promo-codes", label: "Promo Codes" },
+  { href: "/organizer/affiliate", label: "Affiliate Links" },
   { href: "/organizer/cancellation-requests", label: "Cancellations" },
   { href: "/organizer/analytics", label: "Analytics" },
   { href: "/organizer/payout", label: "Payout" },
@@ -259,6 +260,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             </Link>
             <Link href={`/organizer/events/${id}/comp-tickets`}>
               <Button variant="outline" size="sm">Comp Tickets</Button>
+            </Link>
+            <Link href={`/organizer/events/${id}/addons`}>
+              <Button variant="outline" size="sm">Add-ons</Button>
             </Link>
             {event._count.waitlist > 0 && (
               <Link href={`/organizer/events/${id}/waitlist`}>

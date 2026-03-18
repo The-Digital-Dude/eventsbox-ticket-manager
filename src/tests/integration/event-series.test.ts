@@ -70,12 +70,16 @@ describe("event series integration", () => {
         organizerProfileId: "org-profile-1",
         status: "DRAFT",
         ticketTypes: [],
+        startAt: new Date("2026-05-10T18:00:00.000Z"),
+        endAt: new Date("2026-05-10T21:00:00.000Z"),
       })
       .mockResolvedValueOnce({
         id: "event-1",
         organizerProfileId: "org-profile-1",
         status: "DRAFT",
         ticketTypes: [],
+        startAt: new Date("2026-05-10T18:00:00.000Z"),
+        endAt: new Date("2026-05-10T21:00:00.000Z"),
       });
     eventSeriesFindFirstMock.mockResolvedValue({ id: seriesId });
     eventUpdateMock.mockResolvedValue({
@@ -84,6 +88,8 @@ describe("event series integration", () => {
       status: "DRAFT",
       series: { id: seriesId, title: "Spring Sessions" },
       ticketTypes: [],
+      startAt: new Date("2026-05-10T18:00:00.000Z"),
+      endAt: new Date("2026-05-10T21:00:00.000Z"),
       _count: { orders: 0, waitlist: 0 },
       orders: [],
     });
