@@ -1,8 +1,23 @@
 import { Resend } from "resend";
+import { PlatformConfig } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { env } from "@/src/lib/env";
 
 let resendClient: Resend | null | undefined;
+let _config: PlatformConfig | null = null;
+
+async function getConfig() {
+  if (!_config) {
+    if (!prisma.platformConfig) return null;
+    try {
+      _config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
+    } catch (error) {
+      console.warn("[notifications] Failed to fetch platform config", error);
+      return null;
+    }
+  }
+  return _config;
+}
 
 function getResendClient() {
   if (resendClient !== undefined) return resendClient;
@@ -39,10 +54,14 @@ async function getMarketingRecipient(email: string) {
 
 async function sendEmail(payload: EmailPayload): Promise<EmailSendResult> {
   const client = getResendClient();
-  if (!client || !env.EMAIL_FROM) {
+  const config = await getConfig();
+
+  const fromName = config?.smtpFromName || "EventsBox";
+  const fromEmail = config?.smtpFromEmail || env.EMAIL_FROM || "noreply@eventsbox.com";
+
+  if (!client) {
     console.warn("[email] skipped due to missing configuration", {
       hasResendApiKey: Boolean(env.RESEND_API_KEY),
-      hasEmailFrom: Boolean(env.EMAIL_FROM),
     });
     return { sent: false, skipped: true as const, reason: "MISSING_CONFIG" as const };
   }
@@ -52,7 +71,7 @@ async function sendEmail(payload: EmailPayload): Promise<EmailSendResult> {
 
   try {
     const result = await client.emails.send({
-      from: env.EMAIL_FROM,
+      from: `${fromName} <${fromEmail}>`,
       to,
       subject: payload.subject,
       text: payload.text,

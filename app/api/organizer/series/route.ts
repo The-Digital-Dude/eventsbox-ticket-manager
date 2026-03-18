@@ -61,6 +61,9 @@ export async function POST(req: NextRequest) {
         organizerProfileId,
         title: parsed.data.title,
         description: parsed.data.description || null,
+        recurrenceType: parsed.data.recurrenceType || null,
+        recurrenceDaysOfWeek: parsed.data.recurrenceDaysOfWeek || [],
+        recurrenceEndDate: parsed.data.recurrenceEndDate ? new Date(parsed.data.recurrenceEndDate) : null,
       },
       include: seriesInclude,
     });

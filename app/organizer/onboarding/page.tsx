@@ -31,6 +31,7 @@ const nav = [
   { href: "/organizer/dashboard", label: "Dashboard" },
   { href: "/organizer/events", label: "Events" },
   { href: "/organizer/promo-codes", label: "Promo Codes" },
+  { href: "/organizer/affiliate", label: "Affiliate Links" },
   { href: "/organizer/cancellation-requests", label: "Cancellations" },
   { href: "/organizer/analytics", label: "Analytics" },
   { href: "/organizer/payout", label: "Payout" },
@@ -99,6 +100,8 @@ function LabelWithIcon({ icon: Icon, text }: { icon: LucideIcon; text: string })
 
 export default function OrganizerOnboardingPage() {
   const [loading, setLoading] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState<StepId>("identity");
   const [states, setStates] = useState<StateRow[]>([]);
   const [form, setForm] = useState<OnboardingForm>({
@@ -118,6 +121,30 @@ export default function OrganizerOnboardingPage() {
     cityId: "",
   });
 
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLogoUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/organizer/uploads/logo", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || "Failed to upload logo");
+      setLogoUrl(data.data.logoUrl);
+      toast.success("Logo uploaded successfully");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to upload logo");
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+
   useEffect(() => {
     let active = true;
     Promise.all([
@@ -131,6 +158,7 @@ export default function OrganizerOnboardingPage() {
       }
 
       if (onboardingPayload?.data) {
+        setLogoUrl(onboardingPayload.data.logoUrl || null);
         const fromDbOptional = (value?: string | null) => (value && value !== "N/A" ? value : "");
         setForm({
           companyName: fromDbOptional(onboardingPayload.data.companyName),
@@ -290,6 +318,36 @@ export default function OrganizerOnboardingPage() {
                   <h3 className="text-xl font-semibold tracking-tight text-neutral-900">Business Identity</h3>
                   <p className="text-sm text-neutral-600">Tell us who is operating this organizer account.</p>
                 </div>
+
+                <div className="space-y-3">
+                  <LabelWithIcon icon={Building2} text="Organizer Logo" />
+                  <div className="flex items-center gap-4">
+                    {logoUrl ? (
+                      <img src={logoUrl} alt="Logo" className="h-16 w-16 rounded-lg object-cover border border-[var(--border)]" />
+                    ) : (
+                      <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-[var(--border)] bg-neutral-50 text-neutral-400">
+                        <Building2 className="h-6 w-6" />
+                      </div>
+                    )}
+                    <div>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="hidden"
+                        id="logo-upload"
+                        onChange={handleLogoUpload}
+                        disabled={logoUploading}
+                      />
+                      <label
+                        htmlFor="logo-upload"
+                        className={`cursor-pointer inline-flex items-center justify-center whitespace-nowrap rounded-md bg-neutral-100 px-3 py-1.5 text-sm font-medium hover:bg-neutral-200 transition-colors ${logoUploading ? "opacity-50 pointer-events-none" : ""}`}
+                      >
+                        {logoUploading ? "Uploading..." : "Upload Logo"}
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <LabelWithIcon icon={Building2} text="Company Name *" />

@@ -1,6 +1,13 @@
 # Current Task
 
 ## Active Task
+**Phases 16–20 — Affiliate, Add-ons, Scanner Role, Reviews, Advanced Analytics**
+
+**Status:** READY — individual plans at `docs/tasks/phase-16-plan.md` through `phase-20-plan.md`; combined Gemini prompt at `docs/tasks/codex-phases16-20-prompt.md`
+
+---
+
+## Previous Task
 **Phase 14 — Event Richness + Hardening**
 
 **Status:** DONE

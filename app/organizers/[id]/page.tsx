@@ -14,6 +14,7 @@ async function getOrganizerProfile(id: string) {
     },
     select: {
       id: true,
+      logoUrl: true,
       brandName: true,
       companyName: true,
       website: true,
@@ -79,6 +80,9 @@ export default async function OrganizerPublicProfilePage({
           </Link>
           <div className="mt-6 max-w-3xl space-y-4">
             <Badge>Organizer Profile</Badge>
+            {organizer.logoUrl && (
+              <img src={organizer.logoUrl} alt={displayName} className="h-20 w-20 rounded-xl object-cover border border-[var(--border)] shadow-sm" />
+            )}
             <h1 className="text-4xl font-bold tracking-tight text-neutral-900 md:text-5xl">
               {displayName}
             </h1>

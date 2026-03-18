@@ -49,6 +49,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data: {
         title: parsed.data.title,
         description: parsed.data.description || null,
+        recurrenceType: parsed.data.recurrenceType || null,
+        recurrenceDaysOfWeek: parsed.data.recurrenceDaysOfWeek || [],
+        recurrenceEndDate: parsed.data.recurrenceEndDate ? new Date(parsed.data.recurrenceEndDate) : null,
       },
       include: seriesInclude,
     });

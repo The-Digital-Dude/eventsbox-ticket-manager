@@ -12,9 +12,13 @@ export const venueDecisionSchema = z.object({
 });
 
 export const configSchema = z.object({
+  platformName: z.string().min(1),
+  brandColor: z.string().startsWith("#"),
+  smtpFromName: z.string().min(1),
+  smtpFromEmail: z.string().email(),
   defaultCommissionPct: z.number().min(0).max(100),
   defaultGstPct: z.number().min(0).max(100),
-  payoutModeDefault: z.enum(PayoutMode),
+  payoutModeDefault: z.nativeEnum(PayoutMode),
 });
 
 export const categorySchema = z.object({

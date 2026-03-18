@@ -56,6 +56,9 @@ export async function GET(
               select: {
                 title: true,
                 startAt: true,
+                organizerProfile: {
+                  select: { logoUrl: true },
+                },
                 venue: {
                   select: { name: true },
                 },
@@ -92,6 +95,19 @@ export async function GET(
     const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, "");
     const qrBuffer = Buffer.from(qrBase64, "base64");
 
+    let logoBuffer: Buffer | null = null;
+    if (event.organizerProfile?.logoUrl) {
+      try {
+        const res = await fetch(event.organizerProfile.logoUrl);
+        if (res.ok) {
+          const ab = await res.arrayBuffer();
+          logoBuffer = Buffer.from(ab);
+        }
+      } catch (err) {
+        console.error("Failed to fetch organizer logo for PDF", err);
+      }
+    }
+
     // Build PDF in memory
     const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
       const chunks: Buffer[] = [];
@@ -104,10 +120,15 @@ export async function GET(
       const pageWidth = doc.page.width - 60; // margin * 2
 
       // Header
-      doc
-        .fontSize(18)
-        .font("Helvetica-Bold")
-        .text("EVENTSBOX", { align: "center" });
+      if (logoBuffer) {
+        doc.image(logoBuffer, 50, 40, { width: 100 });
+        doc.moveDown(4);
+      } else {
+        doc
+          .fontSize(18)
+          .font("Helvetica-Bold")
+          .text("EVENTSBOX", { align: "center" });
+      }
 
       doc.moveDown(0.3);
       doc

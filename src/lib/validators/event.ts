@@ -39,6 +39,9 @@ export const eventUpdateSchema = eventCreateSchema.partial().extend({
 export const eventSeriesSchema = z.object({
   title: z.string().trim().min(1).max(100),
   description: z.string().trim().max(2000).optional().nullable(),
+  recurrenceType: z.enum(["DAILY", "WEEKLY", "BIWEEKLY", "MONTHLY"]).nullable().optional(),
+  recurrenceDaysOfWeek: z.array(z.number().min(0).max(6)).default([]).optional(),
+  recurrenceEndDate: z.string().datetime().nullable().optional(),
 });
 
 export const ticketTypeCreateSchema = z.object({
@@ -63,11 +66,18 @@ export const checkoutIntentSchema = z.object({
   buyerName: z.string().min(2).max(200),
   buyerEmail: z.string().email(),
   promoCodeId: z.string().cuid().optional(),
+  affiliateCode: z.string().optional(),
   selectedSeatIds: z.array(z.string().min(1).max(140)).max(50).optional(),
   items: z.array(z.object({
     ticketTypeId: z.string().min(1),
     quantity: z.coerce.number().int().min(1).max(20),
   })).min(1),
+  addOns: z.array(z.object({
+    addOnId: z.string().min(1),
+    quantity: z.coerce.number().int().min(1),
+  })).optional().default([]),
+  isWalkIn: z.boolean().optional().default(false),
+  scannerId: z.string().optional(),
 });
 
 export const eventDecisionSchema = z.object({

@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       },
     };
 
-    const [paidAgg, refundedAgg, ordersCount, refundsCount, paidOrders, paidItems] = await Promise.all([
+    const [paidAgg, refundedAgg, ordersCount, refundsCount, paidOrders, paidItems, topAffiliateGroups] = await Promise.all([
       prisma.order.aggregate({
         where: paidWhere,
         _sum: {
@@ -87,7 +87,31 @@ export async function GET(req: NextRequest) {
           quantity: true,
         },
       }),
+      prisma.order.groupBy({
+        by: ["affiliateLinkId"],
+        where: { ...paidWhere, affiliateLinkId: { not: null } },
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+        take: 10,
+      }),
     ]);
+
+    const affiliateLinks = topAffiliateGroups.length > 0 
+      ? await prisma.affiliateLink.findMany({
+          where: { id: { in: topAffiliateGroups.map(g => g.affiliateLinkId as string) } },
+          select: { id: true, code: true, label: true }
+        })
+      : [];
+
+    const topAffiliates = topAffiliateGroups.map(g => {
+      const link = affiliateLinks.find(l => l.id === g.affiliateLinkId);
+      return {
+        id: g.affiliateLinkId,
+        code: link?.code || "Unknown",
+        label: link?.label || "Unknown",
+        ordersCount: g._count.id,
+      };
+    });
 
     const topEventsMap = new Map<string, { eventId: string; title: string; revenue: number; ticketsSold: number }>();
     const revenueByDayMap = new Map<string, number>();
@@ -132,6 +156,7 @@ export async function GET(req: NextRequest) {
       topEvents: Array.from(topEventsMap.values())
         .sort((left, right) => right.revenue - left.revenue)
         .slice(0, 5),
+      topAffiliates,
       revenueByDay: Array.from(revenueByDayMap.entries())
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([date, revenue]) => ({

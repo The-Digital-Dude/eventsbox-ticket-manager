@@ -9,11 +9,19 @@ import { Button, buttonVariants } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { cn } from "@/src/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogClose,
+} from "@/src/components/ui/dialog";
 
 type SeriesRow = {
   id: string;
   title: string;
   description: string | null;
+  recurrenceType: "DAILY" | "WEEKLY" | "BIWEEKLY" | "MONTHLY" | null;
+  recurrenceDaysOfWeek: number[];
+  recurrenceEndDate: string | null;
   createdAt: string;
   updatedAt: string;
   _count: { events: number };
@@ -25,6 +33,7 @@ const nav = [
   { href: "/organizer/dashboard", label: "Dashboard" },
   { href: "/organizer/events", label: "Events" },
   { href: "/organizer/promo-codes", label: "Promo Codes" },
+  { href: "/organizer/affiliate", label: "Affiliate Links" },
   { href: "/organizer/cancellation-requests", label: "Cancellations" },
   { href: "/organizer/analytics", label: "Analytics" },
   { href: "/organizer/payout", label: "Payout" },
@@ -35,6 +44,8 @@ const nav = [
 const emptyForm = {
   title: "",
   description: "",
+  recurrenceType: "" as string,
+  recurrenceEndDate: "",
 };
 
 function formatDateTime(value: string) {
@@ -48,6 +59,8 @@ export default function OrganizerSeriesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [editForm, setEditForm] = useState(emptyForm);
+  const [genCount, setGenCount] = useState(1);
+  const [generatingFor, setGeneratingFor] = useState<string | null>(null);
 
   async function loadSeries() {
     setLoading(true);
@@ -83,6 +96,8 @@ export default function OrganizerSeriesPage() {
       body: JSON.stringify({
         title: form.title.trim(),
         description: form.description.trim() || undefined,
+        recurrenceType: form.recurrenceType || undefined,
+        recurrenceEndDate: form.recurrenceEndDate ? new Date(form.recurrenceEndDate).toISOString() : undefined,
       }),
     });
     const payload = await response.json();
@@ -103,6 +118,8 @@ export default function OrganizerSeriesPage() {
     setEditForm({
       title: entry.title,
       description: entry.description ?? "",
+      recurrenceType: entry.recurrenceType ?? "",
+      recurrenceEndDate: entry.recurrenceEndDate ? new Date(entry.recurrenceEndDate).toISOString().split("T")[0] : "",
     });
   }
 
@@ -118,6 +135,8 @@ export default function OrganizerSeriesPage() {
       body: JSON.stringify({
         title: editForm.title.trim(),
         description: editForm.description.trim() || undefined,
+        recurrenceType: editForm.recurrenceType || undefined,
+        recurrenceEndDate: editForm.recurrenceEndDate ? new Date(editForm.recurrenceEndDate).toISOString() : undefined,
       }),
     });
     const payload = await response.json();
@@ -136,6 +155,7 @@ export default function OrganizerSeriesPage() {
   }
 
   async function deleteSeries(seriesId: string) {
+    if (!confirm("Are you sure you want to delete this series?")) return;
     const response = await fetch(`/api/organizer/series/${seriesId}`, {
       method: "DELETE",
     });
@@ -148,6 +168,26 @@ export default function OrganizerSeriesPage() {
 
     setSeries((current) => current.filter((entry) => entry.id !== seriesId));
     toast.success("Series deleted");
+  }
+
+  async function generateEvents(seriesId: string) {
+    setSubmitting(true);
+    const res = await fetch(`/api/organizer/series/${seriesId}/generate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ count: genCount }),
+    });
+    const payload = await res.json();
+    setSubmitting(false);
+
+    if (!res.ok) {
+      toast.error(payload?.error?.message ?? "Generation failed");
+      return;
+    }
+
+    toast.success(`Generated ${payload.data.created} event(s)`);
+    setGeneratingFor(null);
+    loadSeries();
   }
 
   return (
@@ -181,6 +221,28 @@ export default function OrganizerSeriesPage() {
               onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
               maxLength={2000}
               placeholder="Optional description shown on the public series page."
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Recurrence Type</Label>
+            <select
+              className="app-select"
+              value={form.recurrenceType}
+              onChange={(e) => setForm((prev) => ({ ...prev, recurrenceType: e.target.value }))}
+            >
+              <option value="">No recurrence</option>
+              <option value="DAILY">Daily</option>
+              <option value="WEEKLY">Weekly</option>
+              <option value="BIWEEKLY">Bi-weekly</option>
+              <option value="MONTHLY">Monthly</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label>Recurrence End Date</Label>
+            <Input
+              type="date"
+              value={form.recurrenceEndDate}
+              onChange={(e) => setForm((prev) => ({ ...prev, recurrenceEndDate: e.target.value }))}
             />
           </div>
         </div>
@@ -225,12 +287,42 @@ export default function OrganizerSeriesPage() {
                             }
                             maxLength={2000}
                           />
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Recurrence</Label>
+                              <select
+                                className="app-select h-9 text-xs"
+                                value={editForm.recurrenceType}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, recurrenceType: e.target.value }))}
+                              >
+                                <option value="">No recurrence</option>
+                                <option value="DAILY">Daily</option>
+                                <option value="WEEKLY">Weekly</option>
+                                <option value="BIWEEKLY">Bi-weekly</option>
+                                <option value="MONTHLY">Monthly</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">End Date</Label>
+                              <Input
+                                type="date"
+                                className="h-9 text-xs"
+                                value={editForm.recurrenceEndDate}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, recurrenceEndDate: e.target.value }))}
+                              />
+                            </div>
+                          </div>
                         </>
                       ) : (
                         <>
                           <div className="flex flex-wrap items-center gap-3">
                             <h3 className="text-lg font-semibold text-neutral-900">{entry.title}</h3>
                             <Badge>{entry._count.events} event{entry._count.events === 1 ? "" : "s"}</Badge>
+                            {entry.recurrenceType && (
+                              <Badge className="bg-blue-50 text-blue-700 border-blue-200 capitalize">
+                                {entry.recurrenceType.toLowerCase()}
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-sm text-neutral-600">
                             {entry.description || "No description added yet."}
@@ -261,6 +353,37 @@ export default function OrganizerSeriesPage() {
                         </>
                       ) : (
                         <>
+                          {entry.recurrenceType && (
+                            <Dialog open={generatingFor === entry.id} onOpenChange={(open) => !open && setGeneratingFor(null)}>
+                              <Button size="sm" variant="outline" onClick={() => setGeneratingFor(entry.id)}>
+                                Generate Events
+                              </Button>
+                              <DialogContent>
+                                <h3 className="text-lg font-semibold">Generate Recurring Events</h3>
+                                <p className="mt-2 text-sm text-neutral-600">
+                                  Duplicate the latest event in &quot;{entry.title}&quot; forward by {entry.recurrenceType.toLowerCase()} intervals.
+                                </p>
+                                <div className="mt-4 space-y-2">
+                                  <Label>Number of events to create (1–52)</Label>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={52}
+                                    value={genCount}
+                                    onChange={(e) => setGenCount(parseInt(e.target.value) || 1)}
+                                  />
+                                </div>
+                                <div className="mt-6 flex justify-end gap-3">
+                                  <DialogClose asChild>
+                                    <Button variant="outline">Cancel</Button>
+                                  </DialogClose>
+                                  <Button onClick={() => generateEvents(entry.id)} disabled={submitting}>
+                                    {submitting ? "Generating..." : "Confirm & Generate"}
+                                  </Button>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+                          )}
                           <Button size="sm" variant="outline" onClick={() => startEditing(entry)}>
                             Edit
                           </Button>
