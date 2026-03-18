@@ -3,14 +3,16 @@
 ## Active Task
 **Phases 16–20 — Affiliate, Add-ons, Scanner Role, Reviews, Advanced Analytics**
 
-**Status:** IN PROGRESS — Phases 16–19 complete, Phase 18b complete, Phase 20 pending; individual plans at `docs/tasks/phase-16-plan.md` through `phase-20-plan.md`; combined Gemini prompt at `docs/tasks/codex-phases16-20-prompt.md`
+**Status:** IN PROGRESS — Phases 16–20 implemented, with final full-suite integration validation still blocked by intermittent Neon connectivity in older shared-db tests; individual plans at `docs/tasks/phase-16-plan.md` through `phase-20-plan.md`; combined Gemini prompt at `docs/tasks/codex-phases16-20-prompt.md`
 
 **Latest Handoff (2026-03-18):**
 - Phase 19 is implemented: attendees can submit one review per attended paid event after it ends, organizers can see event reviews, admins can hide/show reviews, public event payloads include visible reviews plus aggregate rating data, and attendee order history now prompts for post-event ratings.
 - Event rating aggregates are persisted on `Event.reviewCount` and `Event.avgRating`, with recalculation wired into review create/delete/moderation flows.
 - Phase 18b scanner backend is implemented on top of the existing `ScannerProfile` architecture: new scanner event/ticket/state/device APIs exist, batch check-in supports OK/DUPLICATE/NOT_FOUND outcomes, and scanner/organizer/manual check-ins now keep `isCheckedIn`, `checkedInAt`, and `checkedInDevice` in sync.
 - Added integration coverage in `src/tests/integration/event-reviews.test.ts` and `src/tests/integration/scanner-app-api.test.ts`.
-- Validation pending on this handoff: run `npx prisma db push`, `npx prisma generate`, `npm run lint`, `npm run typecheck`, `npm run test:integration`, and `npm run build`.
+- Phase 20 is now implemented: organizer analytics includes ticket-type, promo-code, add-on, daily revenue, affiliate, and review breakdowns; admin analytics includes platform revenue/commission, top organizers, category-level revenue, user growth, and platform review stats; admins can trigger monthly organizer revenue report emails from the analytics dashboard.
+- Added Phase 20 coverage in `src/tests/integration/organizer-analytics-extended.test.ts`, `src/tests/integration/admin-analytics-extended.test.ts`, and `src/tests/integration/monthly-report.test.ts`, while updating the existing organizer/admin analytics route tests for the expanded payloads.
+- Validation on this handoff: `npm run typecheck` passed, targeted Phase 20 integration tests passed, `npm run build` passed, and `npm run lint` completed with pre-existing warnings only. `npm run test:integration` is still blocked outside Phase 20 by intermittent Neon connectivity failures in older shared-db tests such as `src/tests/integration/attendee-account.test.ts`.
 
 ---
 

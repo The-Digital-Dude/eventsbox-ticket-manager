@@ -445,6 +445,59 @@ export async function sendOrderRefundedEmail(input: {
   return sendEmail({ to: input.to, subject, text, html });
 }
 
+export async function sendMonthlyRevenueReport(input: {
+  organizerEmail: string;
+  brandName: string;
+  month: string;
+  totalRevenue: number;
+  totalOrders: number;
+  topEvent: { title: string; revenue: number } | null;
+  platformFeeDeducted: number;
+}) {
+  const monthDate = new Date(`${input.month}-01T00:00:00.000Z`);
+  const monthLabel = Number.isNaN(monthDate.getTime())
+    ? input.month
+    : monthDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const subject = `Your ${monthLabel} revenue summary - EventsBox`;
+
+  const text = [
+    `Hello ${input.brandName},`,
+    "",
+    `Here's your revenue summary for ${monthLabel}.`,
+    `Total revenue: $${input.totalRevenue.toFixed(2)}`,
+    `Total paid orders: ${input.totalOrders}`,
+    `Platform fees deducted: $${input.platformFeeDeducted.toFixed(2)}`,
+    `Top event: ${input.topEvent ? `${input.topEvent.title} ($${input.topEvent.revenue.toFixed(2)})` : "No paid events this month"}`,
+    "",
+    "Thanks for building with EventsBox.",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#111827">
+      <p>Hello <strong>${input.brandName}</strong>,</p>
+      <p>Here's your revenue summary for <strong>${monthLabel}</strong>.</p>
+      <div style="border:1px solid #e5e7eb;border-radius:12px;padding:20px;background:#f9fafb;margin:20px 0">
+        <p style="margin:0 0 10px"><strong>Total revenue:</strong> $${input.totalRevenue.toFixed(2)}</p>
+        <p style="margin:0 0 10px"><strong>Total paid orders:</strong> ${input.totalOrders}</p>
+        <p style="margin:0 0 10px"><strong>Platform fees deducted:</strong> $${input.platformFeeDeducted.toFixed(2)}</p>
+        <p style="margin:0"><strong>Top event:</strong> ${
+          input.topEvent
+            ? `${input.topEvent.title} ($${input.topEvent.revenue.toFixed(2)})`
+            : "No paid events this month"
+        }</p>
+      </div>
+      <p>Thanks for building with EventsBox.</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: input.organizerEmail,
+    subject,
+    text,
+    html,
+  });
+}
+
 export async function sendOrganizerCancellationRequestEmail(input: {
   to: string;
   attendeeEmail: string;

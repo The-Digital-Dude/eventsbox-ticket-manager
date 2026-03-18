@@ -1,6 +1,6 @@
 # Phase 20 Plan — Advanced Analytics & Financial Reporting
 
-**Status:** READY
+**Status:** IMPLEMENTED
 **Depends on:** Phase 19 complete
 **Goal:** Give organizers rich breakdowns of revenue (by ticket type, by promo code, over time). Give admins a platform-wide financial dashboard. Add a monthly revenue summary email that admins can trigger per organizer.
 
@@ -171,10 +171,19 @@ Task 7 (tests)
 ## Status
 | Task | Status |
 |------|--------|
-| Organizer analytics API | TODO |
-| Organizer analytics UI | TODO |
-| Extended CSV export | TODO |
-| Admin analytics API | TODO |
-| Admin analytics UI | TODO |
-| Monthly report email | TODO |
-| Tests | TODO |
+| Organizer analytics API | DONE |
+| Organizer analytics UI | DONE |
+| Extended CSV export | DONE |
+| Admin analytics API | DONE |
+| Admin analytics UI | DONE |
+| Monthly report email | DONE |
+| Tests | DONE |
+
+## Completion Notes
+
+- Organizer analytics now exposes and renders revenue breakdowns by ticket type, promo code, add-on, day, affiliate source, and review summary.
+- Admin analytics now exposes and renders platform revenue, estimated commission, top organizers, top events, revenue by category, new-user counts, and platform review stats.
+- Admins can trigger organizer monthly revenue summary emails from `/admin/analytics` via `POST /api/admin/reports/send-monthly`.
+- Validation passed for `npm run typecheck`, `npm run build`, and the targeted Phase 20 integration tests.
+- Repo-wide `npm run lint` still reports pre-existing warnings only.
+- Repo-wide `npm run test:integration` remains intermittently blocked by shared Neon connectivity in older unrelated tests, including `src/tests/integration/attendee-account.test.ts`.

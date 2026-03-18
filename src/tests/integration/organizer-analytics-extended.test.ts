@@ -36,7 +36,7 @@ vi.mock("@/src/lib/auth/guards", () => ({
 
 import { GET } from "@/app/api/organizer/analytics/route";
 
-describe("organizer analytics integration", () => {
+describe("organizer analytics extended integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -47,16 +47,19 @@ describe("organizer analytics integration", () => {
         id: "event-1",
         title: "City Expo",
         status: "PUBLISHED",
-        startAt: new Date("2026-01-10T10:00:00.000Z"),
-        ticketTypes: [{ quantity: 100, sold: 32 }],
+        startAt: new Date("2026-04-10T10:00:00.000Z"),
+        ticketTypes: [
+          { quantity: 100, sold: 30 },
+          { quantity: 25, sold: 10 },
+        ],
         orders: [
           {
-            total: 120,
-            platformFee: 10,
-            paidAt: new Date("2026-02-01T08:00:00.000Z"),
+            total: 180,
+            platformFee: 18,
+            paidAt: new Date("2026-04-01T08:00:00.000Z"),
             tickets: [
+              { checkedInAt: new Date("2026-04-10T10:00:00.000Z"), isCheckedIn: true },
               { checkedInAt: null, isCheckedIn: false },
-              { checkedInAt: new Date("2026-02-01T10:00:00.000Z"), isCheckedIn: true },
             ],
           },
         ],
@@ -66,9 +69,14 @@ describe("organizer analytics integration", () => {
       if (args?.select?.items) {
         return [
           {
-            total: 120,
-            paidAt: new Date("2026-03-01T08:00:00.000Z"),
+            total: 180,
+            paidAt: new Date("2026-04-01T08:00:00.000Z"),
             items: [{ quantity: 2 }, { quantity: 1 }],
+          },
+          {
+            total: 90,
+            paidAt: new Date("2026-04-02T08:00:00.000Z"),
+            items: [{ quantity: 1 }],
           },
         ];
       }
@@ -76,8 +84,12 @@ describe("organizer analytics integration", () => {
       if (args?.select?.promoCode) {
         return [
           {
-            discountAmount: 15,
-            promoCode: { code: "SPRING15" },
+            discountAmount: 10,
+            promoCode: { code: "SPRING10" },
+          },
+          {
+            discountAmount: 5,
+            promoCode: { code: "SPRING10" },
           },
         ];
       }
@@ -85,7 +97,7 @@ describe("organizer analytics integration", () => {
       if (args?.select?.affiliateLink) {
         return [
           {
-            total: 120,
+            total: 180,
             affiliateLink: { code: "AFF-1", label: "Campus Crew" },
           },
         ];
@@ -94,8 +106,12 @@ describe("organizer analytics integration", () => {
       if (args?.orderBy?.paidAt === "asc") {
         return [
           {
-            total: 120,
-            paidAt: new Date("2026-03-01T08:00:00.000Z"),
+            total: 180,
+            paidAt: new Date("2026-04-01T08:00:00.000Z"),
+          },
+          {
+            total: 90,
+            paidAt: new Date("2026-04-02T08:00:00.000Z"),
           },
         ];
       }
@@ -105,65 +121,58 @@ describe("organizer analytics integration", () => {
     findOrderItemsMock.mockResolvedValue([
       {
         quantity: 2,
-        subtotal: 80,
+        subtotal: 120,
         ticketType: { name: "General Admission" },
       },
       {
         quantity: 1,
-        subtotal: 40,
+        subtotal: 60,
         ticketType: { name: "VIP" },
+      },
+      {
+        quantity: 1,
+        subtotal: 90,
+        ticketType: { name: "General Admission" },
       },
     ]);
     findOrderAddOnsMock.mockResolvedValue([
       {
         name: "Meal Voucher",
-        quantity: 2,
-        subtotal: 20,
+        quantity: 3,
+        subtotal: 30,
+      },
+      {
+        name: "Parking Pass",
+        quantity: 1,
+        subtotal: 12,
       },
     ]);
     aggregateReviewsMock.mockResolvedValue({
-      _avg: { rating: 4.5 },
-      _count: { id: 2 },
+      _avg: { rating: 4.2 },
+      _count: { id: 5 },
     });
   });
 
-  it("returns analytics payload for a valid period", async () => {
-    const req = new NextRequest("http://localhost/api/organizer/analytics?months=6");
+  it("returns extended revenue breakdowns", async () => {
+    const req = new NextRequest("http://localhost/api/organizer/analytics?months=3");
     const res = await GET(req);
     const payload = await res.json();
 
     expect(res.status).toBe(200);
-    expect(payload.success).toBe(true);
-    expect(payload.data.period.months).toBe(6);
-    expect(payload.data.monthly).toHaveLength(6);
-    expect(payload.data.summary.totalTicketsSold).toBe(32);
-    const ticketSum = payload.data.monthly.reduce((sum: number, month: { tickets: number }) => sum + month.tickets, 0);
-    expect(ticketSum).toBe(3);
-    expect(payload.data.topEvents).toHaveLength(1);
-    expect(payload.data.reviewSummary).toEqual({
-      averageRating: 4.5,
-      totalReviews: 2,
-    });
-  });
-
-  it("falls back to 12 months for invalid period input", async () => {
-    const req = new NextRequest("http://localhost/api/organizer/analytics?months=99");
-    const res = await GET(req);
-    const payload = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(payload.data.period.months).toBe(12);
-    expect(payload.data.monthly).toHaveLength(12);
-  });
-
-  it("returns 401 when unauthenticated", async () => {
-    requireRoleMock.mockRejectedValueOnce(new Error("UNAUTHENTICATED"));
-    const req = new NextRequest("http://localhost/api/organizer/analytics");
-    const res = await GET(req);
-    const payload = await res.json();
-
-    expect(res.status).toBe(401);
-    expect(payload.success).toBe(false);
-    expect(payload.error.code).toBe("UNAUTHENTICATED");
+    expect(payload.data.revenueByTicketType).toEqual([
+      { ticketTypeName: "General Admission", revenue: 210, sold: 3 },
+      { ticketTypeName: "VIP", revenue: 60, sold: 1 },
+    ]);
+    expect(payload.data.revenueByPromoCode).toEqual([
+      { code: "SPRING10", discount: 15, orders: 2 },
+    ]);
+    expect(payload.data.revenueByAddOn).toEqual([
+      { addOnName: "Meal Voucher", revenue: 30, quantity: 3 },
+      { addOnName: "Parking Pass", revenue: 12, quantity: 1 },
+    ]);
+    expect(payload.data.revenueByDay).toEqual([
+      { date: "2026-04-01", revenue: 180, orders: 1 },
+      { date: "2026-04-02", revenue: 90, orders: 1 },
+    ]);
   });
 });
