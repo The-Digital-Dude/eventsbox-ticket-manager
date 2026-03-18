@@ -35,6 +35,12 @@ type OrderSummary = {
     subtotal: number;
     ticketType: { name: string };
   }>;
+  orderAddOns: Array<{
+    quantity: number;
+    unitPrice: number;
+    subtotal: number;
+    addOn: { name: string };
+  }>;
 };
 
 function formatDate(iso: string) {
@@ -191,9 +197,15 @@ export default function CheckoutPage({ params }: { params: Promise<{ orderId: st
 
               <div className="border-t border-[var(--border)] pt-4 space-y-2 text-sm">
                 {order.items.map((item, i) => (
-                  <div key={i} className="flex justify-between text-neutral-700">
+                  <div key={`ticket-${i}`} className="flex justify-between text-neutral-700">
                     <span>{item.ticketType.name} × {item.quantity}</span>
                     <span>{formatCurrency(Number(item.subtotal), order.event.currency ?? 'USD')}</span>
+                  </div>
+                ))}
+                {order.orderAddOns?.map((ao, i) => (
+                  <div key={`addon-${i}`} className="flex justify-between text-neutral-600">
+                    <span>+ {ao.addOn.name} × {ao.quantity}</span>
+                    <span>{formatCurrency(Number(ao.subtotal), order.event.currency ?? 'USD')}</span>
                   </div>
                 ))}
                 <div className="border-t border-[var(--border)] pt-2 space-y-1 text-neutral-600">

@@ -24,6 +24,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           venue: { select: { name: true, addressLine1: true } },
         },
       },
+      orderAddOns: { include: { addOn: { select: { name: true } } } },
       items: {
         include: {
           ticketType: { select: { id: true, name: true, kind: true } },
