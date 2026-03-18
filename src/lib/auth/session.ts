@@ -3,12 +3,12 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { ACCESS_EXPIRES_SECONDS, ACCESS_TOKEN_COOKIE, REFRESH_EXPIRES_SECONDS, REFRESH_TOKEN_COOKIE } from "@/src/lib/auth/constants";
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from "@/src/lib/auth/jwt";
+import { signAccessToken, signRefreshToken, verifyAccessToken, verifyRefreshToken } from "@/src/lib/auth/jwt";
 
-type SessionUser = {
+export type SessionUser = {
   id: string;
   email: string;
-  role: "SUPER_ADMIN" | "ORGANIZER" | "ATTENDEE";
+  role: "SUPER_ADMIN" | "ORGANIZER" | "ATTENDEE" | "SCANNER";
 };
 
 function hashToken(raw: string) {
@@ -98,4 +98,17 @@ export function accessTokenFromRequest(req: NextRequest) {
   const bearer = req.headers.get("authorization")?.replace("Bearer ", "").trim();
   if (bearer) return bearer;
   return req.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
+}
+
+export async function getSession() {
+  const store = await cookies();
+  const token = store.get(ACCESS_TOKEN_COOKIE)?.value;
+  if (!token) return null;
+
+  try {
+    const payload = verifyAccessToken(token);
+    return { user: payload };
+  } catch {
+    return null;
+  }
 }

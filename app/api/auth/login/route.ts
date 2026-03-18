@@ -24,7 +24,10 @@ export async function POST(req: NextRequest) {
       return fail(429, { code: "RATE_LIMITED", message: "Too many attempts" });
     }
 
-    const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+    const user = await prisma.user.findUnique({
+      where: { email: parsed.data.email },
+      include: { scannerProfile: true },
+    });
     if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
       return fail(401, { code: "INVALID_CREDENTIALS", message: "Invalid email or password" });
     }
@@ -33,7 +36,14 @@ export async function POST(req: NextRequest) {
       return fail(403, { code: "ACCOUNT_DISABLED", message: "Account is disabled" });
     }
 
-    const response = NextResponse.json({ success: true, data: { role: user.role, emailVerified: user.emailVerified } });
+    const response = NextResponse.json({
+      success: true,
+      data: {
+        role: user.role,
+        emailVerified: user.emailVerified,
+        ...(user.role === "SCANNER" ? { scannerProfileId: user.scannerProfile?.id } : {}),
+      },
+    });
     await issueSession({ id: user.id, email: user.email, role: user.role }, response);
     return response;
   } catch (error) {

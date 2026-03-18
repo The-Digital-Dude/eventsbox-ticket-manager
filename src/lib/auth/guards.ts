@@ -29,3 +29,12 @@ export async function requireApprovedOrganizer(req: NextRequest) {
   }
   return { payload, profile };
 }
+
+export async function requireScanner(req: NextRequest) {
+  const payload = await requireRole(req, Role.SCANNER);
+  const profile = await prisma.scannerProfile.findUnique({ where: { userId: payload.sub } });
+  if (!profile) {
+    throw new Error("SCANNER_PROFILE_NOT_FOUND");
+  }
+  return { payload, profile };
+}
