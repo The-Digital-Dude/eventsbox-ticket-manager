@@ -25,6 +25,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
       state: { select: { id: true, name: true } },
       city: { select: { id: true, name: true } },
       series: { select: { id: true, title: true } },
+      addOns: {
+        where: { isActive: true },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          price: true,
+          maxPerOrder: true,
+          totalStock: true,
+        },
+      },
       ticketTypes: {
         where: { isActive: true },
         orderBy: { sortOrder: "asc" },
@@ -57,8 +69,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
 
   if (!event) return fail(404, { code: "NOT_FOUND", message: "Event not found" });
 
+  const addOnsWithStock = await Promise.all(
+    (event.addOns || []).map(async (a) => {
+      if (a.totalStock === null) return { ...a, remainingStock: null };
+      const agg = await prisma.orderAddOn.aggregate({
+        where: { addOnId: a.id, order: { status: "PAID" } },
+        _sum: { quantity: true },
+      });
+      const sold = agg._sum.quantity || 0;
+      return { ...a, remainingStock: Math.max(0, a.totalStock - sold) };
+    })
+  );
+
   return ok({
     ...event,
+    addOns: addOnsWithStock,
     images: event.images ?? [],
     venue: event.venue
       ? {

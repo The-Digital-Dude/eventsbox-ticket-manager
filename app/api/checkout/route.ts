@@ -22,7 +22,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { eventId, buyerName, buyerEmail, items, promoCodeId, selectedSeatIds = [] } = parsed.data;
+    const { eventId, buyerName, buyerEmail, items, promoCodeId, affiliateCode, selectedSeatIds = [], addOns = [], isWalkIn, scannerId } = parsed.data;
+
+    if (isWalkIn) {
+      if (!scannerId) return fail(400, { code: "SCANNER_ID_REQUIRED", message: "Scanner ID is required for walk-in orders" });
+      const scanner = await prisma.scannerProfile.findUnique({ where: { id: scannerId }, include: { user: true } });
+      if (!scanner || !scanner.user.isActive) return fail(403, { code: "INVALID_SCANNER", message: "Scanner account is not active" });
+    }
 
     const event = await prisma.event.findFirst({
       where: { id: eventId, status: "PUBLISHED" },
@@ -56,7 +62,6 @@ export async function POST(req: NextRequest) {
         ? organizerPayoutSettings.stripeAccountId
         : null;
 
-    const totalRequestedTickets = items.reduce((sum, item) => sum + item.quantity, 0);
     const uniqueSelectedSeatIds = Array.from(new Set(selectedSeatIds));
     const seatingConfig = (event.venue?.seatingConfig as VenueSeatingConfig | null) ?? null;
     const seatState = (event.venue?.seatState as Record<string, SeatState> | null) ?? null;
@@ -166,7 +171,7 @@ export async function POST(req: NextRequest) {
 
       const freshEvent = await tx.event.findFirst({
         where: { id: eventId, status: "PUBLISHED" },
-        include: { ticketTypes: true },
+        include: { ticketTypes: true, addOns: true },
       });
       if (!freshEvent) {
         throw new Error("EVENT_NOT_AVAILABLE");
@@ -207,6 +212,46 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      const resolvedAddOns: Array<{
+        addOn: typeof freshEvent.addOns[number];
+        quantity: number;
+        unitPrice: number;
+        subtotal: number;
+      }> = [];
+
+      for (const ao of addOns) {
+        const addOn = freshEvent.addOns.find((entry) => entry.id === ao.addOnId && entry.isActive);
+        if (!addOn) {
+          throw new Error(`INVALID_ADDON:${ao.addOnId}`);
+        }
+
+        if (ao.quantity > addOn.maxPerOrder) {
+          throw new Error(`EXCEEDS_MAX_ADDON:${addOn.name}:${addOn.maxPerOrder}`);
+        }
+
+        if (addOn.totalStock !== null) {
+          const agg = await tx.orderAddOn.aggregate({
+            where: { addOnId: addOn.id, order: { status: "PAID" } },
+            _sum: { quantity: true },
+          });
+          const sold = agg._sum.quantity || 0;
+          if (sold + ao.quantity > addOn.totalStock) {
+            const available = Math.max(0, addOn.totalStock - sold);
+            throw new Error(`INSUFFICIENT_ADDON_INVENTORY:${addOn.name}:${available}`);
+          }
+        }
+
+        const unitPrice = Number(addOn.price);
+        const itemSubtotal = unitPrice * ao.quantity;
+        subtotal += itemSubtotal;
+        resolvedAddOns.push({
+          addOn,
+          quantity: ao.quantity,
+          unitPrice,
+          subtotal: itemSubtotal,
+        });
+      }
+
       const discountedSubtotal = parseFloat(Math.max(0, subtotal - discountAmount).toFixed(2));
       const platformFee = parseFloat(
         (discountedSubtotal * (Number(freshEvent.commissionPct) / 100) + Number(freshEvent.platformFeeFixed)).toFixed(2),
@@ -216,6 +261,15 @@ export async function POST(req: NextRequest) {
       );
       const total = parseFloat((discountedSubtotal + platformFee + gst).toFixed(2));
 
+      let affiliateLinkId: string | undefined;
+      if (affiliateCode) {
+        const link = await tx.affiliateLink.findFirst({
+          where: { code: affiliateCode, isActive: true },
+          select: { id: true },
+        });
+        if (link) affiliateLinkId = link.id;
+      }
+
       const createdOrder = await tx.order.create({
         data: {
           eventId,
@@ -224,6 +278,7 @@ export async function POST(req: NextRequest) {
           subtotal,
           discountAmount,
           promoCodeId: promoCodeRecordId,
+          affiliateLinkId,
           platformFee,
           gst,
           total,
@@ -236,8 +291,17 @@ export async function POST(req: NextRequest) {
               subtotal: resolved.subtotal,
             })),
           },
+          orderAddOns: {
+            create: resolvedAddOns.map((resolved) => ({
+              addOnId: resolved.addOn.id,
+              name: resolved.addOn.name,
+              quantity: resolved.quantity,
+              unitPrice: resolved.unitPrice,
+              subtotal: resolved.subtotal,
+            })),
+          },
         },
-        include: { items: true },
+        include: { items: true, orderAddOns: true },
       });
 
       if (seatingConfig) {
@@ -266,7 +330,7 @@ export async function POST(req: NextRequest) {
       }
 
       return createdOrder;
-    });
+    }, { maxWait: 15000, timeout: 15000 });
 
     const session = await getServerSession();
     if (session && session.user.role === "ATTENDEE") {
@@ -348,6 +412,24 @@ export async function POST(req: NextRequest) {
         return fail(400, {
           code: "EXCEEDS_MAX",
           message: `Maximum ${extra} tickets per order for "${detail}"`,
+        });
+      }
+      if (code === "INVALID_ADDON") {
+        return fail(400, {
+          code: "INVALID_ADDON",
+          message: `Add-on ${detail} not found or inactive`,
+        });
+      }
+      if (code === "INSUFFICIENT_ADDON_INVENTORY") {
+        return fail(400, {
+          code: "INSUFFICIENT_ADDON_INVENTORY",
+          message: `Only ${extra} available for add-on "${detail}"`,
+        });
+      }
+      if (code === "EXCEEDS_MAX_ADDON") {
+        return fail(400, {
+          code: "EXCEEDS_MAX_ADDON",
+          message: `Maximum ${extra} allowed per order for add-on "${detail}"`,
         });
       }
       if (code === "SEAT_ALREADY_RESERVED") {
