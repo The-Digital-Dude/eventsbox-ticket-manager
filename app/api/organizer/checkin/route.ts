@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
     const updated = await prisma.qRTicket.update({
       where: { id: ticket.id },
-      data: { checkedInAt: new Date() },
+      data: { checkedInAt: new Date(), isCheckedIn: true, checkedInDevice: null },
     });
 
     return ok({

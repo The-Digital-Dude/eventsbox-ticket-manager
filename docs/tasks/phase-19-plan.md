@@ -1,6 +1,6 @@
 # Phase 19 Plan — Event Reviews & Ratings
 
-**Status:** READY
+**Status:** DONE (2026-03-18)
 **Depends on:** Phase 18 complete
 **Goal:** Attendees who attended a paid event can leave a 1–5 star rating and comment. Reviews show publicly on event pages and organizer profile pages. Admins can moderate (hide) reviews. Organizers see reviews on their event dashboard.
 

@@ -3,7 +3,14 @@
 ## Active Task
 **Phases 16–20 — Affiliate, Add-ons, Scanner Role, Reviews, Advanced Analytics**
 
-**Status:** READY — individual plans at `docs/tasks/phase-16-plan.md` through `phase-20-plan.md`; combined Gemini prompt at `docs/tasks/codex-phases16-20-prompt.md`
+**Status:** IN PROGRESS — Phases 16–19 complete, Phase 18b complete, Phase 20 pending; individual plans at `docs/tasks/phase-16-plan.md` through `phase-20-plan.md`; combined Gemini prompt at `docs/tasks/codex-phases16-20-prompt.md`
+
+**Latest Handoff (2026-03-18):**
+- Phase 19 is implemented: attendees can submit one review per attended paid event after it ends, organizers can see event reviews, admins can hide/show reviews, public event payloads include visible reviews plus aggregate rating data, and attendee order history now prompts for post-event ratings.
+- Event rating aggregates are persisted on `Event.reviewCount` and `Event.avgRating`, with recalculation wired into review create/delete/moderation flows.
+- Phase 18b scanner backend is implemented on top of the existing `ScannerProfile` architecture: new scanner event/ticket/state/device APIs exist, batch check-in supports OK/DUPLICATE/NOT_FOUND outcomes, and scanner/organizer/manual check-ins now keep `isCheckedIn`, `checkedInAt`, and `checkedInDevice` in sync.
+- Added integration coverage in `src/tests/integration/event-reviews.test.ts` and `src/tests/integration/scanner-app-api.test.ts`.
+- Validation pending on this handoff: run `npx prisma db push`, `npx prisma generate`, `npm run lint`, `npm run typecheck`, `npm run test:integration`, and `npm run build`.
 
 ---
 

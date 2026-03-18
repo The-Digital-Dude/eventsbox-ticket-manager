@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       prisma.order.findMany({
         where,
         include: {
-          event: { select: { title: true, startAt: true, slug: true, cancellationDeadlineHours: true, refundPercent: true } },
+          event: { select: { id: true, title: true, startAt: true, endAt: true, slug: true, cancellationDeadlineHours: true, refundPercent: true } },
           cancellationRequest: {
             select: { id: true, status: true },
           },
@@ -64,8 +64,24 @@ export async function GET(req: NextRequest) {
       prisma.order.count({ where }),
     ]);
 
+    const reviews = await prisma.eventReview.findMany({
+      where: {
+        attendeeUserId: profile.id,
+        eventId: {
+          in: orders.map((order) => order.event.id),
+        },
+      },
+      select: {
+        id: true,
+        eventId: true,
+      },
+    });
+
+    const reviewByEventId = new Map(reviews.map((review) => [review.eventId, review.id]));
+
     const mappedOrders = orders.map((order) => ({
       ...order,
+      reviewId: reviewByEventId.get(order.event.id) ?? null,
       items: order.items.map((item) => ({
         ...item,
         tickets: item.tickets.map((ticket) => ({

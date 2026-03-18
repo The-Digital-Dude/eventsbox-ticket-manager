@@ -45,6 +45,28 @@ async function getOrganizerProfile(id: string) {
   });
 }
 
+async function getOrganizerReviewSummary(id: string) {
+  const summary = await prisma.eventReview.aggregate({
+    where: {
+      isVisible: true,
+      event: {
+        organizerProfileId: id,
+      },
+    },
+    _avg: {
+      rating: true,
+    },
+    _count: {
+      id: true,
+    },
+  });
+
+  return {
+    averageRating: summary._count.id > 0 ? Number((summary._avg.rating ?? 0).toFixed(1)) : 0,
+    reviewCount: summary._count.id ?? 0,
+  };
+}
+
 function formatDate(value: Date) {
   return value.toLocaleDateString(undefined, {
     weekday: "short",
@@ -60,7 +82,10 @@ export default async function OrganizerPublicProfilePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const organizer = await getOrganizerProfile(id);
+  const [organizer, reviewSummary] = await Promise.all([
+    getOrganizerProfile(id),
+    getOrganizerReviewSummary(id),
+  ]);
 
   if (!organizer) {
     notFound();
@@ -86,6 +111,11 @@ export default async function OrganizerPublicProfilePage({
             <h1 className="text-4xl font-bold tracking-tight text-neutral-900 md:text-5xl">
               {displayName}
             </h1>
+            {reviewSummary.reviewCount > 0 && (
+              <p className="text-sm font-medium text-neutral-700">
+                ★ {reviewSummary.averageRating.toFixed(1)} ({reviewSummary.reviewCount} review{reviewSummary.reviewCount === 1 ? "" : "s"})
+              </p>
+            )}
             <div className="space-y-2 text-neutral-600">
               <p>{(organizer.companyName && organizer.companyName !== "N/A") ? organizer.companyName : "Independent organizer"}</p>
               {organizer.website && (

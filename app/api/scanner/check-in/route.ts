@@ -24,7 +24,9 @@ export async function POST(req: NextRequest) {
     // Check-in logic using raw query for performance on a potentially large table
     const updated = await prisma.$executeRaw`
       UPDATE "QRTicket"
-      SET "checkedInAt" = NOW()
+      SET "checkedInAt" = NOW(),
+          "isCheckedIn" = true,
+          "checkedInDevice" = NULL
       WHERE id = ${ticketId}
         AND "checkedInAt" IS NULL
         AND "orderId" IN (
