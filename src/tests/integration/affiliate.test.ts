@@ -29,15 +29,15 @@ describe("affiliate tickets integration", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
-    await prisma.affiliateLink.deleteMany();
-    await prisma.eventSeatBooking.deleteMany();
-    await prisma.qRTicket.deleteMany();
-    await prisma.orderItem.deleteMany();
-    await prisma.order.deleteMany();
-    await prisma.ticketType.deleteMany();
-    await prisma.event.deleteMany();
-    await prisma.organizerProfile.deleteMany();
-    await prisma.user.deleteMany();
+    await prisma.affiliateLink.deleteMany({ where: { event: { slug: { in: ["test-event","first-event","gallery-event","opening-night","seat-test","summer-fest","event"] } } } });
+    await prisma.eventSeatBooking.deleteMany({ where: { event: { slug: { in: ["test-event","first-event","gallery-event","opening-night","seat-test","summer-fest","event"] } } } });
+    await prisma.qRTicket.deleteMany({ where: { order: { event: { slug: { in: ["test-event","first-event","gallery-event","opening-night","seat-test","summer-fest","event"] } } } } });
+    await prisma.orderItem.deleteMany({ where: { order: { event: { slug: { in: ["test-event","first-event","gallery-event","opening-night","seat-test","summer-fest","event"] } } } } });
+    await prisma.order.deleteMany({ where: { event: { slug: { in: ["test-event","first-event","gallery-event","opening-night","seat-test","summer-fest","event"] } } } });
+    await prisma.ticketType.deleteMany({ where: { event: { slug: { in: ["test-event","first-event","gallery-event","opening-night","seat-test","summer-fest","event"] } } } });
+    await prisma.event.deleteMany({ where: { slug: { in: ["test-event","first-event","gallery-event","opening-night","seat-test","summer-fest","event"] } } });
+    await prisma.organizerProfile.deleteMany({ where: { user: { email: { in: ["org@test.com","org@example.com","att@test.com","attendee@example.com","buyer@example.com","organizer@example.com","one@example.com","two@example.com","Buyer@Example.com"] } } } });
+    await prisma.user.deleteMany({ where: { email: { in: ["org@test.com","org@example.com","att@test.com","attendee@example.com","buyer@example.com","organizer@example.com","one@example.com","two@example.com","Buyer@Example.com"] } } });
 
     const user = await prisma.user.create({
       data: { email: "org@test.com", passwordHash: "hash", role: "ORGANIZER" },
