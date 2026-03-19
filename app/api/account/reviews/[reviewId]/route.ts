@@ -1,19 +1,12 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { requireAttendee } from "@/src/lib/auth/require-attendee";
+import { authErrorResponse as mapAuthError } from "@/src/lib/auth/error-response";
 import { fail, ok } from "@/src/lib/http/response";
 import { syncEventReviewSummary } from "@/src/lib/services/event-reviews";
 
 function authErrorResponse(error: unknown) {
-  if (error instanceof Error && error.message === "UNAUTHENTICATED") {
-    return fail(401, { code: "UNAUTHENTICATED", message: "Login required" });
-  }
-
-  if (error instanceof Error && error.message === "FORBIDDEN") {
-    return fail(403, { code: "FORBIDDEN", message: "Attendee account required" });
-  }
-
-  return null;
+  return mapAuthError(error, { forbiddenMessage: "Attendee account required" });
 }
 
 export async function DELETE(

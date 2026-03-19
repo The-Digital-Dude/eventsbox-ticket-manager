@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
 import { requireAttendee } from "@/src/lib/auth/require-attendee";
+import { authErrorResponse } from "@/src/lib/auth/error-response";
 
 const profilePatchSchema = z.object({
   displayName: z.string().max(100).optional(),
@@ -33,13 +34,8 @@ export async function GET(req: NextRequest) {
       createdAt: profile.createdAt,
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHENTICATED") {
-      return fail(401, { code: "UNAUTHENTICATED", message: "Login required" });
-    }
-
-    if (error instanceof Error && error.message === "FORBIDDEN") {
-      return fail(403, { code: "FORBIDDEN", message: "Attendee account required" });
-    }
+    const authResponse = authErrorResponse(error, { forbiddenMessage: "Attendee account required" });
+    if (authResponse) return authResponse;
 
     console.error("[app/api/account/profile/route.ts][GET]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to load profile" });
@@ -76,13 +72,8 @@ export async function PATCH(req: NextRequest) {
       marketingOptOut: parsed.data.marketingOptOut ?? undefined,
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHENTICATED") {
-      return fail(401, { code: "UNAUTHENTICATED", message: "Login required" });
-    }
-
-    if (error instanceof Error && error.message === "FORBIDDEN") {
-      return fail(403, { code: "FORBIDDEN", message: "Attendee account required" });
-    }
+    const authResponse = authErrorResponse(error, { forbiddenMessage: "Attendee account required" });
+    if (authResponse) return authResponse;
 
     console.error("[app/api/account/profile/route.ts][PATCH]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to update profile" });

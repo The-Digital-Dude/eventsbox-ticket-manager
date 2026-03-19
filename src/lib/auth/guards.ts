@@ -10,6 +10,13 @@ export async function requireAuth(req: NextRequest) {
     throw new Error("UNAUTHENTICATED");
   }
   const payload = verifyAccessToken(token);
+  const user = await prisma.user.findUnique({
+    where: { id: payload.sub },
+    select: { isActive: true },
+  });
+  if (!user || !user.isActive) {
+    throw new Error("ACCOUNT_SUSPENDED");
+  }
   return payload;
 }
 

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { Role } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
+import { authErrorResponse } from "@/src/lib/auth/error-response";
 import { fail } from "@/src/lib/http/response";
 import { getOrganizerAnalyticsData } from "@/src/lib/analytics/organizer";
 
@@ -96,6 +97,8 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
+    const authResponse = authErrorResponse(error, { forbiddenMessage: "Organizer only" });
+    if (authResponse) return authResponse;
     console.error("[api/organizer/analytics/export] export failed", error);
     return fail(403, { code: "FORBIDDEN", message: "Organizer only" });
   }

@@ -3,6 +3,7 @@ import { OrderStatus } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { ok, fail } from "@/src/lib/http/response";
 import { requireAttendee } from "@/src/lib/auth/require-attendee";
+import { authErrorResponse } from "@/src/lib/auth/error-response";
 
 const PAGE_SIZE = 10;
 
@@ -96,13 +97,8 @@ export async function GET(req: NextRequest) {
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     return ok({ orders: mappedOrders, total, pages });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHENTICATED") {
-      return fail(401, { code: "UNAUTHENTICATED", message: "Login required" });
-    }
-
-    if (error instanceof Error && error.message === "FORBIDDEN") {
-      return fail(403, { code: "FORBIDDEN", message: "Attendee account required" });
-    }
+    const authResponse = authErrorResponse(error, { forbiddenMessage: "Attendee account required" });
+    if (authResponse) return authResponse;
 
     console.error("[app/api/account/orders/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to load orders" });

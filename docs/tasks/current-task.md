@@ -1,11 +1,16 @@
 # Current Task
 
 ## Active Task
-**Phases 16–20 — Affiliate, Add-ons, Scanner Role, Reviews, Advanced Analytics**
+**Phases 16–21 — Affiliate, Add-ons, Scanner Role, Reviews, Advanced Analytics, Production Hardening**
 
-**Status:** IN PROGRESS — Phases 16–20 implemented, with final full-suite integration validation still blocked by intermittent Neon connectivity in older shared-db tests; individual plans at `docs/tasks/phase-16-plan.md` through `phase-20-plan.md`; combined Gemini prompt at `docs/tasks/codex-phases16-20-prompt.md`
+**Status:** IN PROGRESS — Phases 16–21 implemented, with final full-suite integration validation still blocked by intermittent Neon connectivity in older shared-db tests; individual plans at `docs/tasks/phase-16-plan.md` through `phase-21-plan.md`; combined Gemini prompt at `docs/tasks/codex-phases16-20-prompt.md`
 
-**Latest Handoff (2026-03-18):**
+**Latest Handoff (2026-03-19):**
+- Phase 21 is implemented: JWT-authenticated requests now re-check `User.isActive` in the auth guard, refresh rotation blocks suspended users, server-side session readers ignore inactive users, token cleanup and event reminder cron routes were added, `Order.reminderSentAt` now prevents duplicate reminder sends, and ops docs were added for Redis, Sentry, cron, and Stripe production webhook setup.
+- Added `src/tests/integration/auth-hardening.test.ts` and `src/tests/integration/cron-reminders.test.ts` to cover suspended-user JWT enforcement and idempotent event reminder cron behavior.
+- Validation on this handoff: `npx prisma db push` passed, `npx prisma generate` passed, `npm run typecheck` passed, targeted Phase 21 tests passed, and `npm run build`/`npm run lint` remain the final gate to run after this handoff.
+- Repo-wide `npm run test:integration` remains intermittently blocked outside Phase 21 by older shared-db tests that sometimes fail on Neon connectivity.
+
 - Phase 19 is implemented: attendees can submit one review per attended paid event after it ends, organizers can see event reviews, admins can hide/show reviews, public event payloads include visible reviews plus aggregate rating data, and attendee order history now prompts for post-event ratings.
 - Event rating aggregates are persisted on `Event.reviewCount` and `Event.avgRating`, with recalculation wired into review create/delete/moderation flows.
 - Phase 18b scanner backend is implemented on top of the existing `ScannerProfile` architecture: new scanner event/ticket/state/device APIs exist, batch check-in supports OK/DUPLICATE/NOT_FOUND outcomes, and scanner/organizer/manual check-ins now keep `isCheckedIn`, `checkedInAt`, and `checkedInDevice` in sync.

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { Role } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
+import { authErrorResponse } from "@/src/lib/auth/error-response";
 import { fail, ok } from "@/src/lib/http/response";
 import { getOrganizerAnalyticsData } from "@/src/lib/analytics/organizer";
 
@@ -32,9 +33,8 @@ export async function GET(req: NextRequest) {
 
     return ok(analytics);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "";
-    if (msg === "UNAUTHENTICATED") return fail(401, { code: "UNAUTHENTICATED", message: "Login required" });
-    if (msg === "FORBIDDEN") return fail(403, { code: "FORBIDDEN", message: "Access denied" });
+    const authResponse = authErrorResponse(err, { forbiddenMessage: "Access denied" });
+    if (authResponse) return authResponse;
     return fail(500, { code: "INTERNAL_ERROR", message: "Failed to fetch analytics" });
   }
 }

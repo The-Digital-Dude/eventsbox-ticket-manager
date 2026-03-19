@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/src/lib/db";
 import { requireAttendee } from "@/src/lib/auth/require-attendee";
 import { fail, ok } from "@/src/lib/http/response";
+import { authErrorResponse as mapAuthError } from "@/src/lib/auth/error-response";
 import { getReviewAttendeeName, syncEventReviewSummary } from "@/src/lib/services/event-reviews";
 
 const reviewSchema = z.object({
@@ -12,15 +13,7 @@ const reviewSchema = z.object({
 });
 
 function authErrorResponse(error: unknown) {
-  if (error instanceof Error && error.message === "UNAUTHENTICATED") {
-    return fail(401, { code: "UNAUTHENTICATED", message: "Login required" });
-  }
-
-  if (error instanceof Error && error.message === "FORBIDDEN") {
-    return fail(403, { code: "FORBIDDEN", message: "Attendee account required" });
-  }
-
-  return null;
+  return mapAuthError(error, { forbiddenMessage: "Attendee account required" });
 }
 
 async function getAttendeeProfileId(userId: string) {

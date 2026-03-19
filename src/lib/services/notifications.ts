@@ -498,6 +498,60 @@ export async function sendMonthlyRevenueReport(input: {
   });
 }
 
+export async function sendEventReminderEmail(input: {
+  buyerName: string;
+  buyerEmail: string;
+  eventTitle: string;
+  eventStartAt: Date;
+  venueName: string;
+  orderId: string;
+}) {
+  const formattedStartAt = new Intl.DateTimeFormat("en-US", {
+    dateStyle: "full",
+    timeStyle: "short",
+  }).format(new Date(input.eventStartAt));
+  const orderUrl = `${env.APP_URL}/orders/${input.orderId}`;
+  const subject = `Reminder: ${input.eventTitle} is tomorrow`;
+
+  const text = [
+    `Hi ${input.buyerName},`,
+    "",
+    `Just a reminder that ${input.eventTitle} is happening tomorrow.`,
+    `When: ${formattedStartAt}`,
+    `Venue: ${input.venueName}`,
+    `Order: ${input.orderId}`,
+    "",
+    `View your tickets: ${orderUrl}`,
+    "",
+    "See you there.",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#111827">
+      <p>Hi <strong>${input.buyerName}</strong>,</p>
+      <p>This is a reminder that <strong>${input.eventTitle}</strong> is happening tomorrow.</p>
+      <div style="border:1px solid #e5e7eb;border-radius:12px;padding:20px;background:#f9fafb;margin:20px 0">
+        <p style="margin:0 0 10px"><strong>When:</strong> ${formattedStartAt}</p>
+        <p style="margin:0 0 10px"><strong>Venue:</strong> ${input.venueName}</p>
+        <p style="margin:0"><strong>Order:</strong> ${input.orderId}</p>
+      </div>
+      <p>
+        <a href="${orderUrl}" style="display:inline-block;padding:12px 24px;background:#1e1b4b;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600">
+          View Order
+        </a>
+      </p>
+      <p>See you there.</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: input.buyerEmail,
+    subject,
+    text,
+    html,
+  });
+}
+
 export async function sendOrganizerCancellationRequestEmail(input: {
   to: string;
   attendeeEmail: string;

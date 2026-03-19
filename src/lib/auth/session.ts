@@ -70,6 +70,9 @@ export async function rotateRefreshToken(rawRefreshToken: string, response: Next
   if (!user) {
     throw new Error("User not found");
   }
+  if (!user.isActive) {
+    throw new Error("ACCOUNT_SUSPENDED");
+  }
 
   return issueSession(
     { id: user.id, email: user.email, role: user.role },
@@ -107,7 +110,12 @@ export async function getSession() {
 
   try {
     const payload = verifyAccessToken(token);
-    return { user: payload };
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, email: true, role: true, isActive: true },
+    });
+    if (!user || !user.isActive) return null;
+    return { user };
   } catch {
     return null;
   }

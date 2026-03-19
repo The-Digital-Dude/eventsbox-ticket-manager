@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
+import { authErrorResponse } from "@/src/lib/auth/error-response";
 import { fail, ok } from "@/src/lib/http/response";
 import { sendMonthlyRevenueReport } from "@/src/lib/services/notifications";
 
@@ -98,12 +99,8 @@ export async function POST(req: NextRequest) {
       email: organizer.user.email,
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHENTICATED") {
-      return fail(401, { code: "UNAUTHENTICATED", message: "Login required" });
-    }
-    if (error instanceof Error && error.message === "FORBIDDEN") {
-      return fail(403, { code: "FORBIDDEN", message: "Super admin access required" });
-    }
+    const authResponse = authErrorResponse(error, { forbiddenMessage: "Super admin access required" });
+    if (authResponse) return authResponse;
 
     console.error("[app/api/admin/reports/send-monthly/route.ts][POST]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to send monthly revenue report" });
