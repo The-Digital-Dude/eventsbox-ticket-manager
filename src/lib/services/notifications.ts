@@ -103,6 +103,7 @@ export async function sendOrderConfirmationEmail(input: {
     ticketTypeName: string;
   }>;
   orderUrl: string;
+  customMessage?: string | null;
 }) {
   const formattedStartAt = new Intl.DateTimeFormat("en-US", {
     dateStyle: "full",
@@ -112,6 +113,7 @@ export async function sendOrderConfirmationEmail(input: {
 
   const subject = `Booking confirmed: ${input.eventTitle}`;
 
+  const organizerMessage = input.customMessage?.trim();
   const text = [
     `Hi ${input.buyerName},`,
     "",
@@ -126,6 +128,7 @@ export async function sendOrderConfirmationEmail(input: {
     "",
     `View your tickets & QR codes: ${input.orderUrl}`,
     "",
+    ...(organizerMessage ? ["Message from the organiser:", organizerMessage, ""] : []),
     "Present your QR code at the door for entry.",
     "",
     "Thanks for booking with EventsBox.",
@@ -199,6 +202,17 @@ export async function sendOrderConfirmationEmail(input: {
             Present your QR code at the door for entry
           </p>
         </div>
+
+        ${
+          organizerMessage
+            ? `
+              <div style="margin-bottom:24px;border:1px solid #e5e7eb;border-radius:10px;padding:16px;background:#fff7ed">
+                <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#9a3412">Message from the organiser:</p>
+                <p style="margin:0;font-size:14px;line-height:1.6;color:#7c2d12">${organizerMessage}</p>
+              </div>
+            `
+            : ""
+        }
 
         <!-- Order ID -->
         <div style="border-top:1px solid #f3f4f6;padding-top:16px;text-align:center">

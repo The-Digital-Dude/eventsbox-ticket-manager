@@ -1,5 +1,6 @@
 import { prisma } from "@/src/lib/db";
 import { env } from "@/src/lib/env";
+import { createNotification } from "@/src/lib/services/notify";
 import { sendWaitlistAvailabilityEmail } from "@/src/lib/services/notifications";
 
 export async function notifyWaitlist(ticketTypeId: string, slotsFreed: number): Promise<void> {
@@ -31,6 +32,11 @@ export async function notifyWaitlist(ticketTypeId: string, slotsFreed: number): 
       id: true,
       email: true,
       name: true,
+      attendeeProfile: {
+        select: {
+          userId: true,
+        },
+      },
     },
   });
   if (entries.length === 0) return;
@@ -38,15 +44,31 @@ export async function notifyWaitlist(ticketTypeId: string, slotsFreed: number): 
   const eventUrl = `${env.APP_URL}/events/${ticketType.event.slug}`;
 
   await Promise.allSettled(
-    entries.map((entry) =>
-      sendWaitlistAvailabilityEmail({
-        to: entry.email,
-        name: entry.name,
-        ticketName: ticketType.name,
-        eventTitle: ticketType.event.title,
-        eventUrl,
-      }),
-    ),
+    entries.flatMap((entry) => {
+      const tasks: Array<Promise<unknown>> = [
+        sendWaitlistAvailabilityEmail({
+          to: entry.email,
+          name: entry.name,
+          ticketName: ticketType.name,
+          eventTitle: ticketType.event.title,
+          eventUrl,
+        }),
+      ];
+
+      if (entry.attendeeProfile?.userId) {
+        tasks.push(
+          createNotification(
+            entry.attendeeProfile.userId,
+            "WAITLIST_OPEN",
+            "Spot available!",
+            `${ticketType.name} for ${ticketType.event.title} is available again.`,
+            `/events/${ticketType.event.slug}`,
+          ),
+        );
+      }
+
+      return tasks;
+    }),
   );
 
   await prisma.waitlist.updateMany({

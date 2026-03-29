@@ -10,6 +10,8 @@ export const organizerOnboardingSchema = z.object({
   alternatePhone: z.string().optional(),
   supportEmail: z.string().optional(),
   facebookPage: z.string().optional(),
+  twitterUrl: z.string().optional(),
+  instagramUrl: z.string().optional(),
   socialMediaLink: z.string().optional(),
   contactName: z.string().min(2),
   taxId: z.string().optional(),
