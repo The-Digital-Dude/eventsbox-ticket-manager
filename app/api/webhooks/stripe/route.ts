@@ -6,6 +6,7 @@ import { env } from "@/src/lib/env";
 import { getStripeClient } from "@/src/lib/stripe/client";
 import { prisma } from "@/src/lib/db";
 import { sendOrderConfirmationEmail } from "@/src/lib/services/notifications";
+import { createNotification } from "@/src/lib/services/notify";
 import {
   markSeatBookingsBooked,
   releaseSeatBookingsForOrder,
@@ -163,6 +164,7 @@ async function handlePaymentSucceeded(intent: Stripe.PaymentIntent) {
           title: true,
           startAt: true,
           timezone: true,
+          customConfirmationMessage: true,
           venue: {
             select: {
               name: true,
@@ -227,6 +229,7 @@ async function handlePaymentSucceeded(intent: Stripe.PaymentIntent) {
           title: true,
           startAt: true,
           timezone: true,
+          customConfirmationMessage: true,
           venue: {
             select: {
               name: true,
@@ -271,6 +274,7 @@ async function handlePaymentSucceeded(intent: Stripe.PaymentIntent) {
         ticketTypeName: ticket.orderItem.ticketType.name,
       })),
       orderUrl: `${env.APP_URL}/orders/${order.id}`,
+      customMessage: paidOrder.event.customConfirmationMessage,
     });
 
     if (!emailResult.sent) {
@@ -278,6 +282,23 @@ async function handlePaymentSucceeded(intent: Stripe.PaymentIntent) {
     }
   } catch (error) {
     console.error("[app/api/webhooks/stripe/route.ts][sendOrderConfirmationEmail]", error);
+  }
+
+  if (order.attendeeUserId) {
+    const attendeeProfile = await prisma.attendeeProfile.findUnique({
+      where: { id: order.attendeeUserId },
+      select: { userId: true },
+    });
+
+    if (attendeeProfile) {
+      await createNotification(
+        attendeeProfile.userId,
+        "ORDER_CONFIRMED",
+        "Booking confirmed!",
+        `Your tickets for ${paidOrder.event.title} are ready.`,
+        "/account/tickets",
+      ).catch(() => {});
+    }
   }
 }
 

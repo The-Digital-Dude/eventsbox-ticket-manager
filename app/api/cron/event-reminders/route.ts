@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { EventStatus, OrderStatus } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
+import { createNotification } from "@/src/lib/services/notify";
 import { sendEventReminderEmail } from "@/src/lib/services/notifications";
 
 function isAuthorizedCron(req: NextRequest) {
@@ -30,6 +31,11 @@ export async function GET(req: NextRequest) {
         },
       },
       include: {
+        attendeeProfile: {
+          select: {
+            userId: true,
+          },
+        },
         event: {
           include: {
             venue: {
@@ -60,6 +66,16 @@ export async function GET(req: NextRequest) {
           where: { id: order.id },
           data: { reminderSentAt: new Date() },
         });
+
+        if (order.attendeeProfile?.userId) {
+          await createNotification(
+            order.attendeeProfile.userId,
+            "EVENT_REMINDER",
+            "Your event is tomorrow!",
+            `${order.event.title} starts tomorrow.`,
+            `/orders/${order.id}`,
+          ).catch(() => {});
+        }
         reminders += 1;
       } catch (error) {
         console.error("[app/api/cron/event-reminders/route.ts] reminder send failed", {
