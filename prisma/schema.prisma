@@ -31,6 +31,7 @@ enum VenueStatus {
 
 enum PayoutMode {
   STRIPE_CONNECT
+  AUTO
   MANUAL
 }
 
@@ -118,6 +119,7 @@ model User {
   compIssuances    CompTicketIssuance[]
   scannerProfile   ScannerProfile?
   scannerDevices   ScannerDevice[]
+  notifications    Notification[]
 }
 
 model RefreshToken {
@@ -145,6 +147,8 @@ model OrganizerProfile {
   alternatePhone   String?
   supportEmail     String?
   facebookPage     String?
+  twitterUrl       String?
+  instagramUrl     String?
   socialMediaLink  String?
   contactName      String?
   taxId            String?
@@ -182,6 +186,7 @@ model AttendeeProfile {
   orders               Order[]
   cancellationRequests CancellationRequest[]
   reviews              EventReview[]
+  waitlists            Waitlist[]
 }
 
 model OrganizerPayoutSettings {
@@ -203,6 +208,8 @@ model PayoutRequest {
   note               String?
   status             PayoutRequestStatus @default(PENDING)
   adminNote          String?
+  stripeTransferId   String?
+  failureReason      String?
   requestedAt        DateTime            @default(now())
   resolvedAt         DateTime?
   createdAt          DateTime            @default(now())
@@ -344,6 +351,7 @@ model Event {
   refundPolicy                String?
   cancellationDeadlineHours   Int?
   refundPercent               Int      @default(100)
+  customConfirmationMessage   String?
   startAt            DateTime
   endAt              DateTime
   timezone           String           @default("UTC")
@@ -592,19 +600,37 @@ model EventSeatBooking {
 }
 
 model Waitlist {
-  id           String     @id @default(cuid())
-  eventId      String
-  ticketTypeId String
-  email        String
-  name         String?
-  notifiedAt   DateTime?
-  createdAt    DateTime   @default(now())
-  event        Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
+  id                String           @id @default(cuid())
+  eventId           String
+  ticketTypeId      String
+  attendeeProfileId String?
+  email             String
+  name              String?
+  notifiedAt        DateTime?
+  createdAt         DateTime         @default(now())
+  event             Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketType        TicketType       @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
+  attendeeProfile   AttendeeProfile? @relation(fields: [attendeeProfileId], references: [id], onDelete: SetNull)
 
   @@unique([ticketTypeId, email])
   @@index([eventId])
   @@index([ticketTypeId])
+  @@index([attendeeProfileId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  actionUrl String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
 }
 
 model AuditLog {
