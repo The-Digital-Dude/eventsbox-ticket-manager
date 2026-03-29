@@ -80,6 +80,45 @@ export default async function OrganizerDashboardPage() {
     payoutSettings?.payoutMode === "MANUAL"
       ? Boolean(payoutSettings.manualPayoutNote)
       : payoutSettings?.stripeOnboardingStatus === StripeOnboardingStatus.COMPLETED;
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const [pendingCancellations, unreadReviews, revenueThisMonth] = await Promise.all([
+    prisma.cancellationRequest.count({
+      where: {
+        order: {
+          event: {
+            organizerProfileId: profile.id,
+          },
+        },
+        status: "PENDING",
+      },
+    }),
+    prisma.eventReview.count({
+      where: {
+        event: {
+          organizerProfileId: profile.id,
+        },
+        isVisible: true,
+        createdAt: { gte: sevenDaysAgo },
+      },
+    }),
+    prisma.order.aggregate({
+      where: {
+        event: {
+          organizerProfileId: profile.id,
+        },
+        status: "PAID",
+        paidAt: { gte: startOfMonth },
+      },
+      _sum: {
+        total: true,
+      },
+    }),
+  ]);
 
   return (
     <SidebarLayout role="organizer" title="Organizer" items={nav}>
@@ -221,7 +260,7 @@ export default async function OrganizerDashboardPage() {
           </div>
           <p className="text-4xl font-semibold tracking-tight text-neutral-900">{payoutConfigured ? "Ready" : "Pending"}</p>
           <p className="mt-2 text-sm text-neutral-600">
-            {payoutSettings?.payoutMode === "STRIPE_CONNECT"
+            {payoutSettings?.payoutMode && payoutSettings.payoutMode !== "MANUAL"
               ? `Stripe: ${payoutSettings?.stripeOnboardingStatus?.replaceAll("_", " ") ?? "NOT STARTED"}`
               : "Manual settlement"}
           </p>
@@ -229,6 +268,30 @@ export default async function OrganizerDashboardPage() {
             <Clock3 className="h-4 w-4" />
             {payoutConfigured ? "Payout path configured" : "Complete payout setup"}
           </div>
+        </article>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-neutral-600">Pending Cancellations</p>
+          <p className="mt-2 text-4xl font-semibold tracking-tight text-neutral-900">{pendingCancellations}</p>
+          <Link href="/organizer/cancellation-requests" className="mt-2 inline-block text-xs text-[var(--theme-accent)] underline underline-offset-4">
+            Review requests →
+          </Link>
+        </article>
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-neutral-600">Unread Reviews</p>
+          <p className="mt-2 text-4xl font-semibold tracking-tight text-neutral-900">{unreadReviews}</p>
+          <Link href="/organizer/events" className="mt-2 inline-block text-xs text-[var(--theme-accent)] underline underline-offset-4">
+            Open events →
+          </Link>
+        </article>
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-neutral-600">Revenue This Month</p>
+          <p className="mt-2 text-4xl font-semibold tracking-tight text-neutral-900">
+            ${Number(revenueThisMonth._sum.total ?? 0).toFixed(2)}
+          </p>
+          <p className="mt-1 text-xs text-neutral-500">Paid orders since the start of this month</p>
         </article>
       </section>
 

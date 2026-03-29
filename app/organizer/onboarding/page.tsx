@@ -10,14 +10,17 @@ import {
   FileText,
   Globe,
   Hash,
+  Instagram,
   Link2,
   Mail,
   MapPin,
   MapPinHouse,
   Phone,
+  Twitter,
   User,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import Image from "next/image";
 import { toast } from "sonner";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
 import { PageHeader } from "@/src/components/shared/page-header";
@@ -51,6 +54,8 @@ type OnboardingForm = {
   alternatePhone: string;
   supportEmail: string;
   facebookPage: string;
+  twitterUrl: string;
+  instagramUrl: string;
   socialMediaLink: string;
   contactName: string;
   taxId: string;
@@ -112,6 +117,8 @@ export default function OrganizerOnboardingPage() {
     alternatePhone: "",
     supportEmail: "",
     facebookPage: "",
+    twitterUrl: "",
+    instagramUrl: "",
     socialMediaLink: "",
     contactName: "",
     taxId: "",
@@ -168,6 +175,8 @@ export default function OrganizerOnboardingPage() {
           alternatePhone: onboardingPayload.data.alternatePhone === "N/A" ? "" : onboardingPayload.data.alternatePhone ?? "",
           supportEmail: onboardingPayload.data.supportEmail === "N/A" ? "" : onboardingPayload.data.supportEmail ?? "",
           facebookPage: onboardingPayload.data.facebookPage === "N/A" ? "" : onboardingPayload.data.facebookPage ?? "",
+          twitterUrl: onboardingPayload.data.twitterUrl === "N/A" ? "" : onboardingPayload.data.twitterUrl ?? "",
+          instagramUrl: onboardingPayload.data.instagramUrl === "N/A" ? "" : onboardingPayload.data.instagramUrl ?? "",
           socialMediaLink: onboardingPayload.data.socialMediaLink === "N/A" ? "" : onboardingPayload.data.socialMediaLink ?? "",
           contactName: fromDbOptional(onboardingPayload.data.contactName),
           taxId: fromDbOptional(onboardingPayload.data.taxId),
@@ -323,7 +332,7 @@ export default function OrganizerOnboardingPage() {
                   <LabelWithIcon icon={Building2} text="Organizer Logo" />
                   <div className="flex items-center gap-4">
                     {logoUrl ? (
-                      <img src={logoUrl} alt="Logo" className="h-16 w-16 rounded-lg object-cover border border-[var(--border)]" />
+                      <Image src={logoUrl} alt="Logo" width={64} height={64} className="h-16 w-16 rounded-lg object-cover border border-[var(--border)]" />
                     ) : (
                       <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-[var(--border)] bg-neutral-50 text-neutral-400">
                         <Building2 className="h-6 w-6" />
@@ -395,6 +404,14 @@ export default function OrganizerOnboardingPage() {
                   <div className="space-y-2">
                     <LabelWithIcon icon={Facebook} text="Facebook Page (Optional)" />
                     <Input value={form.facebookPage} onChange={(e) => updateField("facebookPage", e.target.value)} placeholder="facebook.com/yourpage" />
+                  </div>
+                  <div className="space-y-2">
+                    <LabelWithIcon icon={Twitter} text="Twitter/X URL (Optional)" />
+                    <Input value={form.twitterUrl} onChange={(e) => updateField("twitterUrl", e.target.value)} placeholder="https://x.com/yourhandle" />
+                  </div>
+                  <div className="space-y-2">
+                    <LabelWithIcon icon={Instagram} text="Instagram URL (Optional)" />
+                    <Input value={form.instagramUrl} onChange={(e) => updateField("instagramUrl", e.target.value)} placeholder="https://instagram.com/yourhandle" />
                   </div>
                   <div className="space-y-2">
                     <LabelWithIcon icon={Link2} text="Other Social Link (Optional)" />
@@ -494,6 +511,14 @@ export default function OrganizerOnboardingPage() {
                   <div className="rounded-xl border border-[var(--border)] bg-neutral-50 px-3 py-2">
                     <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">Facebook Page (Optional)</p>
                     <p className="mt-1 text-sm font-medium text-neutral-900">{form.facebookPage || "-"}</p>
+                  </div>
+                  <div className="rounded-xl border border-[var(--border)] bg-neutral-50 px-3 py-2">
+                    <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">Twitter/X URL (Optional)</p>
+                    <p className="mt-1 text-sm font-medium text-neutral-900">{form.twitterUrl || "-"}</p>
+                  </div>
+                  <div className="rounded-xl border border-[var(--border)] bg-neutral-50 px-3 py-2">
+                    <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">Instagram URL (Optional)</p>
+                    <p className="mt-1 text-sm font-medium text-neutral-900">{form.instagramUrl || "-"}</p>
                   </div>
                   <div className="rounded-xl border border-[var(--border)] bg-neutral-50 px-3 py-2">
                     <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">Other Social Link (Optional)</p>

@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, QrCode, ReceiptText, User } from "lucide-react";
+import { Bell, LayoutDashboard, QrCode, ReceiptText, User } from "lucide-react";
 
 const items = [
   { href: "/account/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/account/orders", label: "Orders", icon: ReceiptText },
   { href: "/account/tickets", label: "Tickets", icon: QrCode },
+  { href: "/account/notifications", label: "Notifications", icon: Bell },
   { href: "/account/profile", label: "Profile", icon: User },
 ];
 

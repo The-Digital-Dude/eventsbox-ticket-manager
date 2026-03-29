@@ -39,6 +39,7 @@ type EventDetail = {
   title: string;
   slug: string;
   status: string;
+  publishedAt: string | null;
   heroImage: string | null;
   description: string | null;
   startAt: string;
@@ -48,6 +49,7 @@ type EventDetail = {
   contactPhone: string | null;
   cancelPolicy: string | null;
   refundPolicy: string | null;
+  customConfirmationMessage: string | null;
   commissionPct: number | string;
   gstPct: number | string;
   platformFeeFixed: number | string;
@@ -118,6 +120,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [canceling, setCanceling] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   // Ticket form state
   const [showTicketForm, setShowTicketForm] = useState(false);
@@ -228,6 +231,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     router.push(`/organizer/events/${payload.data.id}`);
   }
 
+  async function togglePublish() {
+    setPublishing(true);
+    const res = await fetch(`/api/organizer/events/${id}/publish`, { method: "POST" });
+    const payload = await res.json();
+    setPublishing(false);
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to update event visibility");
+    toast.success(payload.data.status === "PUBLISHED" ? "Event is live again" : "Event taken offline");
+    await load();
+  }
+
   const canEdit = event?.status === "DRAFT" || event?.status === "REJECTED";
   const canSubmit = canEdit && (event?.ticketTypes?.filter((t) => t.isActive).length ?? 0) > 0;
 
@@ -282,6 +295,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               <Link href={`/organizer/events/${id}/edit`}>
                 <Button variant="outline" size="sm">Edit Event</Button>
               </Link>
+            )}
+            {event.publishedAt && (event.status === "PUBLISHED" || event.status === "DRAFT") && (
+              <Button variant="outline" size="sm" onClick={togglePublish} disabled={publishing}>
+                {publishing ? "Updating..." : event.status === "PUBLISHED" ? "Take Offline" : "Publish"}
+              </Button>
             )}
             <Button variant="outline" size="sm" onClick={duplicateEvent}>
               Duplicate
@@ -562,6 +580,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <div className="md:col-span-2">
               <p className="text-sm text-neutral-500">Refund Policy</p>
               <p className="text-sm text-neutral-900">{event.refundPolicy}</p>
+            </div>
+          )}
+          {event.customConfirmationMessage && (
+            <div className="md:col-span-2">
+              <p className="text-sm text-neutral-500">Custom Confirmation Message</p>
+              <p className="text-sm whitespace-pre-wrap text-neutral-900">{event.customConfirmationMessage}</p>
             </div>
           )}
         </div>

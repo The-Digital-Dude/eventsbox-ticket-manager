@@ -17,7 +17,7 @@ type TestPaymentState = {
   stripeConfigured: boolean;
   defaultCommissionPct: number;
   payoutSettings: {
-    payoutMode: "MANUAL" | "STRIPE_CONNECT" | null;
+    payoutMode: "MANUAL" | "STRIPE_CONNECT" | "AUTO" | null;
     stripeAccountId: string | null;
     stripeOnboardingStatus: "NOT_STARTED" | "PENDING" | "COMPLETED" | null;
     chargesEnabled: boolean;

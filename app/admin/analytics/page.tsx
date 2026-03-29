@@ -91,6 +91,10 @@ function currentMonthInput() {
   return `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+function currentQuarter(date: Date) {
+  return Math.floor(date.getUTCMonth() / 3) + 1;
+}
+
 export default async function AdminAnalyticsPage({
   searchParams,
 }: {
@@ -173,6 +177,8 @@ export default async function AdminAnalyticsPage({
   const newOrganizersThisMonth = payload.data?.newOrganizersThisMonth ?? 0;
   const newAttendeesThisMonth = payload.data?.newAttendeesThisMonth ?? 0;
   const maxRevenue = Math.max(...revenueByDay.map((entry) => entry.revenue), 1);
+  const currentYear = now.getUTCFullYear();
+  const selectedQuarter = currentQuarter(now);
 
   return (
     <SidebarLayout role="admin" title="Admin" items={nav}>
@@ -403,6 +409,74 @@ export default async function AdminAnalyticsPage({
             </table>
           </div>
         )}
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-neutral-900">Download Tax Report</h2>
+          <p className="mt-1 text-sm text-neutral-500">Export GST, fees, and totals by year or quarter.</p>
+          <form action="/api/admin/reports/tax" method="GET" className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <div className="space-y-2">
+              <label htmlFor="tax-year" className="text-sm font-medium text-neutral-700">Year</label>
+              <input
+                id="tax-year"
+                name="year"
+                type="number"
+                min="2020"
+                defaultValue={currentYear}
+                className="h-11 w-full rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="tax-quarter" className="text-sm font-medium text-neutral-700">Quarter</label>
+              <select
+                id="tax-quarter"
+                name="quarter"
+                defaultValue={String(selectedQuarter)}
+                className="h-11 w-full rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+              >
+                <option value="">Full year</option>
+                <option value="1">Q1</option>
+                <option value="2">Q2</option>
+                <option value="3">Q3</option>
+                <option value="4">Q4</option>
+              </select>
+            </div>
+            <button type="submit" className="h-11 rounded-xl bg-[var(--theme-accent)] px-6 text-sm font-semibold text-white shadow-sm transition hover:opacity-90">
+              Download CSV
+            </button>
+          </form>
+        </article>
+
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-neutral-900">Download Refund Report</h2>
+          <p className="mt-1 text-sm text-neutral-500">Export refunded orders and their Stripe payment intent references.</p>
+          <form action="/api/admin/reports/refunds" method="GET" className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <div className="space-y-2">
+              <label htmlFor="refund-from" className="text-sm font-medium text-neutral-700">From</label>
+              <input
+                id="refund-from"
+                name="from"
+                type="date"
+                defaultValue={toDateInput(from)}
+                className="h-11 w-full rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="refund-to" className="text-sm font-medium text-neutral-700">To</label>
+              <input
+                id="refund-to"
+                name="to"
+                type="date"
+                defaultValue={toDateInput(to)}
+                className="h-11 w-full rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+              />
+            </div>
+            <button type="submit" className="h-11 rounded-xl bg-[var(--theme-accent)] px-6 text-sm font-semibold text-white shadow-sm transition hover:opacity-90">
+              Download CSV
+            </button>
+          </form>
+        </article>
       </section>
 
       <MonthlyReportForm organizers={organizerOptions} defaultMonth={currentMonthInput()} />

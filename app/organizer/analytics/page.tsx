@@ -148,6 +148,9 @@ export default async function OrganizerAnalyticsPage({
   const previousMonth = monthly.at(-2);
   const revenueDelta = pctDelta(currentMonth?.revenue ?? 0, previousMonth?.revenue ?? 0);
   const ticketsDelta = pctDelta(currentMonth?.tickets ?? 0, previousMonth?.tickets ?? 0);
+  const exportFrom = new Date();
+  exportFrom.setMonth(exportFrom.getMonth() - months);
+  const exportTo = new Date();
 
   return (
     <SidebarLayout role="organizer" title="Organizer" items={nav}>
@@ -184,6 +187,12 @@ export default async function OrganizerAnalyticsPage({
               className="inline-flex items-center rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
             >
               Export Ticket Types
+            </Link>
+            <Link
+              href={`/api/organizer/export/orders?from=${encodeURIComponent(exportFrom.toISOString())}&to=${encodeURIComponent(exportTo.toISOString())}`}
+              className="inline-flex items-center rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+            >
+              Export All Orders (CSV)
             </Link>
           </div>
         </div>

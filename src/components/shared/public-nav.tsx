@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Ticket } from "lucide-react";
+import { NotificationBell } from "@/src/components/shared/notification-bell";
 
 type SessionRole = "ATTENDEE" | "ORGANIZER" | "SUPER_ADMIN" | null;
 
@@ -94,6 +95,7 @@ export function PublicNav() {
 
           {!auth.loading && auth.role === "ATTENDEE" ? (
             <>
+              <NotificationBell />
               <Link
                 href="/account/dashboard"
                 className="ml-2 rounded-lg bg-[var(--theme-accent)] px-4 py-1.5 text-sm font-medium text-white transition hover:opacity-90"

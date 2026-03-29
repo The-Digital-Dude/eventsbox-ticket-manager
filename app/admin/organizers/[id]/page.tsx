@@ -38,7 +38,7 @@ type OrganizerDetail = {
     isActive: boolean;
   };
   payoutSettings: {
-    payoutMode: "STRIPE_CONNECT" | "MANUAL";
+    payoutMode: "STRIPE_CONNECT" | "MANUAL" | "AUTO";
     stripeAccountId: string | null;
     stripeOnboardingStatus: "NOT_STARTED" | "PENDING" | "COMPLETED";
     manualPayoutNote: string | null;
