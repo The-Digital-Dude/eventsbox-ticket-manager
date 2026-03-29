@@ -27,6 +27,10 @@ vi.mock("@/src/lib/http/rate-limit-redis", () => ({
   rateLimitRedis: rateLimitRedisMock,
 }));
 
+vi.mock("@/src/lib/auth/server-auth", () => ({
+  getServerSession: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("@/src/lib/services/notifications", () => ({
   sendWaitlistConfirmationEmail: sendWaitlistConfirmationEmailMock,
   sendWaitlistAvailabilityEmail: sendWaitlistAvailabilityEmailMock,

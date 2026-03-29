@@ -250,6 +250,7 @@ export async function getOrganizerAnalyticsData(input: {
   const monthly: OrganizerAnalyticsData["monthly"] = [];
   for (let i = input.months - 1; i >= 0; i--) {
     const d = new Date();
+    d.setDate(1);
     d.setMonth(d.getMonth() - i);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     monthly.push({

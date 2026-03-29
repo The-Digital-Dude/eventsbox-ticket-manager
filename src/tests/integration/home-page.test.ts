@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
-const { eventCountMock, eventFindManyMock, orderCountMock } = vi.hoisted(() => ({
+const { eventCountMock, eventFindManyMock, orderCountMock, categoryFindManyMock } = vi.hoisted(() => ({
   eventCountMock: vi.fn(),
   eventFindManyMock: vi.fn(),
   orderCountMock: vi.fn(),
+  categoryFindManyMock: vi.fn(),
 }));
 
 vi.mock("@/src/lib/db", () => ({
@@ -15,6 +16,9 @@ vi.mock("@/src/lib/db", () => ({
     },
     order: {
       count: orderCountMock,
+    },
+    category: {
+      findMany: categoryFindManyMock,
     },
   },
 }));
@@ -35,6 +39,7 @@ describe("home page integration", () => {
     eventCountMock.mockRejectedValueOnce(dbError);
     orderCountMock.mockResolvedValueOnce(12);
     eventFindManyMock.mockResolvedValueOnce([]);
+    categoryFindManyMock.mockResolvedValueOnce([]);
 
     const markup = renderToStaticMarkup(await HomePage());
 
