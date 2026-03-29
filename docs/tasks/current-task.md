@@ -1,23 +1,40 @@
 # Current Task
 
 ## Active Task
-**Phases 16–21 — Affiliate, Add-ons, Scanner Role, Reviews, Advanced Analytics, Production Hardening**
+**Phase 26 — Attendee Experience Polish**
 
-**Status:** IN PROGRESS — Phases 16–21 implemented, with final full-suite integration validation still blocked by intermittent Neon connectivity in older shared-db tests; individual plans at `docs/tasks/phase-16-plan.md` through `phase-21-plan.md`; combined Gemini prompt at `docs/tasks/codex-phases16-20-prompt.md`
+**Status:** DONE — attendee discovery and notification UX received a focused polish pass on top of phases 22–25
 
 **Latest Handoff (2026-03-19):**
-- Phase 21 is implemented: JWT-authenticated requests now re-check `User.isActive` in the auth guard, refresh rotation blocks suspended users, server-side session readers ignore inactive users, token cleanup and event reminder cron routes were added, `Order.reminderSentAt` now prevents duplicate reminder sends, and ops docs were added for Redis, Sentry, cron, and Stripe production webhook setup.
-- Added `src/tests/integration/auth-hardening.test.ts` and `src/tests/integration/cron-reminders.test.ts` to cover suspended-user JWT enforcement and idempotent event reminder cron behavior.
-- Validation on this handoff: `npx prisma db push` passed, `npx prisma generate` passed, `npm run typecheck` passed, targeted Phase 21 tests passed, and `npm run build`/`npm run lint` remain the final gate to run after this handoff.
-- Repo-wide `npm run test:integration` remains intermittently blocked outside Phase 21 by older shared-db tests that sometimes fail on Neon connectivity.
+- Notifications now mark themselves read when opened from both the bell dropdown and `/account/notifications`, so unread counts stay aligned with actual attendee behavior instead of requiring a second manual click.
+- The attendee dashboard now surfaces unread notification count directly in the welcome summary and includes a dedicated Notifications quick-action card.
+- `/events` now includes a browser-powered nearby-events module with an explicit "Use my location" CTA, reusing `GET /api/public/events/nearby` without auto-prompting for location access on page load.
+- Nearby public event responses now include `distanceKm`, allowing the UI to show how far each nearby recommendation is from the attendee.
+- Updated `src/tests/integration/public-discovery.test.ts` to cover `distanceKm` in nearby-event responses.
+- Validation on this handoff: `npm run typecheck`, targeted integration tests for `public-discovery` and `attendee-notifications`, `npm run lint`, and `npm run build`.
+- `npm run lint` still reports the same pre-existing warnings only in `app/organizer/onboarding/page.tsx`, `app/organizer/venues/page.tsx`, and `app/organizers/[id]/page.tsx`.
+- `npm run build` may still log the known transient Neon connectivity noise during homepage prerender fallback, but the build remains expected to complete successfully.
 
-- Phase 19 is implemented: attendees can submit one review per attended paid event after it ends, organizers can see event reviews, admins can hide/show reviews, public event payloads include visible reviews plus aggregate rating data, and attendee order history now prompts for post-event ratings.
-- Event rating aggregates are persisted on `Event.reviewCount` and `Event.avgRating`, with recalculation wired into review create/delete/moderation flows.
-- Phase 18b scanner backend is implemented on top of the existing `ScannerProfile` architecture: new scanner event/ticket/state/device APIs exist, batch check-in supports OK/DUPLICATE/NOT_FOUND outcomes, and scanner/organizer/manual check-ins now keep `isCheckedIn`, `checkedInAt`, and `checkedInDevice` in sync.
-- Added integration coverage in `src/tests/integration/event-reviews.test.ts` and `src/tests/integration/scanner-app-api.test.ts`.
-- Phase 20 is now implemented: organizer analytics includes ticket-type, promo-code, add-on, daily revenue, affiliate, and review breakdowns; admin analytics includes platform revenue/commission, top organizers, category-level revenue, user growth, and platform review stats; admins can trigger monthly organizer revenue report emails from the analytics dashboard.
-- Added Phase 20 coverage in `src/tests/integration/organizer-analytics-extended.test.ts`, `src/tests/integration/admin-analytics-extended.test.ts`, and `src/tests/integration/monthly-report.test.ts`, while updating the existing organizer/admin analytics route tests for the expanded payloads.
-- Validation on this handoff: `npm run typecheck` passed, targeted Phase 20 integration tests passed, `npm run build` passed, and `npm run lint` completed with pre-existing warnings only. `npm run test:integration` is still blocked outside Phase 20 by intermittent Neon connectivity failures in older shared-db tests such as `src/tests/integration/attendee-account.test.ts`.
+---
+
+## Previous Task
+**Phases 22–25 — Public Discovery, Attendee Notifications, Organizer Self-Service, Financial Operations**
+
+**Status:** DONE
+
+**Latest Handoff (2026-03-19):**
+- Phase 22 is implemented: public event cards and homepage featured cards now show aggregate ratings, the homepage adds a browse-by-category section, and `GET /api/public/events/nearby` returns upcoming nearby published events by venue coordinates.
+- Added `src/tests/integration/public-discovery.test.ts` for keyword/category discovery and nearby endpoint coverage.
+- Phase 23 is implemented: `Notification` records now support attendee in-app notifications, `/api/account/notifications*` routes are live, the attendee nav includes a bell dropdown plus `/account/notifications`, Stripe payment success creates `ORDER_CONFIRMED` notifications, waitlist openings create `WAITLIST_OPEN` notifications for linked attendees, and the reminder cron now creates `EVENT_REMINDER` notifications.
+- Waitlist entries now optionally store `attendeeProfileId` so logged-in attendees can receive in-app availability notifications in addition to email.
+- Added `src/tests/integration/attendee-notifications.test.ts` for notification APIs and the payment webhook side effect.
+- Phase 24 is implemented: events support `customConfirmationMessage`, organizers can toggle previously approved events offline/online via `/api/organizer/events/[id]/publish`, onboarding/profile now store `twitterUrl` and `instagramUrl`, organizer public pages expose the new social links, the dashboard includes pending cancellations/unread reviews/revenue-this-month cards, and `/api/organizer/export/orders` streams paid-order CSV across all events.
+- Added `src/tests/integration/organizer-self-service.test.ts` for publish toggles, custom confirmation message persistence, and organizer order export.
+- Phase 25 is implemented: payout requests now store `stripeTransferId` and `failureReason`, admins can settle approved payouts through `/api/admin/payouts/[id]/settle`, weekly `/api/cron/auto-payouts` is scheduled in `vercel.json`, tax and refund CSV report endpoints are live under `/api/admin/reports/*`, admin analytics exposes report download forms, and organizer payout history now shows transfer references.
+- Stripe-connected organizer payout onboarding now uses `AUTO` payout mode while existing `STRIPE_CONNECT` records remain supported in checkout and UI branches.
+- Added `src/tests/integration/financial-operations.test.ts` for payout settlement, tax/refund reports, and auto-payout cron behavior.
+- Validation on this handoff: `npx prisma db push` passed, `npx prisma generate` passed, `npm run typecheck` passed, targeted integration tests for phases 22–25 passed (`public-discovery`, `attendee-notifications`, `organizer-self-service`, `financial-operations`), `npm run build` passed, and `npm run lint` completed with pre-existing warnings only (`app/organizer/onboarding/page.tsx`, `app/organizer/venues/page.tsx`, `app/organizers/[id]/page.tsx`).
+- `npm run build` still logs transient Neon connectivity errors while statically rendering homepage fallbacks, but the build completes successfully because `/` already degrades gracefully when Prisma cannot reach the database.
 
 ---
 
