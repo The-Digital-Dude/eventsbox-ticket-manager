@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CalendarDays, ExternalLink, MapPin, Ticket } from "lucide-react";
+import Image from "next/image";
+import { CalendarDays, ExternalLink, Facebook, Instagram, MapPin, Ticket, Twitter } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/src/lib/db";
 import { Badge } from "@/src/components/ui/badge";
@@ -18,6 +19,9 @@ async function getOrganizerProfile(id: string) {
       brandName: true,
       companyName: true,
       website: true,
+      facebookPage: true,
+      twitterUrl: true,
+      instagramUrl: true,
       events: {
         where: {
           status: "PUBLISHED",
@@ -45,6 +49,28 @@ async function getOrganizerProfile(id: string) {
   });
 }
 
+async function getOrganizerReviewSummary(id: string) {
+  const summary = await prisma.eventReview.aggregate({
+    where: {
+      isVisible: true,
+      event: {
+        organizerProfileId: id,
+      },
+    },
+    _avg: {
+      rating: true,
+    },
+    _count: {
+      id: true,
+    },
+  });
+
+  return {
+    averageRating: summary._count.id > 0 ? Number((summary._avg.rating ?? 0).toFixed(1)) : 0,
+    reviewCount: summary._count.id ?? 0,
+  };
+}
+
 function formatDate(value: Date) {
   return value.toLocaleDateString(undefined, {
     weekday: "short",
@@ -60,13 +86,22 @@ export default async function OrganizerPublicProfilePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const organizer = await getOrganizerProfile(id);
+  const [organizer, reviewSummary] = await Promise.all([
+    getOrganizerProfile(id),
+    getOrganizerReviewSummary(id),
+  ]);
 
   if (!organizer) {
     notFound();
   }
 
   const displayName = [organizer.brandName, organizer.companyName].find(v => v && v !== "N/A") ?? "EventsBox Organizer";
+  const socialLinks = [
+    organizer.website && { href: organizer.website, label: "Website", icon: ExternalLink },
+    organizer.facebookPage && { href: organizer.facebookPage, label: "Facebook", icon: Facebook },
+    organizer.twitterUrl && { href: organizer.twitterUrl, label: "Twitter / X", icon: Twitter },
+    organizer.instagramUrl && { href: organizer.instagramUrl, label: "Instagram", icon: Instagram },
+  ].filter(Boolean) as Array<{ href: string; label: string; icon: typeof ExternalLink }>;
 
   return (
     <div className="min-h-screen bg-[var(--page-bg,#f8f8f8)]">
@@ -81,23 +116,36 @@ export default async function OrganizerPublicProfilePage({
           <div className="mt-6 max-w-3xl space-y-4">
             <Badge>Organizer Profile</Badge>
             {organizer.logoUrl && (
-              <img src={organizer.logoUrl} alt={displayName} className="h-20 w-20 rounded-xl object-cover border border-[var(--border)] shadow-sm" />
+              <Image src={organizer.logoUrl} alt={displayName} width={80} height={80} className="h-20 w-20 rounded-xl object-cover border border-[var(--border)] shadow-sm" />
             )}
             <h1 className="text-4xl font-bold tracking-tight text-neutral-900 md:text-5xl">
               {displayName}
             </h1>
+            {reviewSummary.reviewCount > 0 && (
+              <p className="text-sm font-medium text-neutral-700">
+                ★ {reviewSummary.averageRating.toFixed(1)} ({reviewSummary.reviewCount} review{reviewSummary.reviewCount === 1 ? "" : "s"})
+              </p>
+            )}
             <div className="space-y-2 text-neutral-600">
               <p>{(organizer.companyName && organizer.companyName !== "N/A") ? organizer.companyName : "Independent organizer"}</p>
-              {organizer.website && (
-                <a
-                  href={organizer.website}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 text-sm font-medium text-[var(--theme-accent)] transition hover:underline"
-                >
-                  Visit website
-                  <ExternalLink className="h-4 w-4" />
-                </a>
+              {socialLinks.length > 0 && (
+                <div className="flex flex-wrap gap-3">
+                  {socialLinks.map((link) => {
+                    const Icon = link.icon;
+                    return (
+                      <a
+                        key={link.label}
+                        href={link.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 text-sm font-medium text-[var(--theme-accent)] transition hover:underline"
+                      >
+                        <Icon className="h-4 w-4" />
+                        {link.label}
+                      </a>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>

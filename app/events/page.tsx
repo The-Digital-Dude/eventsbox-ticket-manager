@@ -3,6 +3,7 @@ import { CalendarDays, MapPin, Ticket } from "lucide-react";
 import { prisma } from "@/src/lib/db";
 import { Badge } from "@/src/components/ui/badge";
 import { formatCurrency } from "@/src/lib/currency";
+import NearbyEventsClient from "@/app/events/nearby-events-client";
 
 export const revalidate = 60;
 
@@ -373,6 +374,8 @@ export default async function PublicEventsPage({
 
       {/* Events grid */}
       <div className="mx-auto max-w-6xl px-4 py-10">
+        <NearbyEventsClient />
+
         {events.length === 0 ? (
           <div className="py-20 text-center">
             <p className="text-lg font-medium text-neutral-700">No events found</p>
@@ -410,6 +413,11 @@ export default async function PublicEventsPage({
                       <div className="p-5">
                         <div className="mb-3 flex flex-wrap gap-2">
                           {event.category && <Badge>{event.category.name}</Badge>}
+                          {event.reviewCount > 0 && (
+                            <Badge className="border-transparent bg-amber-50 text-amber-700">
+                              ★ {event.avgRating.toFixed(1)} ({event.reviewCount})
+                            </Badge>
+                          )}
                           {available <= 0 && <Badge className="bg-red-100 text-red-700 border-transparent">Sold out</Badge>}
                           {available > 0 && available <= 10 && (
                             <Badge className="bg-amber-100 text-amber-700 border-transparent">Only {available} left</Badge>

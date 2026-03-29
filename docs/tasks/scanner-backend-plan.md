@@ -2,6 +2,8 @@
 
 This document lists everything that must be added to EventsBox_Ticket_Manager to support the Scanner mobile app.
 
+**Status:** DONE (2026-03-18)
+
 **Note:** Phase 18 (Scanner Role) already adds the `SCANNER` Role enum, scanner account management, and the basic `/api/scanner/checkin` route. This document covers the **additional** endpoints needed by the mobile app that are not in Phase 18.
 
 ---

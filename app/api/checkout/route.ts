@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     });
 
     const connectedAccountId =
-      organizerPayoutSettings?.payoutMode === "STRIPE_CONNECT" &&
+      organizerPayoutSettings?.payoutMode !== "MANUAL" &&
       organizerPayoutSettings?.stripeOnboardingStatus === "COMPLETED" &&
       organizerPayoutSettings?.stripeAccountId
         ? organizerPayoutSettings.stripeAccountId

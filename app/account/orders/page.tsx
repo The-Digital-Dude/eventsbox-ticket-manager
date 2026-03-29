@@ -10,7 +10,8 @@ type OrderRow = {
   total: number | string;
   status: "PAID" | "REFUNDED";
   paidAt: string | null;
-  event: { title: string; startAt: string; slug: string; cancellationDeadlineHours: number | null; refundPercent: number };
+  reviewId: string | null;
+  event: { title: string; startAt: string; endAt: string; slug: string; cancellationDeadlineHours: number | null; refundPercent: number };
   items: Array<{
     quantity: number;
     ticketType: { name: string };

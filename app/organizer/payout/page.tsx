@@ -13,7 +13,7 @@ import { Button } from "@/src/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 
 type PayoutSettings = {
-  payoutMode: "MANUAL" | "STRIPE_CONNECT";
+  payoutMode: "MANUAL" | "STRIPE_CONNECT" | "AUTO";
   manualPayoutNote?: string | null;
   stripeAccountId?: string | null;
   stripeOnboardingStatus?: "NOT_STARTED" | "PENDING" | "COMPLETED" | null;
@@ -26,6 +26,8 @@ type PayoutRequestRow = {
   status: "PENDING" | "APPROVED" | "PAID" | "REJECTED";
   adminNote: string | null;
   requestedAt: string;
+  resolvedAt?: string | null;
+  stripeTransferId?: string | null;
 };
 
 const nav = [
@@ -154,8 +156,8 @@ export default function OrganizerPayoutPage() {
 
   const stripeStatus = settings?.stripeOnboardingStatus ?? "NOT_STARTED";
   const stripeReady = stripeStatus === "COMPLETED";
-  const currentMode = settings?.payoutMode === "STRIPE_CONNECT" ? "stripe" : "manual";
-  const isManualMode = settings?.payoutMode !== "STRIPE_CONNECT";
+  const currentMode = settings?.payoutMode === "MANUAL" ? "manual" : "stripe";
+  const isManualMode = settings?.payoutMode === "MANUAL" || !settings?.payoutMode;
   const hasPendingRequest = useMemo(() => requests.some((request) => request.status === "PENDING"), [requests]);
 
   const stripeStatusLabel =
@@ -173,7 +175,7 @@ export default function OrganizerPayoutPage() {
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="border-transparent bg-[var(--theme-accent)] text-white">
-                {currentMode === "stripe" ? "Stripe Connect" : "Manual payout"}
+                {currentMode === "stripe" ? "Automatic Stripe payout" : "Manual payout"}
               </Badge>
               <Badge>{stripeStatusLabel}</Badge>
             </div>
@@ -202,7 +204,7 @@ export default function OrganizerPayoutPage() {
                 <Landmark className="h-4 w-4 text-[var(--theme-accent)]" />
                 Active Mode
               </div>
-              <p className="text-lg font-semibold text-neutral-900">{currentMode === "stripe" ? "Stripe Connect" : "Manual"}</p>
+              <p className="text-lg font-semibold text-neutral-900">{currentMode === "stripe" ? "Automatic Stripe" : "Manual"}</p>
             </div>
           </div>
         </div>
@@ -365,6 +367,44 @@ export default function OrganizerPayoutPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-neutral-900">Payout History</h2>
+            <p className="mt-1 text-sm text-neutral-500">Track request status, resolution dates, and Stripe transfer references.</p>
+          </div>
+        </div>
+
+        {requests.length === 0 ? (
+          <p className="text-sm text-neutral-500">No payout requests yet.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Amount</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Requested At</TableHead>
+                <TableHead>Resolved At</TableHead>
+                <TableHead>Stripe Transfer ID</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {requests.map((request) => (
+                <TableRow key={request.id}>
+                  <TableCell>{formatAmount(request.amount)}</TableCell>
+                  <TableCell>
+                    <Badge className={requestStatusClass(request.status)}>{request.status}</Badge>
+                  </TableCell>
+                  <TableCell>{new Date(request.requestedAt).toLocaleString()}</TableCell>
+                  <TableCell>{request.resolvedAt ? new Date(request.resolvedAt).toLocaleString() : "—"}</TableCell>
+                  <TableCell className="font-mono text-xs">{request.stripeTransferId ? `${request.stripeTransferId.slice(0, 18)}...` : "—"}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </section>
     </SidebarLayout>
   );
 }

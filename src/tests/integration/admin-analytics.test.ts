@@ -8,6 +8,10 @@ const {
   findManyOrderItemsMock,
   requireRoleMock,
   groupByMock,
+  organizerCountMock,
+  attendeeCountMock,
+  reviewAggregateMock,
+  affiliateLinkFindManyMock,
 } = vi.hoisted(() => ({
   aggregateMock: vi.fn(),
   countMock: vi.fn(),
@@ -15,6 +19,10 @@ const {
   findManyOrderItemsMock: vi.fn(),
   requireRoleMock: vi.fn(),
   groupByMock: vi.fn(),
+  organizerCountMock: vi.fn(),
+  attendeeCountMock: vi.fn(),
+  reviewAggregateMock: vi.fn(),
+  affiliateLinkFindManyMock: vi.fn(),
 }));
 
 vi.mock("@/src/lib/db", () => ({
@@ -28,6 +36,18 @@ vi.mock("@/src/lib/db", () => ({
     orderItem: {
       findMany: findManyOrderItemsMock,
     },
+    organizerProfile: {
+      count: organizerCountMock,
+    },
+    attendeeProfile: {
+      count: attendeeCountMock,
+    },
+    eventReview: {
+      aggregate: reviewAggregateMock,
+    },
+    affiliateLink: {
+      findMany: affiliateLinkFindManyMock,
+    },
   },
 }));
 
@@ -39,15 +59,22 @@ import { GET } from "@/app/api/admin/analytics/route";
 
 describe("admin analytics integration", () => {
   beforeEach(() => {
-    aggregateMock.mockReset();
-    countMock.mockReset();
-    findManyMock.mockReset();
-    findManyOrderItemsMock.mockReset();
-    requireRoleMock.mockReset();
-    groupByMock.mockReset();
+    vi.clearAllMocks();
 
     requireRoleMock.mockResolvedValue({ sub: "admin-1", role: "SUPER_ADMIN" });
-    groupByMock.mockResolvedValue([]);
+    groupByMock.mockResolvedValue([
+      {
+        affiliateLinkId: "affiliate-1",
+        _count: { id: 2 },
+      },
+    ]);
+    affiliateLinkFindManyMock.mockResolvedValue([
+      {
+        id: "affiliate-1",
+        code: "AFF-1",
+        label: "Campus Crew",
+      },
+    ]);
     aggregateMock
       .mockResolvedValueOnce({
         _sum: {
@@ -61,26 +88,66 @@ describe("admin analytics integration", () => {
         },
       });
     countMock.mockResolvedValueOnce(3).mockResolvedValueOnce(1);
+    organizerCountMock.mockResolvedValue(2);
+    attendeeCountMock.mockResolvedValue(5);
+    reviewAggregateMock.mockResolvedValue({
+      _avg: {
+        rating: 4.25,
+      },
+      _count: {
+        id: 4,
+      },
+    });
     findManyMock.mockResolvedValue([
       {
         eventId: "event-1",
         total: 100,
         paidAt: new Date("2026-03-01T09:00:00.000Z"),
-        event: { title: "Dhaka Tech Conference" },
+        event: {
+          title: "Dhaka Tech Conference",
+          commissionPct: 10,
+          category: { name: "Technology" },
+          organizerProfile: {
+            id: "org-1",
+            brandName: "Tech Org",
+            companyName: null,
+            user: { email: "tech@example.com" },
+          },
+        },
         items: [{ quantity: 2 }],
       },
       {
         eventId: "event-1",
         total: 200,
         paidAt: new Date("2026-03-01T12:00:00.000Z"),
-        event: { title: "Dhaka Tech Conference" },
+        event: {
+          title: "Dhaka Tech Conference",
+          commissionPct: 10,
+          category: { name: "Technology" },
+          organizerProfile: {
+            id: "org-1",
+            brandName: "Tech Org",
+            companyName: null,
+            user: { email: "tech@example.com" },
+          },
+        },
         items: [{ quantity: 1 }],
       },
       {
         eventId: "event-2",
         total: 150,
         paidAt: new Date("2026-03-02T10:00:00.000Z"),
-        event: { title: "Startup Summit" },
+        event: {
+          title: "Startup Summit",
+          commissionPct: 8,
+          category: { name: "Business" },
+          organizerProfile: {
+            id: "org-2",
+            brandName: null,
+            companyName: "Startup House",
+            user: { email: "startup@example.com" },
+          },
+        },
         items: [{ quantity: 3 }],
       },
     ]);
@@ -123,6 +190,10 @@ describe("admin analytics integration", () => {
       { date: "2026-03-01", revenue: 300 },
       { date: "2026-03-02", revenue: 150 },
     ]);
+    expect(payload.data.reviewStats).toEqual({
+      totalReviews: 4,
+      averageRating: 4.3,
+    });
   });
 
   it("returns 401 when unauthenticated", async () => {

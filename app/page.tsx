@@ -20,6 +20,11 @@ type HomePageStats = {
   eventCount: number;
   orderCount: number;
   featuredEvents: Prisma.EventGetPayload<{ include: typeof featuredEventInclude }>[];
+  categories: Array<{
+    id: string;
+    name: string;
+    eventCount: number;
+  }>;
 };
 
 function isDatabaseUnavailable(error: unknown) {
@@ -33,7 +38,7 @@ async function getStats() {
   const now = new Date();
 
   try {
-    const [eventCount, orderCount, featuredEvents] = await Promise.all([
+    const [eventCount, orderCount, featuredEvents, categoryRows] = await Promise.all([
       prisma.event.count({ where: { status: "PUBLISHED" } }),
       prisma.order.count({ where: { status: "PAID" } }),
       prisma.event.findMany({
@@ -46,10 +51,31 @@ async function getStats() {
         orderBy: { startAt: "asc" },
         take: 6,
       }),
+      prisma.category.findMany({
+        where: { isActive: true },
+        include: {
+          _count: {
+            select: {
+              events: {
+                where: { status: "PUBLISHED" },
+              },
+            },
+          },
+        },
+        orderBy: { name: "asc" },
+      }),
     ]);
 
+    const categories = categoryRows
+      .filter((category) => category._count.events > 0)
+      .map((category) => ({
+        id: category.id,
+        name: category.name,
+        eventCount: category._count.events,
+      }));
+
     if (featuredEvents.length >= 3) {
-      return { eventCount, orderCount, featuredEvents };
+      return { eventCount, orderCount, featuredEvents, categories };
     }
 
     const fallbackEvents = await prisma.event.findMany({
@@ -63,7 +89,7 @@ async function getStats() {
       take: 3 - featuredEvents.length,
     });
 
-    return { eventCount, orderCount, featuredEvents: [...featuredEvents, ...fallbackEvents] };
+    return { eventCount, orderCount, featuredEvents: [...featuredEvents, ...fallbackEvents], categories };
   } catch (error) {
     if (isDatabaseUnavailable(error)) {
       console.error("[app/page.tsx][getStats] Homepage stats unavailable because the database could not be reached.", error);
@@ -71,6 +97,7 @@ async function getStats() {
         eventCount: 0,
         orderCount: 0,
         featuredEvents: [],
+        categories: [],
       } satisfies HomePageStats;
     }
 
@@ -83,7 +110,7 @@ function formatDate(iso: Date) {
 }
 
 export default async function HomePage() {
-  const { eventCount, orderCount, featuredEvents } = await getStats();
+  const { eventCount, orderCount, featuredEvents, categories } = await getStats();
 
   return (
     <div className="min-h-screen bg-[var(--page-bg,#f8f8f8)]">
@@ -173,11 +200,18 @@ export default async function HomePage() {
                       <div className="h-2 bg-gradient-to-r from-[var(--theme-accent)] to-[rgb(59,130,246)]" />
                     )}
                     <div className="p-5">
-                      {event.category && (
-                        <span className="mb-2 inline-block rounded-full bg-[rgb(var(--theme-accent-rgb)/0.08)] px-2.5 py-0.5 text-xs font-semibold text-[var(--theme-accent)]">
-                          {event.category.name}
-                        </span>
-                      )}
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        {event.category && (
+                          <span className="inline-block rounded-full bg-[rgb(var(--theme-accent-rgb)/0.08)] px-2.5 py-0.5 text-xs font-semibold text-[var(--theme-accent)]">
+                            {event.category.name}
+                          </span>
+                        )}
+                        {event.reviewCount > 0 && (
+                          <span className="inline-block rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                            ★ {event.avgRating.toFixed(1)} ({event.reviewCount})
+                          </span>
+                        )}
+                      </div>
                       <h3 className="text-lg font-semibold leading-snug text-neutral-900 group-hover:text-[var(--theme-accent)] transition">
                         {event.title}
                       </h3>
@@ -204,6 +238,29 @@ export default async function HomePage() {
                 </Link>
               );
             })}
+          </div>
+        </section>
+      )}
+
+      {categories.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pb-4">
+          <div className="mb-5">
+            <h2 className="text-2xl font-bold tracking-tight text-neutral-900">Browse by Category</h2>
+            <p className="mt-2 text-sm text-neutral-500">Jump straight into the genres people are booking right now.</p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {categories.map((category) => (
+              <Link
+                key={category.id}
+                href={`/events?category=${category.id}`}
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm transition hover:border-[rgb(var(--theme-accent-rgb)/0.3)] hover:text-[var(--theme-accent)]"
+              >
+                <span>{category.name}</span>
+                <span className="rounded-full bg-[rgb(var(--theme-accent-rgb)/0.08)] px-2 py-0.5 text-xs text-[var(--theme-accent)]">
+                  {category.eventCount}
+                </span>
+              </Link>
+            ))}
           </div>
         </section>
       )}

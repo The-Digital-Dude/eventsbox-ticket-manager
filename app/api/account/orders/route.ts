@@ -3,6 +3,7 @@ import { OrderStatus } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { ok, fail } from "@/src/lib/http/response";
 import { requireAttendee } from "@/src/lib/auth/require-attendee";
+import { authErrorResponse } from "@/src/lib/auth/error-response";
 
 const PAGE_SIZE = 10;
 
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
       prisma.order.findMany({
         where,
         include: {
-          event: { select: { title: true, startAt: true, slug: true, cancellationDeadlineHours: true, refundPercent: true } },
+          event: { select: { id: true, title: true, startAt: true, endAt: true, slug: true, cancellationDeadlineHours: true, refundPercent: true } },
           cancellationRequest: {
             select: { id: true, status: true },
           },
@@ -64,8 +65,24 @@ export async function GET(req: NextRequest) {
       prisma.order.count({ where }),
     ]);
 
+    const reviews = await prisma.eventReview.findMany({
+      where: {
+        attendeeUserId: profile.id,
+        eventId: {
+          in: orders.map((order) => order.event.id),
+        },
+      },
+      select: {
+        id: true,
+        eventId: true,
+      },
+    });
+
+    const reviewByEventId = new Map(reviews.map((review) => [review.eventId, review.id]));
+
     const mappedOrders = orders.map((order) => ({
       ...order,
+      reviewId: reviewByEventId.get(order.event.id) ?? null,
       items: order.items.map((item) => ({
         ...item,
         tickets: item.tickets.map((ticket) => ({
@@ -80,13 +97,8 @@ export async function GET(req: NextRequest) {
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     return ok({ orders: mappedOrders, total, pages });
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHENTICATED") {
-      return fail(401, { code: "UNAUTHENTICATED", message: "Login required" });
-    }
-
-    if (error instanceof Error && error.message === "FORBIDDEN") {
-      return fail(403, { code: "FORBIDDEN", message: "Attendee account required" });
-    }
+    const authResponse = authErrorResponse(error, { forbiddenMessage: "Attendee account required" });
+    if (authResponse) return authResponse;
 
     console.error("[app/api/account/orders/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Unable to load orders" });

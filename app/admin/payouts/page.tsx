@@ -17,6 +17,8 @@ type PayoutRequestRow = {
   adminNote: string | null;
   requestedAt: string;
   resolvedAt: string | null;
+  stripeTransferId?: string | null;
+  failureReason?: string | null;
   organizerProfile: {
     id: string;
     companyName: string | null;
@@ -34,6 +36,7 @@ const nav = [
   { href: "/admin/venues", label: "Venues" },
   { href: "/admin/payouts", label: "Payouts" },
   { href: "/admin/analytics", label: "Analytics" },
+  { href: "/admin/reviews", label: "Reviews" },
   { href: "/admin/audit", label: "Audit Log" },
   { href: "/admin/config", label: "Platform Config" },
   { href: "/admin/categories", label: "Categories" },
@@ -146,6 +149,19 @@ export default function AdminPayoutsPage() {
     await load();
   }
 
+  async function settleNow(id: string) {
+    const res = await fetch(`/api/admin/payouts/${id}/settle`, { method: "POST" });
+    const payload = await res.json();
+
+    if (!res.ok) {
+      toast.error(payload?.error?.message ?? "Unable to settle payout");
+      return;
+    }
+
+    toast.success(`Stripe transfer created: ${payload.data.stripeTransferId}`);
+    await load();
+  }
+
   return (
     <SidebarLayout role="admin" title="Admin" items={nav}>
       <PageHeader title="Payout Requests" subtitle="Review and action organizer manual payout requests." />
@@ -209,6 +225,16 @@ export default function AdminPayoutsPage() {
                     Admin note: {request.adminNote}
                   </div>
                 ) : null}
+                {request.failureReason ? (
+                  <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    Stripe error: {request.failureReason}
+                  </div>
+                ) : null}
+                {request.stripeTransferId ? (
+                  <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    Transfer ID: <span className="font-mono">{request.stripeTransferId}</span>
+                  </div>
+                ) : null}
 
                 {isPending || isApproved ? (
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -216,13 +242,22 @@ export default function AdminPayoutsPage() {
                       <Button size="sm" onClick={() => setActionDraft({ id: request.id, action: "APPROVED", note: request.adminNote ?? "" })}>Approve</Button>
                     ) : null}
                     {isApproved ? (
-                      <Button
-                        size="sm"
-                        className="bg-emerald-600 text-white hover:bg-emerald-700"
-                        onClick={() => setActionDraft({ id: request.id, action: "PAID", note: request.adminNote ?? "" })}
-                      >
-                        Mark as Paid
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 text-white hover:bg-emerald-700"
+                          onClick={() => settleNow(request.id)}
+                        >
+                          Settle Now
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setActionDraft({ id: request.id, action: "PAID", note: request.adminNote ?? "" })}
+                        >
+                          Mark as Paid
+                        </Button>
+                      </>
                     ) : null}
                     <Button
                       size="sm"

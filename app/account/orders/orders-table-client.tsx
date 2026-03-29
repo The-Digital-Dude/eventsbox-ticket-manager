@@ -13,7 +13,8 @@ type OrderRow = {
   total: number | string;
   status: "PAID" | "REFUNDED";
   paidAt: string | null;
-  event: { title: string; startAt: string; slug: string; cancellationDeadlineHours: number | null; refundPercent: number };
+  reviewId: string | null;
+  event: { title: string; startAt: string; endAt: string; slug: string; cancellationDeadlineHours: number | null; refundPercent: number };
   items: Array<{
     quantity: number;
     ticketType: { name: string };
@@ -189,6 +190,8 @@ export function OrdersTableClient({ initialOrders }: { initialOrders: OrderRow[]
             const ticketSummary = order.items.map((item) => `${item.ticketType.name} x${item.quantity}`).join(", ");
             const isPendingCancellation = order.cancellationRequest?.status === "PENDING";
             const eventStarted = new Date(order.event.startAt).getTime() <= renderedAt;
+            const eventEnded = new Date(order.event.endAt).getTime() <= renderedAt;
+            const canRateEvent = order.status === "PAID" && eventEnded && !order.reviewId;
 
             const { cancellationDeadlineHours, refundPercent } = order.event;
             const cancellationAllowed = cancellationDeadlineHours !== null;
@@ -213,6 +216,14 @@ export function OrdersTableClient({ initialOrders }: { initialOrders: OrderRow[]
                 <tr key={order.id}>
                   <td className="px-4 py-3">
                     <p className="font-medium text-neutral-900">{order.event.title}</p>
+                    {canRateEvent && (
+                      <Link
+                        href={`/events/${order.event.slug}#reviews`}
+                        className="mt-1 inline-flex text-xs font-medium text-[var(--theme-accent)] hover:underline"
+                      >
+                        Rate this event →
+                      </Link>
+                    )}
                     {order.status === "PAID" && (
                       <p className="mt-0.5 text-xs text-neutral-500">
                         {!cancellationAllowed

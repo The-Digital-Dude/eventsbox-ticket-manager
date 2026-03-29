@@ -85,6 +85,15 @@ type EventDetail = {
     website: string | null;
     supportEmail: string | null;
   };
+  averageRating: number;
+  totalReviewCount: number;
+  reviews: Array<{
+    id: string;
+    rating: number;
+    comment: string | null;
+    createdAt: string;
+    attendeeName: string;
+  }>;
 };
 
 type AppliedPromo = {
@@ -106,7 +115,24 @@ type CheckoutSessionState =
   | {
       name: string;
       email: string;
+      role: string;
     };
+
+type ReviewState = {
+  eventId: string;
+  eventSlug: string;
+  eventEnded: boolean;
+  hasPaidOrder: boolean;
+  canReview: boolean;
+  review: {
+    id: string;
+    rating: number;
+    comment: string | null;
+    isVisible: boolean;
+    createdAt: string;
+    attendeeName: string;
+  } | null;
+};
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
@@ -150,20 +176,58 @@ export function EventDetailClient({ slug }: { slug: string }) {
   const [expandedSectionId, setExpandedSectionId] = useState<string | null>(null);
   const [seatPollIntervalMs, setSeatPollIntervalMs] = useState(10_000);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [reviewState, setReviewState] = useState<ReviewState | null>(null);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewDeleting, setReviewDeleting] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [visibleReviewCount, setVisibleReviewCount] = useState(10);
+
+  async function refreshEvent(showLoading = false) {
+    if (showLoading) {
+      setLoading(true);
+    }
+
+    try {
+      const response = await fetch(`/api/public/events/${slug}`);
+      const payload = await response.json();
+
+      if (!payload?.data) {
+        setNotFound(true);
+        return;
+      }
+
+      setEvent(payload.data);
+      setNotFound(false);
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  }
+
+  async function refreshReviewState(eventId: string) {
+    const response = await fetch(`/api/account/events/${eventId}/review`, {
+      cache: "no-store",
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      setReviewState(null);
+      return;
+    }
+
+    const payload = await response.json();
+    if (!response.ok || !payload?.data) {
+      setReviewState(null);
+      return;
+    }
+
+    setReviewState(payload.data);
+  }
 
   useEffect(() => {
-    fetch(`/api/public/events/${slug}`)
-      .then((response) => response.json())
-      .then((payload) => {
-        if (!payload?.data) {
-          setNotFound(true);
-          setLoading(false);
-          return;
-        }
-
-        setEvent(payload.data);
-        setLoading(false);
-      });
+    void refreshEvent(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   useEffect(() => {
@@ -188,7 +252,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
         }
 
         const payload = (await response.json()) as {
-          data?: { email?: string; displayName?: string | null };
+          data?: { email?: string; displayName?: string | null; role?: string };
         };
         const email = payload.data?.email?.trim();
         if (!email) {
@@ -199,6 +263,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
         setSession({
           name: payload.data?.displayName?.trim() || email,
           email,
+          role: payload.data?.role ?? "",
         });
       } catch {
         if (active) {
@@ -222,6 +287,15 @@ export function EventDetailClient({ slug }: { slug: string }) {
     setBuyerName((current) => current || session.name);
     setBuyerEmail((current) => current || session.email);
   }, [session]);
+
+  useEffect(() => {
+    if (!event?.id || !session || session === "loading" || session.role !== "ATTENDEE") {
+      setReviewState(null);
+      return;
+    }
+
+    void refreshReviewState(event.id);
+  }, [event?.id, session]);
 
   useEffect(() => {
     if (!event?.venue?.seatingConfig) {
@@ -561,6 +635,85 @@ export function EventDetailClient({ slug }: { slug: string }) {
     return { total, booked, reserved, available };
   }
 
+  function renderStars(rating: number, interactive = false, onSelect?: (value: number) => void) {
+    return (
+      <div className="flex items-center gap-1">
+        {Array.from({ length: 5 }, (_, index) => {
+          const value = index + 1;
+          const filled = value <= rating;
+          const className = filled ? "text-amber-500" : "text-neutral-300";
+
+          if (!interactive || !onSelect) {
+            return (
+              <span key={value} className={`text-lg ${className}`}>
+                ★
+              </span>
+            );
+          }
+
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => onSelect(value)}
+              className={`text-2xl transition hover:scale-105 ${className}`}
+              aria-label={`Rate ${value} star${value === 1 ? "" : "s"}`}
+            >
+              ★
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  async function submitReview() {
+    if (!event) return;
+
+    setReviewSubmitting(true);
+    const res = await fetch(`/api/account/events/${event.id}/review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rating: reviewRating,
+        comment: reviewComment.trim() || undefined,
+      }),
+    });
+    const payload = await res.json();
+    setReviewSubmitting(false);
+
+    if (!res.ok) {
+      toast.error(payload?.error?.message ?? "Unable to submit review");
+      return;
+    }
+
+    toast.success("Review submitted");
+    setReviewComment("");
+    setReviewRating(5);
+    await refreshEvent();
+    await refreshReviewState(event.id);
+  }
+
+  async function deleteReview(reviewId: string) {
+    if (!event) return;
+
+    setReviewDeleting(true);
+    const res = await fetch(`/api/account/reviews/${reviewId}`, {
+      method: "DELETE",
+    });
+    const payload = await res.json();
+    setReviewDeleting(false);
+
+    if (!res.ok) {
+      toast.error(payload?.error?.message ?? "Unable to delete review");
+      return;
+    }
+
+    toast.success("Review deleted");
+    await refreshEvent();
+    await refreshReviewState(event.id);
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--page-bg,#f8f8f8)]">
@@ -849,6 +1002,113 @@ export function EventDetailClient({ slug }: { slug: string }) {
                 More events by{" "}
                 {[event.organizerProfile.brandName, event.organizerProfile.companyName].find(v => v && v !== "N/A") ?? "this organiser"}
               </Link>
+            </section>
+
+            <section id="reviews" className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-neutral-900">Reviews</h2>
+                  {event.totalReviewCount > 0 ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-neutral-600">
+                      {renderStars(Math.round(event.averageRating))}
+                      <span>
+                        ★ {event.averageRating.toFixed(1)} ({event.totalReviewCount} review{event.totalReviewCount === 1 ? "" : "s"})
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-neutral-500">No reviews yet.</p>
+                  )}
+                </div>
+              </div>
+
+              {reviewState?.canReview && (
+                <div className="mt-6 rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-[rgb(var(--theme-accent-rgb)/0.04)] p-4">
+                  <h3 className="text-base font-semibold text-neutral-900">Leave a review</h3>
+                  <p className="mt-1 text-sm text-neutral-500">Share a quick rating to help future attendees.</p>
+                  <div className="mt-4">{renderStars(reviewRating, true, setReviewRating)}</div>
+                  <textarea
+                    value={reviewComment}
+                    onChange={(event) => setReviewComment(event.target.value)}
+                    maxLength={2000}
+                    rows={4}
+                    placeholder="What stood out about the event?"
+                    className="mt-4 w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-sm text-neutral-800 shadow-sm focus:outline-none"
+                  />
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <span className="text-xs text-neutral-400">{reviewComment.length}/2000</span>
+                    <Button onClick={() => void submitReview()} disabled={reviewSubmitting}>
+                      {reviewSubmitting ? "Submitting..." : "Submit Review"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {reviewState?.review && (
+                <div className="mt-6 rounded-2xl border border-[var(--border)] bg-neutral-50 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-neutral-900">Your review</p>
+                      <div className="mt-2">{renderStars(reviewState.review.rating)}</div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void deleteReview(reviewState.review!.id)}
+                      disabled={reviewDeleting}
+                    >
+                      {reviewDeleting ? "Deleting..." : "Delete"}
+                    </Button>
+                  </div>
+                  {reviewState.review.comment && (
+                    <p className="mt-3 whitespace-pre-wrap text-sm text-neutral-700">
+                      {reviewState.review.comment}
+                    </p>
+                  )}
+                  {!reviewState.review.isVisible && (
+                    <p className="mt-3 text-xs font-medium text-amber-700">
+                      This review is currently hidden from the public listing.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {event.reviews.length > 0 ? (
+                <div className="mt-6 space-y-4">
+                  {event.reviews.slice(0, visibleReviewCount).map((review) => (
+                    <article key={review.id} className="rounded-2xl border border-[var(--border)] p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div>{renderStars(review.rating)}</div>
+                          <p className="mt-2 text-sm font-medium text-neutral-900">{review.attendeeName}</p>
+                        </div>
+                        <p className="text-xs text-neutral-400">
+                          {new Date(review.createdAt).toLocaleDateString(undefined, {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </div>
+                      {review.comment && (
+                        <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">
+                          {review.comment}
+                        </p>
+                      )}
+                    </article>
+                  ))}
+
+                  {event.reviews.length > visibleReviewCount && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setVisibleReviewCount((count) => count + 10)}
+                    >
+                      Load more reviews
+                    </Button>
+                  )}
+                </div>
+              ) : null}
             </section>
           </div>
 

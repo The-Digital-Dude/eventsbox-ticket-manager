@@ -12,7 +12,7 @@ export async function getServerSession() {
   try {
     const payload = verifyAccessToken(token);
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
-    if (!user) return null;
+    if (!user || !user.isActive) return null;
     return { user };
   } catch {
     return null;

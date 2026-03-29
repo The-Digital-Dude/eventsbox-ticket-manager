@@ -5,11 +5,17 @@ const {
   findProfileMock,
   findEventsMock,
   findOrdersMock,
+  findOrderItemsMock,
+  findOrderAddOnsMock,
+  aggregateReviewsMock,
   requireRoleMock,
 } = vi.hoisted(() => ({
   findProfileMock: vi.fn(),
   findEventsMock: vi.fn(),
   findOrdersMock: vi.fn(),
+  findOrderItemsMock: vi.fn(),
+  findOrderAddOnsMock: vi.fn(),
+  aggregateReviewsMock: vi.fn(),
   requireRoleMock: vi.fn(),
 }));
 
@@ -18,6 +24,9 @@ vi.mock("@/src/lib/db", () => ({
     organizerProfile: { findUnique: findProfileMock },
     event: { findMany: findEventsMock },
     order: { findMany: findOrdersMock },
+    orderItem: { findMany: findOrderItemsMock },
+    orderAddOn: { findMany: findOrderAddOnsMock },
+    eventReview: { aggregate: aggregateReviewsMock },
   },
 }));
 
@@ -29,10 +38,7 @@ import { GET } from "@/app/api/organizer/analytics/route";
 
 describe("organizer analytics integration", () => {
   beforeEach(() => {
-    findProfileMock.mockReset();
-    findEventsMock.mockReset();
-    findOrdersMock.mockReset();
-    requireRoleMock.mockReset();
+    vi.clearAllMocks();
 
     requireRoleMock.mockResolvedValue({ sub: "org-user-1", role: "ORGANIZER" });
     findProfileMock.mockResolvedValue({ id: "org-profile-1" });
@@ -48,18 +54,77 @@ describe("organizer analytics integration", () => {
             total: 120,
             platformFee: 10,
             paidAt: new Date("2026-02-01T08:00:00.000Z"),
-            tickets: [{ checkedInAt: null }, { checkedInAt: new Date("2026-02-01T10:00:00.000Z") }],
+            tickets: [
+              { checkedInAt: null, isCheckedIn: false },
+              { checkedInAt: new Date("2026-02-01T10:00:00.000Z"), isCheckedIn: true },
+            ],
           },
         ],
       },
     ]);
-    findOrdersMock.mockResolvedValue([
+    findOrdersMock.mockImplementation(async (args?: { select?: Record<string, unknown>; orderBy?: { paidAt?: string } }) => {
+      if (args?.select?.items) {
+        return [
+          {
+            total: 120,
+            paidAt: new Date("2026-03-01T08:00:00.000Z"),
+            items: [{ quantity: 2 }, { quantity: 1 }],
+          },
+        ];
+      }
+
+      if (args?.select?.promoCode) {
+        return [
+          {
+            discountAmount: 15,
+            promoCode: { code: "SPRING15" },
+          },
+        ];
+      }
+
+      if (args?.select?.affiliateLink) {
+        return [
+          {
+            total: 120,
+            affiliateLink: { code: "AFF-1", label: "Campus Crew" },
+          },
+        ];
+      }
+
+      if (args?.orderBy?.paidAt === "asc") {
+        return [
+          {
+            total: 120,
+            paidAt: new Date("2026-03-01T08:00:00.000Z"),
+          },
+        ];
+      }
+
+      return [];
+    });
+    findOrderItemsMock.mockResolvedValue([
       {
-        total: 120,
-        paidAt: new Date(),
-        items: [{ quantity: 2 }, { quantity: 1 }],
+        quantity: 2,
+        subtotal: 80,
+        ticketType: { name: "General Admission" },
+      },
+      {
+        quantity: 1,
+        subtotal: 40,
+        ticketType: { name: "VIP" },
       },
     ]);
+    findOrderAddOnsMock.mockResolvedValue([
+      {
+        name: "Meal Voucher",
+        quantity: 2,
+        subtotal: 20,
+      },
+    ]);
+    aggregateReviewsMock.mockResolvedValue({
+      _avg: { rating: 4.5 },
+      _count: { id: 2 },
+    });
   });
 
   it("returns analytics payload for a valid period", async () => {
@@ -75,6 +140,10 @@ describe("organizer analytics integration", () => {
     const ticketSum = payload.data.monthly.reduce((sum: number, month: { tickets: number }) => sum + month.tickets, 0);
     expect(ticketSum).toBe(3);
     expect(payload.data.topEvents).toHaveLength(1);
+    expect(payload.data.reviewSummary).toEqual({
+      averageRating: 4.5,
+      totalReviews: 2,
+    });
   });
 
   it("falls back to 12 months for invalid period input", async () => {

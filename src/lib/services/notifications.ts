@@ -103,6 +103,7 @@ export async function sendOrderConfirmationEmail(input: {
     ticketTypeName: string;
   }>;
   orderUrl: string;
+  customMessage?: string | null;
 }) {
   const formattedStartAt = new Intl.DateTimeFormat("en-US", {
     dateStyle: "full",
@@ -112,6 +113,7 @@ export async function sendOrderConfirmationEmail(input: {
 
   const subject = `Booking confirmed: ${input.eventTitle}`;
 
+  const organizerMessage = input.customMessage?.trim();
   const text = [
     `Hi ${input.buyerName},`,
     "",
@@ -126,6 +128,7 @@ export async function sendOrderConfirmationEmail(input: {
     "",
     `View your tickets & QR codes: ${input.orderUrl}`,
     "",
+    ...(organizerMessage ? ["Message from the organiser:", organizerMessage, ""] : []),
     "Present your QR code at the door for entry.",
     "",
     "Thanks for booking with EventsBox.",
@@ -199,6 +202,17 @@ export async function sendOrderConfirmationEmail(input: {
             Present your QR code at the door for entry
           </p>
         </div>
+
+        ${
+          organizerMessage
+            ? `
+              <div style="margin-bottom:24px;border:1px solid #e5e7eb;border-radius:10px;padding:16px;background:#fff7ed">
+                <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#9a3412">Message from the organiser:</p>
+                <p style="margin:0;font-size:14px;line-height:1.6;color:#7c2d12">${organizerMessage}</p>
+              </div>
+            `
+            : ""
+        }
 
         <!-- Order ID -->
         <div style="border-top:1px solid #f3f4f6;padding-top:16px;text-align:center">
@@ -443,6 +457,113 @@ export async function sendOrderRefundedEmail(input: {
   `;
 
   return sendEmail({ to: input.to, subject, text, html });
+}
+
+export async function sendMonthlyRevenueReport(input: {
+  organizerEmail: string;
+  brandName: string;
+  month: string;
+  totalRevenue: number;
+  totalOrders: number;
+  topEvent: { title: string; revenue: number } | null;
+  platformFeeDeducted: number;
+}) {
+  const monthDate = new Date(`${input.month}-01T00:00:00.000Z`);
+  const monthLabel = Number.isNaN(monthDate.getTime())
+    ? input.month
+    : monthDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const subject = `Your ${monthLabel} revenue summary - EventsBox`;
+
+  const text = [
+    `Hello ${input.brandName},`,
+    "",
+    `Here's your revenue summary for ${monthLabel}.`,
+    `Total revenue: $${input.totalRevenue.toFixed(2)}`,
+    `Total paid orders: ${input.totalOrders}`,
+    `Platform fees deducted: $${input.platformFeeDeducted.toFixed(2)}`,
+    `Top event: ${input.topEvent ? `${input.topEvent.title} ($${input.topEvent.revenue.toFixed(2)})` : "No paid events this month"}`,
+    "",
+    "Thanks for building with EventsBox.",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#111827">
+      <p>Hello <strong>${input.brandName}</strong>,</p>
+      <p>Here's your revenue summary for <strong>${monthLabel}</strong>.</p>
+      <div style="border:1px solid #e5e7eb;border-radius:12px;padding:20px;background:#f9fafb;margin:20px 0">
+        <p style="margin:0 0 10px"><strong>Total revenue:</strong> $${input.totalRevenue.toFixed(2)}</p>
+        <p style="margin:0 0 10px"><strong>Total paid orders:</strong> ${input.totalOrders}</p>
+        <p style="margin:0 0 10px"><strong>Platform fees deducted:</strong> $${input.platformFeeDeducted.toFixed(2)}</p>
+        <p style="margin:0"><strong>Top event:</strong> ${
+          input.topEvent
+            ? `${input.topEvent.title} ($${input.topEvent.revenue.toFixed(2)})`
+            : "No paid events this month"
+        }</p>
+      </div>
+      <p>Thanks for building with EventsBox.</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: input.organizerEmail,
+    subject,
+    text,
+    html,
+  });
+}
+
+export async function sendEventReminderEmail(input: {
+  buyerName: string;
+  buyerEmail: string;
+  eventTitle: string;
+  eventStartAt: Date;
+  venueName: string;
+  orderId: string;
+}) {
+  const formattedStartAt = new Intl.DateTimeFormat("en-US", {
+    dateStyle: "full",
+    timeStyle: "short",
+  }).format(new Date(input.eventStartAt));
+  const orderUrl = `${env.APP_URL}/orders/${input.orderId}`;
+  const subject = `Reminder: ${input.eventTitle} is tomorrow`;
+
+  const text = [
+    `Hi ${input.buyerName},`,
+    "",
+    `Just a reminder that ${input.eventTitle} is happening tomorrow.`,
+    `When: ${formattedStartAt}`,
+    `Venue: ${input.venueName}`,
+    `Order: ${input.orderId}`,
+    "",
+    `View your tickets: ${orderUrl}`,
+    "",
+    "See you there.",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#111827">
+      <p>Hi <strong>${input.buyerName}</strong>,</p>
+      <p>This is a reminder that <strong>${input.eventTitle}</strong> is happening tomorrow.</p>
+      <div style="border:1px solid #e5e7eb;border-radius:12px;padding:20px;background:#f9fafb;margin:20px 0">
+        <p style="margin:0 0 10px"><strong>When:</strong> ${formattedStartAt}</p>
+        <p style="margin:0 0 10px"><strong>Venue:</strong> ${input.venueName}</p>
+        <p style="margin:0"><strong>Order:</strong> ${input.orderId}</p>
+      </div>
+      <p>
+        <a href="${orderUrl}" style="display:inline-block;padding:12px 24px;background:#1e1b4b;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600">
+          View Order
+        </a>
+      </p>
+      <p>See you there.</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: input.buyerEmail,
+    subject,
+    text,
+    html,
+  });
 }
 
 export async function sendOrganizerCancellationRequestEmail(input: {

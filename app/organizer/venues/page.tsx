@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Building2, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";

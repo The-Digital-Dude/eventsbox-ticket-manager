@@ -9,6 +9,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import Link from "next/link";
 
 type VenueSection = {
@@ -38,6 +39,7 @@ type EventDetail = {
   title: string;
   slug: string;
   status: string;
+  publishedAt: string | null;
   heroImage: string | null;
   description: string | null;
   startAt: string;
@@ -47,6 +49,7 @@ type EventDetail = {
   contactPhone: string | null;
   cancelPolicy: string | null;
   refundPolicy: string | null;
+  customConfirmationMessage: string | null;
   commissionPct: number | string;
   gstPct: number | string;
   platformFeeFixed: number | string;
@@ -66,6 +69,14 @@ type EventDetail = {
     action: string;
     createdAt: string;
     actor: { role: string; email: string };
+  }>;
+  reviews: Array<{
+    id: string;
+    rating: number;
+    comment: string | null;
+    isVisible: boolean;
+    createdAt: string;
+    attendeeName: string;
   }>;
 };
 
@@ -109,6 +120,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [canceling, setCanceling] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   // Ticket form state
   const [showTicketForm, setShowTicketForm] = useState(false);
@@ -219,6 +231,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     router.push(`/organizer/events/${payload.data.id}`);
   }
 
+  async function togglePublish() {
+    setPublishing(true);
+    const res = await fetch(`/api/organizer/events/${id}/publish`, { method: "POST" });
+    const payload = await res.json();
+    setPublishing(false);
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to update event visibility");
+    toast.success(payload.data.status === "PUBLISHED" ? "Event is live again" : "Event taken offline");
+    await load();
+  }
+
   const canEdit = event?.status === "DRAFT" || event?.status === "REJECTED";
   const canSubmit = canEdit && (event?.ticketTypes?.filter((t) => t.isActive).length ?? 0) > 0;
 
@@ -274,6 +296,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 <Button variant="outline" size="sm">Edit Event</Button>
               </Link>
             )}
+            {event.publishedAt && (event.status === "PUBLISHED" || event.status === "DRAFT") && (
+              <Button variant="outline" size="sm" onClick={togglePublish} disabled={publishing}>
+                {publishing ? "Updating..." : event.status === "PUBLISHED" ? "Take Offline" : "Publish"}
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={duplicateEvent}>
               Duplicate
             </Button>
@@ -303,6 +330,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
+      <Tabs defaultValue="overview">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="reviews">Reviews</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="mt-4 space-y-6">
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
@@ -548,6 +582,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               <p className="text-sm text-neutral-900">{event.refundPolicy}</p>
             </div>
           )}
+          {event.customConfirmationMessage && (
+            <div className="md:col-span-2">
+              <p className="text-sm text-neutral-500">Custom Confirmation Message</p>
+              <p className="text-sm whitespace-pre-wrap text-neutral-900">{event.customConfirmationMessage}</p>
+            </div>
+          )}
         </div>
 
         {event.status === "PUBLISHED" && (
@@ -556,6 +596,64 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         )}
       </section>
+        </TabsContent>
+
+        <TabsContent value="reviews" className="mt-4">
+          <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-neutral-900">Event Reviews</h2>
+                <p className="mt-1 text-sm text-neutral-500">Read attendee feedback for this event. Visibility is moderated by admins.</p>
+              </div>
+              <Badge className="border-transparent bg-neutral-100 text-neutral-700">
+                {event.reviews.length} review{event.reviews.length === 1 ? "" : "s"}
+              </Badge>
+            </div>
+
+            {event.reviews.length === 0 ? (
+              <p className="text-sm text-neutral-500">No reviews yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-neutral-50">
+                    <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-neutral-500">
+                      <th className="px-4 py-3">Rating</th>
+                      <th className="px-4 py-3">Attendee</th>
+                      <th className="px-4 py-3">Comment</th>
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3">Visible</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]">
+                    {event.reviews.map((review) => (
+                      <tr key={review.id}>
+                        <td className="px-4 py-3 font-medium text-neutral-900">
+                          {"★".repeat(review.rating)}
+                          <span className="ml-2 text-neutral-500">{review.rating}/5</span>
+                        </td>
+                        <td className="px-4 py-3 text-neutral-700">{review.attendeeName}</td>
+                        <td className="px-4 py-3 text-neutral-600">
+                          {review.comment ? (
+                            <span className="line-clamp-3 whitespace-pre-wrap">{review.comment}</span>
+                          ) : (
+                            <span className="text-neutral-400">No comment</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-neutral-500">{formatDateTime(review.createdAt)}</td>
+                        <td className="px-4 py-3">
+                          <Badge className={review.isVisible ? "border-transparent bg-emerald-100 text-emerald-700" : "border-transparent bg-amber-100 text-amber-700"}>
+                            {review.isVisible ? "Visible" : "Hidden"}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </TabsContent>
+      </Tabs>
     </SidebarLayout>
   );
 }

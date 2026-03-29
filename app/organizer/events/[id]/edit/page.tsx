@@ -59,6 +59,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
   const [cancelPolicy, setCancelPolicy] = useState("");
   const [refundPolicy, setRefundPolicy] = useState("");
+  const [customConfirmationMessage, setCustomConfirmationMessage] = useState("");
   const [currency, setCurrency] = useState("USD");
   const [commissionPct, setCommissionPct] = useState("10");
   const [gstPct, setGstPct] = useState("15");
@@ -127,6 +128,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setVideoUrl(ev.videoUrl ?? "");
       setCancelPolicy(ev.cancelPolicy ?? "");
       setRefundPolicy(ev.refundPolicy ?? "");
+      setCustomConfirmationMessage(ev.customConfirmationMessage ?? "");
       setCurrency(ev.currency ?? "USD");
       setCommissionPct(String(ev.commissionPct ?? 10));
       setGstPct(String(ev.gstPct ?? 15));
@@ -157,6 +159,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         videoUrl: videoUrl || undefined,
         contactEmail: contactEmail || undefined, contactPhone: contactPhone || undefined,
         cancelPolicy: cancelPolicy || undefined, refundPolicy: refundPolicy || undefined,
+        customConfirmationMessage: customConfirmationMessage || null,
         currency,
         commissionPct: Number(commissionPct), gstPct: Number(gstPct),
         platformFeeFixed: Number(platformFeeFixed),
@@ -399,6 +402,15 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
                 className="h-20 w-full resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--theme-accent-rgb)/0.25)]"
                 value={refundPolicy}
                 onChange={(e) => setRefundPolicy(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Custom message sent in order confirmation emails (optional)</Label>
+              <textarea
+                className="h-28 w-full resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--theme-accent-rgb)/0.25)]"
+                value={customConfirmationMessage}
+                onChange={(e) => setCustomConfirmationMessage(e.target.value)}
+                maxLength={1000}
               />
             </div>
           </div>

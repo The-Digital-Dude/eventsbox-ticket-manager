@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/src/lib/db";
+import { getServerSession } from "@/src/lib/auth/server-auth";
 import { fail, ok } from "@/src/lib/http/response";
 import { rateLimitRedis } from "@/src/lib/http/rate-limit-redis";
 import { sendWaitlistConfirmationEmail } from "@/src/lib/services/notifications";
@@ -76,10 +77,20 @@ export async function POST(
       return ok({ alreadyJoined: true });
     }
 
+    const session = await getServerSession();
+    const attendeeProfile =
+      session?.user.role === "ATTENDEE"
+        ? await prisma.attendeeProfile.findUnique({
+            where: { userId: session.user.id },
+            select: { id: true },
+          })
+        : null;
+
     const entry = await prisma.waitlist.create({
       data: {
         eventId: event.id,
         ticketTypeId: ticketType.id,
+        attendeeProfileId: attendeeProfile?.id ?? null,
         email,
         name: parsed.data.name?.trim() || null,
       },

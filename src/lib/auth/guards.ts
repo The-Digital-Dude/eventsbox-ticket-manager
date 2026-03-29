@@ -10,6 +10,13 @@ export async function requireAuth(req: NextRequest) {
     throw new Error("UNAUTHENTICATED");
   }
   const payload = verifyAccessToken(token);
+  const user = await prisma.user.findUnique({
+    where: { id: payload.sub },
+    select: { isActive: true },
+  });
+  if (!user || !user.isActive) {
+    throw new Error("ACCOUNT_SUSPENDED");
+  }
   return payload;
 }
 
@@ -37,4 +44,38 @@ export async function requireScanner(req: NextRequest) {
     throw new Error("SCANNER_PROFILE_NOT_FOUND");
   }
   return { payload, profile };
+}
+
+export async function requireScannerOrOrganizer(req: NextRequest) {
+  const payload = await requireAuth(req);
+
+  if (payload.role === Role.SCANNER) {
+    const profile = await prisma.scannerProfile.findUnique({ where: { userId: payload.sub } });
+    if (!profile) {
+      throw new Error("SCANNER_PROFILE_NOT_FOUND");
+    }
+
+    return {
+      payload,
+      organizerProfileId: profile.organizerProfileId,
+      accessRole: Role.SCANNER,
+      scannerProfileId: profile.id,
+    };
+  }
+
+  if (payload.role === Role.ORGANIZER) {
+    const profile = await prisma.organizerProfile.findUnique({ where: { userId: payload.sub } });
+    if (!profile) {
+      throw new Error("PROFILE_NOT_FOUND");
+    }
+
+    return {
+      payload,
+      organizerProfileId: profile.id,
+      accessRole: Role.ORGANIZER,
+      scannerProfileId: null,
+    };
+  }
+
+  throw new Error("FORBIDDEN");
 }

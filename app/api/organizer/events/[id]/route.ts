@@ -4,6 +4,7 @@ import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
 import { eventUpdateSchema } from "@/src/lib/validators/event";
+import { getReviewAttendeeName } from "@/src/lib/services/event-reviews";
 import { sendEventDateChangedEmail } from "@/src/lib/services/notifications";
 
 const eventInclude = {
@@ -16,7 +17,27 @@ const eventInclude = {
   _count: { select: { orders: true, waitlist: true } },
   orders: {
     where: { status: "PAID" as const },
-    select: { total: true, platformFee: true, gst: true },
+      select: { total: true, platformFee: true, gst: true },
+  },
+  reviews: {
+    orderBy: { createdAt: "desc" as const },
+    select: {
+      id: true,
+      rating: true,
+      comment: true,
+      isVisible: true,
+      createdAt: true,
+      attendee: {
+        select: {
+          displayName: true,
+        },
+      },
+      order: {
+        select: {
+          buyerName: true,
+        },
+      },
+    },
   },
 };
 
@@ -53,6 +74,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     return ok({
       ...event,
+      reviews: event.reviews.map((review) => ({
+        ...review,
+        attendeeName: getReviewAttendeeName(review),
+      })),
       auditLogs,
     });
   } catch (error) {

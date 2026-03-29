@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       const mockedUrl = `${env.APP_URL}/mocked/stripe/onboarding/${profile.id}`;
       await prisma.organizerPayoutSettings.update({
         where: { id: settings.id },
-        data: { payoutMode: "STRIPE_CONNECT", stripeOnboardingStatus: StripeOnboardingStatus.PENDING },
+        data: { payoutMode: "AUTO", stripeOnboardingStatus: StripeOnboardingStatus.PENDING },
       });
       return ok({ url: mockedUrl, mocked: true });
     }
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       where: { id: settings.id },
       data: {
         stripeAccountId: accountId,
-        payoutMode: "STRIPE_CONNECT",
+        payoutMode: "AUTO",
         stripeOnboardingStatus: StripeOnboardingStatus.PENDING,
       },
     });

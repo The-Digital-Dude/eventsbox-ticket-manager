@@ -1,9 +1,12 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { OrganizerApprovalStatus } from "@prisma/client";
+import { prisma } from "@/src/lib/db";
 import { env } from "@/src/lib/env";
 import { getServerSession } from "@/src/lib/auth/server-auth";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
 import { PageHeader } from "@/src/components/shared/page-header";
+import MonthlyReportForm from "@/app/admin/analytics/monthly-report-form";
 
 export const revalidate = 0;
 
@@ -16,6 +19,7 @@ const nav = [
   { href: "/admin/venues", label: "Venues" },
   { href: "/admin/payouts", label: "Payouts" },
   { href: "/admin/analytics", label: "Analytics" },
+  { href: "/admin/reviews", label: "Reviews" },
   { href: "/admin/audit", label: "Audit Log" },
   { href: "/admin/config", label: "Platform Config" },
   { href: "/admin/categories", label: "Categories" },
@@ -33,16 +37,35 @@ type AnalyticsPayload = {
       ordersCount: number;
       refundsCount: number;
     };
+    platformRevenue: number;
+    platformCommission: number;
+    topOrganizers: Array<{
+      organizerId: string;
+      brandName: string;
+      revenue: number;
+      events: number;
+    }>;
     topEvents: Array<{
       eventId: string;
       title: string;
       revenue: number;
       ticketsSold: number;
     }>;
+    revenueByCategory: Array<{
+      categoryName: string;
+      revenue: number;
+      orders: number;
+    }>;
     revenueByDay: Array<{
       date: string;
       revenue: number;
     }>;
+    newOrganizersThisMonth: number;
+    newAttendeesThisMonth: number;
+    reviewStats: {
+      totalReviews: number;
+      averageRating: number;
+    };
   };
 };
 
@@ -61,6 +84,15 @@ function parseDateInput(value?: string, fallback?: Date) {
 
 function formatCurrency(value: number) {
   return `$${value.toFixed(2)}`;
+}
+
+function currentMonthInput() {
+  const today = new Date();
+  return `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function currentQuarter(date: Date) {
+  return Math.floor(date.getUTCMonth() / 3) + 1;
 }
 
 export default async function AdminAnalyticsPage({
@@ -95,6 +127,33 @@ export default async function AdminAnalyticsPage({
     redirect("/auth/login");
   }
 
+  const organizers = await prisma.organizerProfile.findMany({
+    where: {
+      approvalStatus: OrganizerApprovalStatus.APPROVED,
+    },
+    select: {
+      id: true,
+      brandName: true,
+      companyName: true,
+      user: {
+        select: {
+          email: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  const organizerOptions = organizers
+    .map((organizer) => ({
+      id: organizer.id,
+      label: organizer.brandName || organizer.companyName || organizer.user.email,
+      email: organizer.user.email,
+    }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+
   const payload = (await res.json()) as AnalyticsPayload;
   const summary = payload.data?.summary ?? {
     grossRevenue: 0,
@@ -105,15 +164,27 @@ export default async function AdminAnalyticsPage({
     ordersCount: 0,
     refundsCount: 0,
   };
+  const platformRevenue = payload.data?.platformRevenue ?? 0;
+  const platformCommission = payload.data?.platformCommission ?? 0;
   const topEvents = payload.data?.topEvents ?? [];
+  const topOrganizers = payload.data?.topOrganizers ?? [];
+  const revenueByCategory = payload.data?.revenueByCategory ?? [];
   const revenueByDay = payload.data?.revenueByDay ?? [];
+  const reviewStats = payload.data?.reviewStats ?? {
+    totalReviews: 0,
+    averageRating: 0,
+  };
+  const newOrganizersThisMonth = payload.data?.newOrganizersThisMonth ?? 0;
+  const newAttendeesThisMonth = payload.data?.newAttendeesThisMonth ?? 0;
   const maxRevenue = Math.max(...revenueByDay.map((entry) => entry.revenue), 1);
+  const currentYear = now.getUTCFullYear();
+  const selectedQuarter = currentQuarter(now);
 
   return (
     <SidebarLayout role="admin" title="Admin" items={nav}>
       <PageHeader
         title="Financial Analytics"
-        subtitle="Track platform revenue, refunds, and top-performing events over a chosen date range."
+        subtitle="Track platform revenue, top organizers, event performance, and monthly reporting from one place."
       />
 
       <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
@@ -151,11 +222,13 @@ export default async function AdminAnalyticsPage({
         </form>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {[
-          { label: "Gross Revenue", value: formatCurrency(summary.grossRevenue), tone: "text-neutral-900" },
-          { label: "Platform Fees", value: formatCurrency(summary.platformFees), tone: "text-[var(--theme-accent)]" },
+          { label: "Platform Revenue", value: formatCurrency(platformRevenue), tone: "text-neutral-900" },
+          { label: "Platform Commission", value: formatCurrency(platformCommission), tone: "text-[var(--theme-accent)]" },
           { label: "Net Revenue", value: formatCurrency(summary.netRevenue), tone: "text-emerald-700" },
+          { label: "Platform Fees", value: formatCurrency(summary.platformFees), tone: "text-neutral-900" },
+          { label: "Paid Orders", value: summary.ordersCount.toString(), tone: "text-neutral-900" },
           { label: "Tickets Sold", value: summary.ticketsSold.toString(), tone: "text-neutral-900" },
         ].map((card) => (
           <article key={card.label} className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
@@ -165,34 +238,44 @@ export default async function AdminAnalyticsPage({
         ))}
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
+      <section className="grid gap-4 md:grid-cols-3">
         <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-neutral-500">Orders Count</p>
+          <p className="text-sm font-medium text-neutral-500">Refunded</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-amber-700">
+            {formatCurrency(summary.refunded)}
+          </p>
+          <p className="mt-1 text-sm text-neutral-500">{summary.refundsCount} refund{summary.refundsCount === 1 ? "" : "s"}</p>
+        </article>
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-neutral-500">New Users This Month</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-neutral-900">
-            {summary.ordersCount}
+            {newOrganizersThisMonth + newAttendeesThisMonth}
+          </p>
+          <p className="mt-1 text-sm text-neutral-500">
+            {newOrganizersThisMonth} organizer{newOrganizersThisMonth === 1 ? "" : "s"}, {newAttendeesThisMonth} attendee{newAttendeesThisMonth === 1 ? "" : "s"}
           </p>
         </article>
         <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-neutral-500">Refunds Count</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-amber-700">
-            {summary.refundsCount}
+          <p className="text-sm font-medium text-neutral-500">Review Stats</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-neutral-900">
+            {reviewStats.totalReviews > 0 ? `★ ${reviewStats.averageRating.toFixed(1)}` : "No ratings"}
           </p>
-          <p className="mt-1 text-sm text-neutral-500">Refunded total: {formatCurrency(summary.refunded)}</p>
+          <p className="mt-1 text-sm text-neutral-500">{reviewStats.totalReviews} visible review{reviewStats.totalReviews === 1 ? "" : "s"}</p>
         </article>
       </section>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
-        <div className="mb-6 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-neutral-900">Revenue by Day</h2>
-            <p className="mt-1 text-sm text-neutral-500">Paid-order revenue grouped by payment day.</p>
+      <section className="grid gap-4 xl:grid-cols-[1.4fr_0.9fr]">
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-neutral-900">Revenue by Day</h2>
+              <p className="mt-1 text-sm text-neutral-500">Paid-order revenue grouped by payment day.</p>
+            </div>
           </div>
-        </div>
 
-        {revenueByDay.length === 0 ? (
-          <p className="text-sm text-neutral-500">No paid orders in this range.</p>
-        ) : (
-          <>
+          {revenueByDay.length === 0 ? (
+            <p className="text-sm text-neutral-500">No paid orders in this range.</p>
+          ) : (
             <div className="flex h-64 items-end gap-2 overflow-x-auto pb-2">
               {revenueByDay.map((entry) => {
                 const height = `${Math.max(6, (entry.revenue / maxRevenue) * 100)}%`;
@@ -203,18 +286,99 @@ export default async function AdminAnalyticsPage({
                         <p className="font-semibold text-neutral-900">{formatCurrency(entry.revenue)}</p>
                         <p className="text-neutral-500">{entry.date}</p>
                       </div>
-                      <div
-                        className="w-full rounded-t-xl bg-[var(--theme-accent)]"
-                        style={{ height }}
-                      />
+                      <div className="w-full rounded-t-xl bg-[var(--theme-accent)]" style={{ height }} />
                     </div>
                     <span className="text-[10px] text-neutral-400">{entry.date.slice(5)}</span>
                   </div>
                 );
               })}
             </div>
-          </>
-        )}
+          )}
+        </article>
+
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-neutral-900">Snapshot</h2>
+          <div className="mt-6 grid gap-3">
+            <div className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
+              <p className="text-sm text-neutral-500">Gross revenue in range</p>
+              <p className="mt-2 text-2xl font-semibold text-neutral-900">{formatCurrency(summary.grossRevenue)}</p>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
+              <p className="text-sm text-neutral-500">Average order value</p>
+              <p className="mt-2 text-2xl font-semibold text-neutral-900">
+                {summary.ordersCount > 0 ? formatCurrency(summary.grossRevenue / summary.ordersCount) : formatCurrency(0)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
+              <p className="text-sm text-neutral-500">Commission share of revenue</p>
+              <p className="mt-2 text-2xl font-semibold text-neutral-900">
+                {platformRevenue > 0 ? `${((platformCommission / platformRevenue) * 100).toFixed(1)}%` : "0.0%"}
+              </p>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <article className="rounded-2xl border border-[var(--border)] bg-white shadow-sm">
+          <div className="border-b border-[var(--border)] px-6 py-4">
+            <h2 className="text-lg font-semibold text-neutral-900">Top Organizers</h2>
+          </div>
+          {topOrganizers.length === 0 ? (
+            <div className="px-6 py-8 text-sm text-neutral-500">No organizer revenue data available for this range.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-neutral-50">
+                  <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-neutral-500">
+                    <th className="px-4 py-3">Organizer</th>
+                    <th className="px-4 py-3 text-right">Events</th>
+                    <th className="px-4 py-3 text-right">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {topOrganizers.map((organizer) => (
+                    <tr key={organizer.organizerId}>
+                      <td className="px-4 py-3 font-medium text-neutral-900">{organizer.brandName}</td>
+                      <td className="px-4 py-3 text-right text-neutral-600">{organizer.events}</td>
+                      <td className="px-4 py-3 text-right text-neutral-900">{formatCurrency(organizer.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </article>
+
+        <article className="rounded-2xl border border-[var(--border)] bg-white shadow-sm">
+          <div className="border-b border-[var(--border)] px-6 py-4">
+            <h2 className="text-lg font-semibold text-neutral-900">Revenue by Category</h2>
+          </div>
+          {revenueByCategory.length === 0 ? (
+            <div className="px-6 py-8 text-sm text-neutral-500">No category revenue data available for this range.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-neutral-50">
+                  <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-neutral-500">
+                    <th className="px-4 py-3">Category</th>
+                    <th className="px-4 py-3 text-right">Orders</th>
+                    <th className="px-4 py-3 text-right">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {revenueByCategory.map((row) => (
+                    <tr key={row.categoryName}>
+                      <td className="px-4 py-3 font-medium text-neutral-900">{row.categoryName}</td>
+                      <td className="px-4 py-3 text-right text-neutral-600">{row.orders}</td>
+                      <td className="px-4 py-3 text-right text-neutral-900">{formatCurrency(row.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </article>
       </section>
 
       <section className="rounded-2xl border border-[var(--border)] bg-white shadow-sm">
@@ -229,16 +393,16 @@ export default async function AdminAnalyticsPage({
               <thead className="bg-neutral-50">
                 <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-neutral-500">
                   <th className="px-4 py-3">Event</th>
-                  <th className="px-4 py-3">Revenue</th>
-                  <th className="px-4 py-3">Tickets Sold</th>
+                  <th className="px-4 py-3 text-right">Tickets Sold</th>
+                  <th className="px-4 py-3 text-right">Revenue</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {topEvents.map((event) => (
                   <tr key={event.eventId}>
                     <td className="px-4 py-3 font-medium text-neutral-900">{event.title}</td>
-                    <td className="px-4 py-3 text-neutral-600">{formatCurrency(event.revenue)}</td>
-                    <td className="px-4 py-3 text-neutral-600">{event.ticketsSold}</td>
+                    <td className="px-4 py-3 text-right text-neutral-600">{event.ticketsSold}</td>
+                    <td className="px-4 py-3 text-right text-neutral-900">{formatCurrency(event.revenue)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -246,6 +410,76 @@ export default async function AdminAnalyticsPage({
           </div>
         )}
       </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-neutral-900">Download Tax Report</h2>
+          <p className="mt-1 text-sm text-neutral-500">Export GST, fees, and totals by year or quarter.</p>
+          <form action="/api/admin/reports/tax" method="GET" className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <div className="space-y-2">
+              <label htmlFor="tax-year" className="text-sm font-medium text-neutral-700">Year</label>
+              <input
+                id="tax-year"
+                name="year"
+                type="number"
+                min="2020"
+                defaultValue={currentYear}
+                className="h-11 w-full rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="tax-quarter" className="text-sm font-medium text-neutral-700">Quarter</label>
+              <select
+                id="tax-quarter"
+                name="quarter"
+                defaultValue={String(selectedQuarter)}
+                className="h-11 w-full rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+              >
+                <option value="">Full year</option>
+                <option value="1">Q1</option>
+                <option value="2">Q2</option>
+                <option value="3">Q3</option>
+                <option value="4">Q4</option>
+              </select>
+            </div>
+            <button type="submit" className="h-11 rounded-xl bg-[var(--theme-accent)] px-6 text-sm font-semibold text-white shadow-sm transition hover:opacity-90">
+              Download CSV
+            </button>
+          </form>
+        </article>
+
+        <article className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-neutral-900">Download Refund Report</h2>
+          <p className="mt-1 text-sm text-neutral-500">Export refunded orders and their Stripe payment intent references.</p>
+          <form action="/api/admin/reports/refunds" method="GET" className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <div className="space-y-2">
+              <label htmlFor="refund-from" className="text-sm font-medium text-neutral-700">From</label>
+              <input
+                id="refund-from"
+                name="from"
+                type="date"
+                defaultValue={toDateInput(from)}
+                className="h-11 w-full rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="refund-to" className="text-sm font-medium text-neutral-700">To</label>
+              <input
+                id="refund-to"
+                name="to"
+                type="date"
+                defaultValue={toDateInput(to)}
+                className="h-11 w-full rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+              />
+            </div>
+            <button type="submit" className="h-11 rounded-xl bg-[var(--theme-accent)] px-6 text-sm font-semibold text-white shadow-sm transition hover:opacity-90">
+              Download CSV
+            </button>
+          </form>
+        </article>
+      </section>
+
+      <MonthlyReportForm organizers={organizerOptions} defaultMonth={currentMonthInput()} />
     </SidebarLayout>
   );
 }

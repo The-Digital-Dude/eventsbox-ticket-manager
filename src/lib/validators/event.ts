@@ -15,6 +15,7 @@ export const eventCreateSchema = z.object({
   contactPhone: z.string().max(30).optional(),
   cancelPolicy: z.string().max(2000).optional(),
   refundPolicy: z.string().max(2000).optional(),
+  customConfirmationMessage: z.string().max(1000).optional().nullable(),
   cancellationDeadlineHours: z.coerce.number().int().min(1).nullable().optional(),
   refundPercent: z.coerce.number().int().refine((v) => [0, 50, 100].includes(v), {
     message: "refundPercent must be 0, 50, or 100",

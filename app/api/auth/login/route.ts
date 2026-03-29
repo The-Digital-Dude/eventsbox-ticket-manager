@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!user.isActive) {
-      return fail(403, { code: "ACCOUNT_DISABLED", message: "Account is disabled" });
+      return fail(403, { code: "ACCOUNT_SUSPENDED", message: "Your account has been suspended." });
     }
 
     const response = NextResponse.json({

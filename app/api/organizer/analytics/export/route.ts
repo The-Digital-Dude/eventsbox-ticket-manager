@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 import { Role } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
+import { authErrorResponse } from "@/src/lib/auth/error-response";
 import { fail } from "@/src/lib/http/response";
+import { getOrganizerAnalyticsData } from "@/src/lib/analytics/organizer";
 
 function parseMonths(raw: string | null) {
   const value = Number(raw);
@@ -23,6 +25,8 @@ export async function GET(req: NextRequest) {
   try {
     const auth = await requireRole(req, Role.ORGANIZER);
     const months = parseMonths(req.nextUrl.searchParams.get("months"));
+    const type = req.nextUrl.searchParams.get("type") ?? "orders";
+    const eventId = req.nextUrl.searchParams.get("eventId");
 
     const profile = await prisma.organizerProfile.findUnique({
       where: { userId: auth.sub },
@@ -30,61 +34,56 @@ export async function GET(req: NextRequest) {
     });
     if (!profile) return fail(404, { code: "NOT_FOUND", message: "Profile not found" });
 
-    const periodStart = new Date();
-    periodStart.setMonth(periodStart.getMonth() - (months - 1));
-    periodStart.setDate(1);
-    periodStart.setHours(0, 0, 0, 0);
-
-    const events = await prisma.event.findMany({
-      where: {
-        organizerProfileId: profile.id,
-        OR: [{ startAt: { gte: periodStart } }, { orders: { some: { paidAt: { gte: periodStart }, status: "PAID" } } }],
-      },
-      select: {
-        title: true,
-        status: true,
-        startAt: true,
-        ticketTypes: { select: { sold: true } },
-        orders: {
-          where: { status: "PAID" },
-          select: {
-            total: true,
-            platformFee: true,
-            tickets: { select: { checkedInAt: true } },
-          },
-        },
-      },
-      orderBy: { startAt: "desc" },
+    const analytics = await getOrganizerAnalyticsData({
+      organizerProfileId: profile.id,
+      months,
+      eventId,
     });
 
-    const headers = [
-      "Event Title",
-      "Status",
-      "Start Date",
-      "Tickets Sold",
-      "Revenue (AUD)",
-      "Platform Fee",
-      "Check-in Rate",
-    ];
+    let headers: string[] = [];
+    let rows: Array<Array<string | number>> = [];
 
-    const rows = events.map((event) => {
-      const ticketsSold = event.ticketTypes.reduce((sum, ticket) => sum + ticket.sold, 0);
-      const revenue = event.orders.reduce((sum, order) => sum + Number(order.total), 0);
-      const platformFee = event.orders.reduce((sum, order) => sum + Number(order.platformFee), 0);
-      const allTickets = event.orders.flatMap((order) => order.tickets);
-      const checkedIn = allTickets.filter((ticket) => Boolean(ticket.checkedInAt)).length;
-      const checkinRate = allTickets.length > 0 ? `${Math.round((checkedIn / allTickets.length) * 100)}%` : "—";
-
-      return [
+    if (type === "ticket-types") {
+      headers = ["Ticket Type", "Units Sold", "Revenue"];
+      rows = analytics.revenueByTicketType.map((row) => [
+        row.ticketTypeName,
+        row.sold,
+        row.revenue.toFixed(2),
+      ]);
+    } else if (type === "addons") {
+      headers = ["Add-on Name", "Qty Sold", "Revenue"];
+      rows = analytics.revenueByAddOn.map((row) => [
+        row.addOnName,
+        row.quantity,
+        row.revenue.toFixed(2),
+      ]);
+    } else if (type === "promo-codes") {
+      headers = ["Code", "Orders", "Discount Total"];
+      rows = analytics.revenueByPromoCode.map((row) => [
+        row.code,
+        row.orders,
+        row.discount.toFixed(2),
+      ]);
+    } else {
+      headers = [
+        "Event Title",
+        "Status",
+        "Start Date",
+        "Tickets Sold",
+        "Revenue (AUD)",
+        "Net Revenue",
+        "Check-in Rate",
+      ];
+      rows = analytics.events.map((event) => [
         event.title,
         event.status,
         new Date(event.startAt).toISOString(),
-        ticketsSold,
-        revenue.toFixed(2),
-        platformFee.toFixed(2),
-        checkinRate,
-      ];
-    });
+        event.totalSold,
+        event.grossRevenue.toFixed(2),
+        event.netRevenue.toFixed(2),
+        event.checkinRate === null ? "—" : `${event.checkinRate}%`,
+      ]);
+    }
 
     const csv = [headers, ...rows]
       .map((row) => row.map((value) => escapeCsv(value)).join(","))
@@ -94,10 +93,12 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="analytics.csv"',
+        "Content-Disposition": `attachment; filename="analytics-${type}.csv"`,
       },
     });
   } catch (error) {
+    const authResponse = authErrorResponse(error, { forbiddenMessage: "Organizer only" });
+    if (authResponse) return authResponse;
     console.error("[api/organizer/analytics/export] export failed", error);
     return fail(403, { code: "FORBIDDEN", message: "Organizer only" });
   }

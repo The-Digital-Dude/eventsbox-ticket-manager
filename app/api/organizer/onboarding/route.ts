@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
         alternatePhone: toDbOptional(payload.alternatePhone),
         supportEmail: toDbOptional(payload.supportEmail),
         facebookPage: toDbOptional(payload.facebookPage),
+        twitterUrl: toDbOptional(payload.twitterUrl),
+        instagramUrl: toDbOptional(payload.instagramUrl),
         socialMediaLink: toDbOptional(payload.socialMediaLink),
         contactName: payload.contactName.trim(),
         taxId: toDbOptional(payload.taxId),
