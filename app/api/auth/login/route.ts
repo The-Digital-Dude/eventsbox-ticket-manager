@@ -36,15 +36,28 @@ export async function POST(req: NextRequest) {
       return fail(403, { code: "ACCOUNT_SUSPENDED", message: "Your account has been suspended." });
     }
 
+    const tempResponse = NextResponse.json({});
+    const { accessToken, refreshToken } = await issueSession({ id: user.id, email: user.email, role: user.role }, tempResponse);
+
     const response = NextResponse.json({
       success: true,
       data: {
-        role: user.role,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          scannerOrganizerProfileId: user.scannerProfile?.organizerProfileId ?? null,
+        },
+        accessToken,
+        refreshToken,
         emailVerified: user.emailVerified,
-        ...(user.role === "SCANNER" ? { scannerProfileId: user.scannerProfile?.id } : {}),
       },
     });
-    await issueSession({ id: user.id, email: user.email, role: user.role }, response);
+
+    tempResponse.cookies.getAll().forEach((cookie) => {
+      response.cookies.set(cookie.name, cookie.value, cookie);
+    });
+
     return response;
   } catch (error) {
     console.error("[app/api/auth/login/route.ts]", error);

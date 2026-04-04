@@ -1,89 +1,173 @@
 import { NextRequest } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
-import { requireScanner } from "@/src/lib/auth/guards";
+import { getScannerAccess, getScopedEvent, scannerAccessErrorResponse } from "@/src/lib/scanner-access";
+
+const checkinSchema = z.object({
+  ticketId: z.string().min(1),
+  eventId: z.string().min(1),
+  deviceId: z.string().min(1),
+  scannedAt: z.string().datetime(),
+});
+
+function serializeTicket(
+  ticket: {
+    id: string;
+    ticketNumber: string;
+    checkedInAt: Date | null;
+    checkedInDevice: string | null;
+    order: { buyerName: string | null };
+    orderItem: { ticketType: { name: string } };
+  },
+) {
+  return {
+    id: ticket.id,
+    ticketNumber: ticket.ticketNumber,
+    ticketTypeName: ticket.orderItem.ticketType.name,
+    attendeeName: ticket.order.buyerName,
+    checkedInAt: ticket.checkedInAt?.toISOString() ?? null,
+    checkedInDevice: ticket.checkedInDevice,
+  };
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { profile: scanner } = await requireScanner(req);
-    const { ticketId, eventId } = await req.json();
-
-    if (!ticketId || !eventId) {
-      return fail(400, { code: "BAD_REQUEST", message: "ticketId and eventId are required" });
+    const access = await getScannerAccess(req);
+    const parsed = checkinSchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
+      return fail(400, {
+        code: "VALIDATION_ERROR",
+        message: "Invalid check-in payload",
+        details: parsed.error.flatten(),
+      });
     }
 
-    const event = await prisma.event.findFirst({
-      where: { id: eventId, organizerProfileId: scanner.organizerProfileId },
-      select: { id: true, startAt: true, endAt: true }
+    const scopedEvent = await getScopedEvent(
+      parsed.data.eventId,
+      access.organizerProfileId,
+    );
+    if (!scopedEvent) {
+      return fail(403, {
+        code: "FORBIDDEN",
+        message: "Event not found in your scanner scope",
+      });
+    }
+
+    const ticket = await prisma.qRTicket.findFirst({
+      where: {
+        id: parsed.data.ticketId,
+        order: {
+          eventId: parsed.data.eventId,
+          status: "PAID",
+        },
+      },
+      select: {
+        id: true,
+        ticketNumber: true,
+        isCheckedIn: true,
+        checkedInAt: true,
+        checkedInDevice: true,
+        order: {
+          select: {
+            buyerName: true,
+          },
+        },
+        orderItem: {
+          select: {
+            ticketType: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
     });
 
-    if (!event) {
-      return fail(404, { code: "EVENT_NOT_FOUND", message: "Event not found or not managed by this organizer" });
+    if (!ticket) {
+      return ok({ outcome: "not_found" });
     }
-    
-    // Check-in logic using raw query for performance on a potentially large table
-    const updated = await prisma.$executeRaw`
-      UPDATE "QRTicket"
-      SET "checkedInAt" = NOW(),
-          "isCheckedIn" = true,
-          "checkedInDevice" = NULL
-      WHERE id = ${ticketId}
-        AND "checkedInAt" IS NULL
-        AND "orderId" IN (
-          SELECT id FROM "Order" WHERE "eventId" = ${eventId} AND status = 'PAID'
-        )
-    `;
 
-    if (updated === 0) {
-      // Could be already checked in, or invalid ticket, or wrong event.
-      // We check which one to give a better error message.
-      const ticket = await prisma.qRTicket.findUnique({
-        where: { id: ticketId },
-        include: { order: { select: { eventId: true, status: true } } },
+    if (ticket.isCheckedIn || ticket.checkedInAt) {
+      return ok({
+        outcome: "already_checked_in",
+        ticket: serializeTicket(ticket),
+      });
+    }
+
+    const scannedAt = new Date(parsed.data.scannedAt);
+    const updated = await prisma.qRTicket.updateMany({
+      where: {
+        id: parsed.data.ticketId,
+        isCheckedIn: false,
+        checkedInAt: null,
+        order: {
+          eventId: parsed.data.eventId,
+          status: "PAID",
+        },
+      },
+      data: {
+        isCheckedIn: true,
+        checkedInAt: scannedAt,
+        checkedInDevice: parsed.data.deviceId,
+      },
+    });
+
+    if (updated.count === 0) {
+      const latest = await prisma.qRTicket.findFirst({
+        where: {
+          id: parsed.data.ticketId,
+          order: {
+            eventId: parsed.data.eventId,
+            status: "PAID",
+          },
+        },
+        select: {
+          id: true,
+          ticketNumber: true,
+          checkedInAt: true,
+          checkedInDevice: true,
+          order: {
+            select: {
+              buyerName: true,
+            },
+          },
+          orderItem: {
+            select: {
+              ticketType: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
       });
 
-      if (!ticket || ticket.order.eventId !== eventId || ticket.order.status !== 'PAID') {
-        return fail(404, { code: "TICKET_NOT_FOUND", message: "Ticket is not valid for this event" });
+      if (!latest) {
+        return ok({ outcome: "not_found" });
       }
 
-      if (ticket.checkedInAt) {
-        return fail(409, {
-          code: "ALREADY_CHECKED_IN",
-          message: "Ticket already checked in",
-          details: { checkedInAt: ticket.checkedInAt.toISOString() },
-        });
-      }
-      
-      // Should be unreachable
-      return fail(500, { code: "CHECK_IN_FAILED", message: "Check-in failed for an unknown reason" });
+      return ok({
+        outcome: "already_checked_in",
+        ticket: serializeTicket(latest),
+      });
     }
-    
-    // Fetch the details to return a rich response
-    const finalTicket = await prisma.qRTicket.findUnique({
-      where: { id: ticketId },
-      include: {
-        order: { select: { buyerName: true, event: { select: { title: true } } } },
-        orderItem: { include: { ticketType: { select: { name: true } } } },
-      },
-    });
 
     return ok({
-      success: true,
-      ticket: {
-        ticketNumber: finalTicket!.ticketNumber,
-        ticketTypeName: finalTicket!.orderItem.ticketType.name,
-        buyerName: finalTicket!.order.buyerName,
-        eventTitle: finalTicket!.order.event.title,
-        checkedInAt: finalTicket!.checkedInAt!.toISOString(),
-      },
+      outcome: "ok",
+      ticket: serializeTicket({
+        ...ticket,
+        checkedInAt: scannedAt,
+        checkedInDevice: parsed.data.deviceId,
+      }),
     });
+  } catch (error) {
+    const authResponse = scannerAccessErrorResponse(error);
+    if (authResponse) return authResponse;
 
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      if (error.message === 'UNAUTHENTICATED') return fail(401, { code: "UNAUTHENTICATED", message: "Authentication required" });
-      if (error.message === 'FORBIDDEN') return fail(403, { code: "FORBIDDEN", message: "Scanner role required" });
-    }
-    console.error("[POST /api/scanner/check-in]", error);
+    console.error("[app/api/scanner/check-in/route.ts][POST]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "An unexpected error occurred" });
   }
 }

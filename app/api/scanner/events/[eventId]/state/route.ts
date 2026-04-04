@@ -86,11 +86,9 @@ export async function GET(
 
     return ok({
       scans: tickets.map((ticket) => ({
-        id: ticket.id,
-        ticketNumber: ticket.ticketNumber,
-        isCheckedIn: ticket.isCheckedIn || Boolean(ticket.checkedInAt),
+        ticketId: ticket.id,
         checkedInAt: ticket.checkedInAt,
-        checkedInDevice: ticket.checkedInDevice,
+        deviceId: ticket.checkedInDevice,
         deviceName: ticket.checkedInDevice ? deviceNameById.get(ticket.checkedInDevice) ?? null : null,
       })),
       serverTime: new Date().toISOString(),

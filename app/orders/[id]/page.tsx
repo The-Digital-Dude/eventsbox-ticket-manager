@@ -54,12 +54,12 @@ function formatDateTime(iso: string) {
   });
 }
 
-function QRDisplay({ token }: { token: string }) {
+function QRDisplay({ ticketId }: { ticketId: string }) {
   const [dataUrl, setDataUrl] = useState<string>("");
 
   useEffect(() => {
-    QRCode.toDataURL(token, { width: 200, margin: 2 }).then(setDataUrl).catch(() => {});
-  }, [token]);
+    QRCode.toDataURL(ticketId, { width: 200, margin: 2 }).then(setDataUrl).catch(() => {});
+  }, [ticketId]);
 
   if (!dataUrl) return <div className="h-[200px] w-[200px] animate-pulse rounded-xl bg-neutral-100" />;
   // eslint-disable-next-line @next/next/no-img-element
@@ -196,7 +196,7 @@ export default function OrderConfirmationPage({ params }: { params: Promise<{ id
                   key={ticket.id}
                   className="flex flex-col items-center gap-4 rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.2)] bg-[rgb(var(--theme-accent-rgb)/0.04)] p-5 text-center"
                 >
-                  <QRDisplay token={ticket.token} />
+                  <QRDisplay ticketId={ticket.id} />
                   <div>
                     <p className="font-semibold text-neutral-900">{ticket.ticketType.name}</p>
                     <p className="mt-1 font-mono text-xs text-neutral-500">{ticket.ticketNumber}</p>

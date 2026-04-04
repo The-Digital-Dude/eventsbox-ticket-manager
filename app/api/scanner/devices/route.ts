@@ -33,7 +33,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return ok(device, 201);
+    return ok(
+      {
+        deviceId: device.deviceId,
+        name: device.name,
+      },
+      201,
+    );
   } catch (error) {
     const authResponse = scannerAccessErrorResponse(error);
     if (authResponse) return authResponse;

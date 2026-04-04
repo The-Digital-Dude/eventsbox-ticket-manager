@@ -172,12 +172,12 @@ async function main() {
 
   // ── Featured Event ──────────────────────────────────────────────────────
   const now = new Date();
-  const startAt = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000); // 10 days from now
+  const startAt = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000); // 3 days from now
   const endAt = new Date(startAt.getTime() + 4 * 60 * 60 * 1000);   // 4 hours long
 
   const event = await prisma.event.upsert({
     where: { slug: "jubayer-events-grand-opening-2026" },
-    update: {},
+    update: { startAt, endAt },
     create: {
       organizerProfileId: orgProfile.id,
       categoryId: categoryMap["Concert"],
@@ -264,8 +264,113 @@ async function main() {
   console.log("✅ Ticket types: General (৳1200), VIP (৳3500), Balcony (৳800)");
   console.log("✅ Promo code: JUHAN20 (20% off)");
 
-  // ── Demo attendee ───────────────────────────────────────────────────────
+  // ── Demo organizer (simple login) ──────────────────────────────────────
   const demoHash = await bcrypt.hash("Demo123!", 10);
+  const demoOrgUser = await prisma.user.upsert({
+    where: { email: "organizer@demo.local" },
+    update: { passwordHash: demoHash, emailVerified: true, role: Role.ORGANIZER },
+    create: {
+      email: "organizer@demo.local",
+      passwordHash: demoHash,
+      role: Role.ORGANIZER,
+      emailVerified: true,
+    },
+  });
+  await prisma.organizerProfile.upsert({
+    where: { userId: demoOrgUser.id },
+    update: {
+      brandName: "Demo Organizer",
+      companyName: "Demo Events Ltd.",
+      contactName: "Demo Organizer",
+      supportEmail: "organizer@demo.local",
+      phone: "+8801700000001",
+      approvalStatus: OrganizerApprovalStatus.APPROVED,
+      stateId: dhaka.id,
+      cityId: dhakaCity.id,
+    },
+    create: {
+      userId: demoOrgUser.id,
+      brandName: "Demo Organizer",
+      companyName: "Demo Events Ltd.",
+      contactName: "Demo Organizer",
+      supportEmail: "organizer@demo.local",
+      phone: "+8801700000001",
+      approvalStatus: OrganizerApprovalStatus.APPROVED,
+      stateId: dhaka.id,
+      cityId: dhakaCity.id,
+    },
+  });
+  const demoOrgProfile = await prisma.organizerProfile.findUnique({
+    where: { userId: demoOrgUser.id },
+  });
+
+  await prisma.organizerPayoutSettings.upsert({
+    where: { organizerProfileId: demoOrgProfile!.id },
+    update: {
+      stripeOnboardingStatus: StripeOnboardingStatus.NOT_STARTED,
+    },
+    create: {
+      organizerProfileId: demoOrgProfile!.id,
+      stripeOnboardingStatus: StripeOnboardingStatus.NOT_STARTED,
+    },
+  });
+  console.log("✅ Demo organizer: organizer@demo.local / Demo123!");
+
+  const demoEventStartAt = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+  const demoEventEndAt = new Date(demoEventStartAt.getTime() + 3 * 60 * 60 * 1000);
+
+  const demoEvent = await prisma.event.upsert({
+    where: { slug: "demo-organizer-launch-night-2026" },
+    update: {
+      organizerProfileId: demoOrgProfile!.id,
+      venueId: venue.id,
+      startAt: demoEventStartAt,
+      endAt: demoEventEndAt,
+      publishedAt: new Date(),
+      status: EventStatus.PUBLISHED,
+    },
+    create: {
+      organizerProfileId: demoOrgProfile!.id,
+      categoryId: categoryMap["Conference"],
+      venueId: venue.id,
+      stateId: dhaka.id,
+      cityId: dhakaCity.id,
+      title: "Demo Organizer Launch Night 2026",
+      slug: "demo-organizer-launch-night-2026",
+      description: "A lightweight demo event for scanner testing and end-to-end QA.",
+      contactEmail: "organizer@demo.local",
+      startAt: demoEventStartAt,
+      endAt: demoEventEndAt,
+      timezone: "Asia/Dhaka",
+      status: EventStatus.PUBLISHED,
+      publishedAt: new Date(),
+      commissionPct: 8.5,
+      gstPct: 15,
+      tags: ["demo", "scanner"],
+    },
+  });
+
+  await prisma.ticketType.upsert({
+    where: { id: "demo-org-tt-general" },
+    update: {
+      eventId: demoEvent.id,
+      name: "Demo General Admission",
+      quantity: 50,
+      sortOrder: 1,
+    },
+    create: {
+      id: "demo-org-tt-general",
+      eventId: demoEvent.id,
+      name: "Demo General Admission",
+      price: 0,
+      quantity: 50,
+      sold: 0,
+      sortOrder: 1,
+    },
+  });
+  console.log("✅ Demo organizer event: Demo Organizer Launch Night 2026");
+
+  // ── Demo attendee ───────────────────────────────────────────────────────
   const attendeeUser = await prisma.user.upsert({
     where: { email: "attendee@demo.local" },
     update: { passwordHash: demoHash, emailVerified: true },
@@ -291,6 +396,7 @@ async function main() {
   console.log("─────────────────────────────────────────────────────────");
   console.log("Admin:     admin@eventsbox.local            / Admin123!");
   console.log("Organizer: jubayerjuhan.info@gmail.com      / Iamjuhan123");
+  console.log("Organizer: organizer@demo.local             / Demo123!");
   console.log("Attendee:  attendee@demo.local              / Demo123!");
   console.log("─────────────────────────────────────────────────────────");
   console.log("Event: /events/jubayer-events-grand-opening-2026");

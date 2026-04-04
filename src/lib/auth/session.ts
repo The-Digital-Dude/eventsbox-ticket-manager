@@ -43,7 +43,7 @@ export async function issueSession(user: SessionUser, response: NextResponse) {
     maxAge: REFRESH_EXPIRES_SECONDS,
   });
 
-  return { accessToken };
+  return { accessToken, refreshToken };
 }
 
 export async function rotateRefreshToken(rawRefreshToken: string, response: NextResponse) {

@@ -81,7 +81,7 @@ export async function GET(
         id: ticket.id,
         ticketNumber: ticket.ticketNumber,
         ticketTypeName: ticket.orderItem.ticketType.name,
-        holderName: ticket.order.buyerName,
+        attendeeName: ticket.order.buyerName,
         isCheckedIn: ticket.isCheckedIn || Boolean(ticket.checkedInAt),
         checkedInAt: ticket.checkedInAt,
         checkedInDevice: ticket.checkedInDevice,

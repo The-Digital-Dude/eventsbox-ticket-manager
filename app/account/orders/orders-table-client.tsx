@@ -50,6 +50,7 @@ export function OrdersTableClient({ initialOrders }: { initialOrders: OrderRow[]
   const [renderedAt] = useState(() => Date.now());
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [activeTransferTicketId, setActiveTransferTicketId] = useState<string | null>(null);
+  const [activeQrTicketId, setActiveQrTicketId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [transferRecipientName, setTransferRecipientName] = useState("");
   const [transferRecipientEmail, setTransferRecipientEmail] = useState("");
@@ -321,6 +322,19 @@ export function OrdersTableClient({ initialOrders }: { initialOrders: OrderRow[]
                                 </div>
 
                                 <div className="flex flex-wrap gap-2">
+                                  {order.status === "PAID" ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setActiveQrTicketId((prev) =>
+                                          prev === ticket.id ? null : ticket.id
+                                        );
+                                      }}
+                                    >
+                                      {activeQrTicketId === ticket.id ? "Hide QR" : "Show QR"}
+                                    </Button>
+                                  ) : null}
                                   {transfer?.status === "PENDING" ? (
                                     <Button
                                       size="sm"
@@ -383,6 +397,39 @@ export function OrdersTableClient({ initialOrders }: { initialOrders: OrderRow[]
                                     >
                                       Cancel
                                     </Button>
+                                  </div>
+                                </div>
+                              ) : null}
+
+                              {activeQrTicketId === ticket.id && order.status === "PAID" ? (
+                                <div className="mt-3 rounded-lg border border-[var(--border)] bg-neutral-50 p-4">
+                                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-white p-3">
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img
+                                        src={`/api/account/tickets/${ticket.id}/qr`}
+                                        alt={`QR code for ${ticket.ticketNumber}`}
+                                        width={180}
+                                        height={180}
+                                        className="rounded-xl"
+                                      />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                      <a
+                                        href={`/api/account/tickets/${ticket.id}/qr`}
+                                        download={`ticket-${ticket.ticketNumber}.png`}
+                                        className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-neutral-900 transition hover:bg-neutral-50"
+                                      >
+                                        Download QR PNG
+                                      </a>
+                                      <a
+                                        href={`/api/account/tickets/${ticket.id}/pdf`}
+                                        download={`ticket-${ticket.ticketNumber}.pdf`}
+                                        className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-neutral-900 transition hover:bg-neutral-50"
+                                      >
+                                        Download Ticket PDF
+                                      </a>
+                                    </div>
                                   </div>
                                 </div>
                               ) : null}

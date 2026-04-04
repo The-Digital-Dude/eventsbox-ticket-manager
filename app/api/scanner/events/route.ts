@@ -54,8 +54,8 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return ok(
-      events.map((event) => {
+    return ok({
+      events: events.map((event) => {
         const tickets = event.orders.flatMap((order) => order.tickets);
         const checkedInCount = tickets.filter((ticket) => ticket.isCheckedIn || Boolean(ticket.checkedInAt)).length;
 
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
           checkedInCount,
         };
       }),
-    );
+    });
   } catch (error) {
     const authResponse = scannerAccessErrorResponse(error);
     if (authResponse) return authResponse;
