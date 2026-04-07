@@ -9,7 +9,12 @@ export async function requireAuth(req: NextRequest) {
   if (!token) {
     throw new Error("UNAUTHENTICATED");
   }
-  const payload = verifyAccessToken(token);
+  let payload;
+  try {
+    payload = verifyAccessToken(token);
+  } catch {
+    throw new Error("UNAUTHENTICATED");
+  }
   const user = await prisma.user.findUnique({
     where: { id: payload.sub },
     select: { isActive: true },

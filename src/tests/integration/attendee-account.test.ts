@@ -70,8 +70,8 @@ describe("attendee account integration", () => {
       const { loginRes } = await loginAttendee(email);
       expect(loginRes.status).toBe(200);
 
-      const payload = (await loginRes.json()) as { data?: { role?: string } };
-      expect(payload.data?.role).toBe("ATTENDEE");
+      const payload = (await loginRes.json()) as { data?: { user?: { role?: string } } };
+      expect(payload.data?.user?.role).toBe("ATTENDEE");
     },
     30_000,
   );

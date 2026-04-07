@@ -142,7 +142,7 @@ describe("scanner app api integration", () => {
     const payload = await res.json();
 
     expect(res.status).toBe(200);
-    expect(payload.data).toEqual([
+    expect(payload.data.events).toEqual([
       expect.objectContaining({
         id: "event-1",
         totalTickets: 2,
@@ -184,7 +184,7 @@ describe("scanner app api integration", () => {
     expect(payload.data.tickets[0]).toEqual(
       expect.objectContaining({
         ticketTypeName: "VIP",
-        holderName: "Alex",
+        attendeeName: "Alex",
       }),
     );
   });
@@ -225,7 +225,7 @@ describe("scanner app api integration", () => {
         scans: [
           { ticketId: "ticket-1", scannedAt: "2026-04-10T18:31:00.000Z", deviceId: "device-1" },
           { ticketId: "ticket-2", scannedAt: "2026-04-10T18:32:00.000Z", deviceId: "device-1" },
-          { ticketId: "missing-ticket", scannedAt: "2026-04-10T18:33:00.000Z" },
+          { ticketId: "missing-ticket", scannedAt: "2026-04-10T18:33:00.000Z", deviceId: "device-1" },
         ],
       }),
       headers: { "content-type": "application/json" },
@@ -280,7 +280,7 @@ describe("scanner app api integration", () => {
     expect(payload.data.totalCheckedIn).toBe(7);
     expect(payload.data.scans[0]).toEqual(
       expect.objectContaining({
-        id: "ticket-2",
+        ticketId: "ticket-2",
         deviceName: "Front Gate",
       }),
     );
