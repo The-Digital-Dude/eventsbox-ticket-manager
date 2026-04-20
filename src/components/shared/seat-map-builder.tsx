@@ -166,10 +166,13 @@ export function SeatMapBuilder({
 
   function deleteSection(sectionId: string) {
     setSections((prev) => {
+      const sectionToDelete = prev.find((s) => s.id === sectionId);
+      if (!sectionToDelete) return prev;
+
       const filtered = prev.filter((section) => section.id !== sectionId);
       const normalized = normalizeRowStarts(filtered);
 
-      const prefix = `${sectionId}-`;
+      const prefix = `${sectionToDelete.name || sectionToDelete.id}-`;
       setSeatState((currentSeatState) => {
         const nextSeatState: Record<string, SeatState> = {};
         for (const [seatId, state] of Object.entries(currentSeatState)) {

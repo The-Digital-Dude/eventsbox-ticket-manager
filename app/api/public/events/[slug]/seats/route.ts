@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
+import { resolveEventSeating } from "@/src/lib/event-seating";
 import { fail, ok } from "@/src/lib/http/response";
 import { buildPublicSeatStatusMap, getSeatDescriptorMap, sanitizePublicSeatState } from "@/src/lib/venue-seating";
-import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
 const REFRESH_INTERVAL_MS = 10_000;
 
@@ -13,6 +13,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
     where: { slug, status: "PUBLISHED" },
     select: {
       id: true,
+      seatingPlan: {
+        select: {
+          seatingConfig: true,
+          seatState: true,
+          sections: {
+            select: {
+              key: true,
+              name: true,
+            },
+          },
+        },
+      },
       venue: {
         select: {
           seatingConfig: true,
@@ -26,8 +38,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
     return fail(404, { code: "NOT_FOUND", message: "Event not found" });
   }
 
-  const seatingConfig = (event.venue?.seatingConfig as VenueSeatingConfig | null) ?? null;
-  const seatState = sanitizePublicSeatState((event.venue?.seatState as Record<string, SeatState> | null) ?? null);
+  const resolvedSeating = resolveEventSeating(event);
+  const seatingConfig = resolvedSeating.seatingConfig;
+  const seatState = sanitizePublicSeatState(resolvedSeating.seatState);
 
   if (!seatingConfig) {
     return ok({

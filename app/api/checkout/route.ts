@@ -1,13 +1,13 @@
 import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
+import { getTicketSeatingSectionKey, resolveEventSeating } from "@/src/lib/event-seating";
 import { fail, ok } from "@/src/lib/http/response";
 import { getStripeClient } from "@/src/lib/stripe/client";
 import { checkoutIntentSchema } from "@/src/lib/validators/event";
 import { getServerSession } from "@/src/lib/auth/server-auth";
 import { validatePromoCodeById } from "@/src/lib/services/promo-code";
 import { getSeatDescriptorMap } from "@/src/lib/venue-seating";
-import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
 const SEAT_HOLD_MS = 15 * 60 * 1000;
 
@@ -33,7 +33,27 @@ export async function POST(req: NextRequest) {
     const event = await prisma.event.findFirst({
       where: { id: eventId, status: "PUBLISHED" },
       include: {
-        ticketTypes: true,
+        ticketTypes: {
+          include: {
+            eventSeatingSection: {
+              select: {
+                key: true,
+              },
+            },
+          },
+        },
+        seatingPlan: {
+          select: {
+            seatingConfig: true,
+            seatState: true,
+            sections: {
+              select: {
+                key: true,
+                name: true,
+              },
+            },
+          },
+        },
         venue: {
           select: {
             seatingConfig: true,
@@ -63,8 +83,9 @@ export async function POST(req: NextRequest) {
         : null;
 
     const uniqueSelectedSeatIds = Array.from(new Set(selectedSeatIds));
-    const seatingConfig = (event.venue?.seatingConfig as VenueSeatingConfig | null) ?? null;
-    const seatState = (event.venue?.seatState as Record<string, SeatState> | null) ?? null;
+    const resolvedSeating = resolveEventSeating(event);
+    const seatingConfig = resolvedSeating.seatingConfig;
+    const seatState = resolvedSeating.seatState;
     const seatDescriptorMap = seatingConfig ? getSeatDescriptorMap(seatingConfig, seatState) : {};
 
     if (selectedSeatIds.length !== uniqueSelectedSeatIds.length) {
@@ -78,7 +99,7 @@ export async function POST(req: NextRequest) {
       // Only ticket types linked to a section require seat selection
       const totalSeatedTickets = items.reduce((sum, item) => {
         const tt = event.ticketTypes.find((t) => t.id === item.ticketTypeId);
-        return tt?.sectionId ? sum + item.quantity : sum;
+        return getTicketSeatingSectionKey(tt ?? {}) ? sum + item.quantity : sum;
       }, 0);
 
       if (uniqueSelectedSeatIds.length !== totalSeatedTickets) {
@@ -92,7 +113,7 @@ export async function POST(req: NextRequest) {
       if (invalidSeatId) {
         return fail(400, {
           code: "INVALID_SEAT",
-          message: `Seat ${invalidSeatId} is not available for this venue`,
+          message: `Seat ${invalidSeatId} is not available for this event`,
         });
       }
 
@@ -100,8 +121,9 @@ export async function POST(req: NextRequest) {
       const sectionRequired = new Map<string, number>();
       for (const item of items) {
         const tt = event.ticketTypes.find((t) => t.id === item.ticketTypeId);
-        if (tt?.sectionId) {
-          sectionRequired.set(tt.sectionId, (sectionRequired.get(tt.sectionId) ?? 0) + item.quantity);
+        const sectionKey = getTicketSeatingSectionKey(tt ?? {});
+        if (sectionKey) {
+          sectionRequired.set(sectionKey, (sectionRequired.get(sectionKey) ?? 0) + item.quantity);
         }
       }
 

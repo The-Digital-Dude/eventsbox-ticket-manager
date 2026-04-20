@@ -1,17 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Building2, MapPin } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter, useSearchParams } from "next/navigation";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { EmptyState } from "@/src/components/shared/empty-state";
-import { SeatMapBuilder } from "@/src/components/shared/seat-map-builder";
+import { LayoutBuilderShell } from "@/src/components/organizer/layout-builder-shell";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { PlacesAutocomplete } from "@/src/components/ui/places-autocomplete";
+import { SearchableSelect } from "@/src/components/ui/searchable-select";
 import { matchLocation } from "@/src/lib/location-match";
 import { nav } from "@/app/organizer/nav";
 import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
@@ -32,8 +35,30 @@ type VenueRow = {
 };
 
 type Step = "details" | "seating";
+type EventContext = {
+  id: string;
+  title: string;
+  venueId: string | null;
+  venueName: string | null;
+  layoutMode: string | null;
+};
+
+function formatLayoutMode(layoutMode: string | null) {
+  switch (layoutMode) {
+    case "ROWS":
+      return "seating layout";
+    case "TABLES":
+      return "table layout";
+    case "MIXED":
+      return "mixed layout";
+    default:
+      return "venue setup";
+  }
+}
 
 export default function OrganizerVenuesPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [venues, setVenues] = useState<VenueRow[]>([]);
   const [name, setName] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
@@ -41,6 +66,8 @@ export default function OrganizerVenuesPage() {
   const [countryId, setCountryId] = useState("");
   const [stateId, setStateId] = useState("");
   const [cityId, setCityId] = useState("");
+  const [stateName, setStateName] = useState("");
+  const [cityName, setCityName] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [lat, setLat] = useState<number | undefined>(undefined);
   const [lng, setLng] = useState<number | undefined>(undefined);
@@ -49,28 +76,61 @@ export default function OrganizerVenuesPage() {
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [step, setStep] = useState<Step>("details");
   const [editingVenueId, setEditingVenueId] = useState<string | null>(null);
+  const [eventContext, setEventContext] = useState<EventContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [refetch, setRefetch] = useState(0);
+  const eventId = searchParams.get("eventId");
+  const incomingStep = searchParams.get("step");
+  const incomingVenueId = searchParams.get("venueId");
+  const incomingLayoutMode = searchParams.get("layoutMode");
+  const isTicketFlow = searchParams.get("from") === "ticket" || searchParams.get("from") === "ticket-class";
+  const filteredStates = states.filter((state) => !countryId || state.countryId === countryId);
+  const cities = filteredStates.find((state) => state.id === stateId)?.cities ?? [];
 
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const [vRes, lRes, cRes] = await Promise.all([
+      const [vRes, lRes, cRes, eRes] = await Promise.all([
         fetch("/api/organizer/venues"),
         fetch("/api/public/locations"),
         fetch("/api/public/categories"),
+        eventId ? fetch(`/api/organizer/events/${eventId}`) : Promise.resolve(null),
       ]);
       const v = await vRes.json();
       const l = await lRes.json();
       const c = await cRes.json();
+      const eventPayload = eRes ? await eRes.json() : null;
       setVenues(v?.data ?? []);
       setCountries(l?.data?.countries ?? []);
       setStates(l?.data?.states ?? []);
       setCategories(c?.data ?? []);
+      if (eventPayload?.data) {
+        setEventContext({
+          id: eventPayload.data.id,
+          title: eventPayload.data.title,
+          venueId: eventPayload.data.venue?.id ?? null,
+          venueName: eventPayload.data.venue?.name ?? null,
+          layoutMode: incomingLayoutMode ?? eventPayload.data.seatingMode ?? null,
+        });
+      } else {
+        setEventContext(null);
+      }
+      const initialEditingVenueId = incomingVenueId ?? eventPayload?.data?.venue?.id ?? null;
+      const requestedStep: Step =
+        incomingStep === "seating" || (isTicketFlow && initialEditingVenueId)
+          ? "seating"
+          : "details";
+      const nextStep: Step = requestedStep === "seating" && !initialEditingVenueId ? "details" : requestedStep;
+      setStep(nextStep);
+      if (nextStep === "seating") {
+        setEditingVenueId(initialEditingVenueId);
+      } else {
+        setEditingVenueId(null);
+      }
       setLoading(false);
     }
     void load();
-  }, [refetch]);
+  }, [eventId, incomingStep, incomingVenueId, incomingLayoutMode, isTicketFlow, refetch]);
 
   function validateDetails() {
     if (!name.trim()) {
@@ -81,8 +141,12 @@ export default function OrganizerVenuesPage() {
       toast.error("Address line 1 is required");
       return false;
     }
-    if (!stateId || !cityId) {
-      toast.error("Please select state and city");
+    if (!stateId && !stateName.trim()) {
+      toast.error("Please select or enter a state");
+      return false;
+    }
+    if (!cityId && !cityName.trim()) {
+      toast.error("Please select or enter a city");
       return false;
     }
     return true;
@@ -101,6 +165,8 @@ export default function OrganizerVenuesPage() {
     setCountryId("");
     setStateId("");
     setCityId("");
+    setStateName("");
+    setCityName("");
     setCategoryId("");
     setLat(undefined);
     setLng(undefined);
@@ -121,8 +187,10 @@ export default function OrganizerVenuesPage() {
         addressLine1,
         addressLine2: addressLine2 || undefined,
         countryId: countryId || undefined,
-        stateId,
-        cityId,
+        stateId: stateId || undefined,
+        stateName: stateName.trim() || undefined,
+        cityId: cityId || undefined,
+        cityName: cityName.trim() || undefined,
         categoryId: categoryId || undefined,
         lat,
         lng,
@@ -138,9 +206,36 @@ export default function OrganizerVenuesPage() {
       return;
     }
 
+    const createdVenueId = response?.data?.id as string | undefined;
+    if (isTicketFlow && eventContext?.id && createdVenueId) {
+      const linkRes = await fetch(`/api/organizer/events/${eventContext.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          venueId: createdVenueId,
+          countryId: countryId || undefined,
+          stateId: (response?.data?.stateId ?? stateId) || undefined,
+          stateName: stateName.trim() || undefined,
+          cityId: (response?.data?.cityId ?? cityId) || undefined,
+          cityName: cityName.trim() || undefined,
+          ...(lat !== undefined ? { lat } : {}),
+          ...(lng !== undefined ? { lng } : {}),
+        }),
+      });
+      const linkPayload = await linkRes.json();
+      if (!linkRes.ok) {
+        toast.error(linkPayload?.error?.message ?? "Venue was created, but linking it to the event failed");
+        setRefetch(c => c + 1);
+        return;
+      }
+    }
+
     toast.success("Venue and seating configuration submitted");
     resetForm();
     setRefetch(c => c + 1);
+    if (isTicketFlow && eventContext?.id) {
+      router.push(`/organizer/events/${eventContext.id}`);
+    }
   }
 
   async function saveExistingVenueSeating(
@@ -190,6 +285,22 @@ export default function OrganizerVenuesPage() {
     <SidebarLayout role="organizer" title="Organizer" items={nav}>
       <PageHeader title="Venue Requests" subtitle="Step 1: venue details. Step 2: seating configuration." />
 
+      {isTicketFlow && eventContext ? (
+        <div className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-[rgb(var(--theme-accent-rgb)/0.05)] px-5 py-4 text-sm text-neutral-700 shadow-sm">
+          <p className="font-medium text-neutral-900">Continuing setup for {eventContext.title}</p>
+          <p className="mt-1">
+            {eventContext.venueId
+              ? `Venue${eventContext.venueName ? ` "${eventContext.venueName}"` : ""} is already linked. Continue with ${formatLayoutMode(eventContext.layoutMode)} below.`
+              : `Create the venue details first, then continue into ${formatLayoutMode(eventContext.layoutMode)}.`}
+          </p>
+          <div className="mt-3">
+            <Link href={`/organizer/events/${eventContext.id}`} className="text-sm font-medium text-[var(--theme-accent)] underline underline-offset-4">
+              Back to event
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
       <div className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <button
@@ -225,28 +336,59 @@ export default function OrganizerVenuesPage() {
                   if (cId) setCountryId(cId);
                   if (sId) setStateId(sId); else setStateId("");
                   if (ciId) setCityId(ciId); else setCityId("");
+                  setStateName("");
+                  setCityName("");
                   toast.success("Address auto-filled from Google Maps");
                 }}
               />
-              <p className="text-xs text-neutral-500">Select from suggestions to auto-fill address fields below.</p>
+              <p className="text-xs text-neutral-500">Use autocomplete when available, or choose country, state, and city manually below.</p>
             </div>
             <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-2"><Label>Venue Name</Label><Input value={name} onChange={(event) => setName(event.target.value)} /></div>
               <div className="space-y-2"><Label>Category</Label><select className="app-select" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">Select category (optional)</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>
               <div className="space-y-2 md:col-span-2"><Label>Address line 1</Label><Input value={addressLine1} onChange={(event) => setAddressLine1(event.target.value)} /></div>
               <div className="space-y-2 md:col-span-2"><Label>Address line 2</Label><Input value={addressLine2} onChange={(event) => setAddressLine2(event.target.value)} /></div>
-              <div className="space-y-2"><Label>Country</Label><select className="app-select" value={countryId} onChange={(event) => { setCountryId(event.target.value); setStateId(""); setCityId(""); }}><option value="">Select country (optional)</option>{countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}</select></div>
+              <div className="space-y-2">
+                <Label>Country</Label>
+                <SearchableSelect
+                  options={[{ value: "", label: "Select country (optional)" }, ...countries.map((country) => ({ value: country.id, label: country.name }))]}
+                  value={countryId}
+                  onChange={(value) => { setCountryId(value); setStateId(""); setCityId(""); }}
+                  placeholder="Select country (optional)"
+                  searchPlaceholder="Search countries..."
+                />
+              </div>
               <div className="space-y-2">
                 <Label>State</Label>
-                <div className="flex h-10 w-full items-center rounded-xl border border-[var(--border)] bg-neutral-50 px-3 text-sm cursor-not-allowed select-none">
-                  {stateId ? <span className="text-neutral-900">{states.find((s) => s.id === stateId)?.name ?? "—"}</span> : <span className="text-neutral-400">Auto-filled from address search</span>}
-                </div>
+                <SearchableSelect
+                  options={[{ value: "", label: "Select state" }, ...filteredStates.map((state) => ({ value: state.id, label: state.name }))]}
+                  value={stateId}
+                  onChange={(value) => { setStateId(value); setCityId(""); if (value) setStateName(""); }}
+                  placeholder="Select state"
+                  searchPlaceholder="Search states..."
+                  disabled={!countryId}
+                />
+                <Input
+                  value={stateName}
+                  onChange={(event) => { setStateName(event.target.value); if (event.target.value.trim()) setStateId(""); }}
+                  placeholder="Or type state manually"
+                />
               </div>
               <div className="space-y-2">
                 <Label>City</Label>
-                <div className="flex h-10 w-full items-center rounded-xl border border-[var(--border)] bg-neutral-50 px-3 text-sm cursor-not-allowed select-none">
-                  {cityId ? <span className="text-neutral-900">{states.flatMap((s) => s.cities).find((c) => c.id === cityId)?.name ?? "—"}</span> : <span className="text-neutral-400">Auto-filled from address search</span>}
-                </div>
+                <SearchableSelect
+                  options={[{ value: "", label: "Select city" }, ...cities.map((city) => ({ value: city.id, label: city.name }))]}
+                  value={cityId}
+                  onChange={(value) => { setCityId(value); if (value) setCityName(""); }}
+                  placeholder="Select city"
+                  searchPlaceholder="Search cities..."
+                  disabled={!stateId}
+                />
+                <Input
+                  value={cityName}
+                  onChange={(event) => { setCityName(event.target.value); if (event.target.value.trim()) setCityId(""); }}
+                  placeholder="Or type city manually"
+                />
               </div>
             </div>
             <div className="flex gap-3">
@@ -258,10 +400,16 @@ export default function OrganizerVenuesPage() {
           <div className="space-y-4">
             <p className="text-sm text-neutral-600">
               {editingVenue
-                ? "Updating seating for an existing venue."
-                : "Configure seating map sections and submit the venue request."}
+                ? `Updating ${formatLayoutMode(eventContext?.layoutMode ?? null)} for an existing venue.`
+                : `Configure the existing seat map builder for this ${formatLayoutMode(eventContext?.layoutMode ?? null)}.`}
             </p>
-            <SeatMapBuilder
+            <LayoutBuilderShell
+              title="Venue Seating Builder"
+              description={
+                editingVenue
+                  ? `Updating ${formatLayoutMode(eventContext?.layoutMode ?? null)} for an existing venue.`
+                  : `Configure the existing seat map builder for this ${formatLayoutMode(eventContext?.layoutMode ?? null)}.`
+              }
               initialConfig={editingVenue?.seatingConfig ?? null}
               initialSeatState={editingVenue?.seatState ?? null}
               saveLabel={editingVenue ? "Save Seating Update" : "Submit Venue Request"}
@@ -270,8 +418,9 @@ export default function OrganizerVenuesPage() {
                   ? saveExistingVenueSeating(editingVenue.id, payload)
                   : submitNewVenue(payload)
               }
+              backLabel="Back to Details"
+              onBack={() => setStep("details")}
             />
-            <Button variant="outline" onClick={() => setStep("details")}>Back to Details</Button>
           </div>
         )}
       </div>

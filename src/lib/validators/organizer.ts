@@ -43,14 +43,23 @@ export const venueRequestSchema = z.object({
   addressLine1: z.string().min(3),
   addressLine2: z.string().optional(),
   countryId: z.string().optional(),
-  stateId: z.string().min(1),
-  cityId: z.string().min(1),
+  stateId: z.string().optional(),
+  stateName: z.string().trim().min(1).optional(),
+  cityId: z.string().optional(),
+  cityName: z.string().trim().min(1).optional(),
   categoryId: z.string().optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
   seatingConfig: venueSeatingConfigSchema,
   seatState: seatStateSchema.optional(),
   summary: seatingSummarySchema,
+}).superRefine((data, ctx) => {
+  if (!data.stateId && !data.stateName) {
+    ctx.addIssue({ code: "custom", path: ["stateId"], message: "State is required" });
+  }
+  if (!data.cityId && !data.cityName) {
+    ctx.addIssue({ code: "custom", path: ["cityId"], message: "City is required" });
+  }
 });
 
 export const venueUpdateSchema = z.object({

@@ -90,6 +90,10 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
+  function toIsoDatetime(value: string) {
+    return new Date(value).toISOString();
+  }
+
   useEffect(() => {
     async function load() {
       const [locRes, catRes, venRes, evRes] = await Promise.all([
@@ -154,7 +158,9 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         categoryId: categoryId || undefined, venueId: venueId || undefined,
         countryId: countryId || undefined,
         stateId: stateId || undefined, cityId: cityId || undefined,
-        startAt, endAt, timezone,
+        startAt: toIsoDatetime(startAt),
+        endAt: toIsoDatetime(endAt),
+        timezone,
         heroImage: heroImage || undefined,
         videoUrl: videoUrl || undefined,
         contactEmail: contactEmail || undefined, contactPhone: contactPhone || undefined,

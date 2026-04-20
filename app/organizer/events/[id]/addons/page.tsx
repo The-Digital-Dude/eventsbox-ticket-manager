@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { use, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Trash2 } from "lucide-react";
@@ -37,8 +37,8 @@ const nav = [
   { href: "/organizer/series", label: "Series" },
 ];
 
-export default function EventAddOnsPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default function EventAddOnsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
   
   const [eventTitle, setEventTitle] = useState("");

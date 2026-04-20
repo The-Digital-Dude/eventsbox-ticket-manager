@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
+import { resolveEventSeating } from "@/src/lib/event-seating";
 import { fail, ok } from "@/src/lib/http/response";
 import { getReviewAttendeeName } from "@/src/lib/services/event-reviews";
 import { sanitizePublicSeatState } from "@/src/lib/venue-seating";
-import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -43,6 +43,20 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
           seatState: true,
         },
       },
+      seatingMode: true,
+      seatingPlan: {
+        select: {
+          seatingConfig: true,
+          seatState: true,
+          sections: {
+            select: {
+              key: true,
+              name: true,
+            },
+            orderBy: { sortOrder: "asc" },
+          },
+        },
+      },
       state: { select: { id: true, name: true } },
       city: { select: { id: true, name: true } },
       series: { select: { id: true, title: true } },
@@ -66,6 +80,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
           name: true,
           description: true,
           kind: true,
+          inventoryMode: true,
           sectionId: true,
           price: true,
           quantity: true,
@@ -112,6 +127,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
 
   if (!event) return fail(404, { code: "NOT_FOUND", message: "Event not found" });
 
+  const resolvedSeating = resolveEventSeating(event);
+
   const addOnsWithStock = await Promise.all(
     (event.addOns ?? []).map(async (a) => {
       if (a.totalStock === null) return { ...a, remainingStock: null };
@@ -137,11 +154,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
       createdAt: review.createdAt,
       attendeeName: getReviewAttendeeName(review),
     })),
+    seatingConfig: resolvedSeating.seatingConfig,
+    seatState: sanitizePublicSeatState(resolvedSeating.seatState),
+    seatingMode: event.seatingMode,
+    seatingSource: resolvedSeating.source,
     venue: event.venue
       ? {
           ...event.venue,
-          seatingConfig: (event.venue.seatingConfig as VenueSeatingConfig | null) ?? null,
-          seatState: sanitizePublicSeatState((event.venue.seatState as Record<string, SeatState> | null) ?? null),
+          seatingConfig: resolvedSeating.seatingConfig,
+          seatState: sanitizePublicSeatState(resolvedSeating.seatState),
         }
       : null,
   });

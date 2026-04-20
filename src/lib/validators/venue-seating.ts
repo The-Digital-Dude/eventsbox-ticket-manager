@@ -68,7 +68,7 @@ export const seatingSummarySchema = z.object({
 });
 
 export const venueSeatingConfigSchema = z.object({
-  mapType: z.enum(["seats", "table"]),
+  mapType: z.enum(["seats", "table", "mixed"]),
   sections: z.array(seatingSectionSchema).min(1).max(MAX_SECTIONS),
   seatState: seatStateSchema.optional(),
   summary: seatingSummarySchema,

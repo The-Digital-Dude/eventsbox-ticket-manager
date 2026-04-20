@@ -25,6 +25,7 @@ type TicketType = {
   name: string;
   description: string | null;
   kind: string;
+  inventoryMode?: string;
   sectionId: string | null;
   price: number | string;
   quantity: number;
@@ -58,6 +59,10 @@ type EventDetail = {
   audience: string | null;
   category: { name: string } | null;
   series: { id: string; title: string } | null;
+  seatingConfig?: VenueSeatingConfig | null;
+  seatState?: Record<string, SeatState> | null;
+  seatingMode?: string | null;
+  seatingSource?: string | null;
   venue: {
     name: string;
     addressLine1: string;
@@ -298,7 +303,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
   }, [event?.id, session]);
 
   useEffect(() => {
-    if (!event?.venue?.seatingConfig) {
+    if (!event?.seatingConfig) {
       setSeatAvailability({});
       return;
     }
@@ -343,7 +348,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
       active = false;
       window.clearInterval(interval);
     };
-  }, [event?.venue?.seatingConfig, seatPollIntervalMs, slug]);
+  }, [event?.seatingConfig, seatPollIntervalMs, slug]);
 
   useEffect(() => {
     if (!selectedImage) {
@@ -419,14 +424,18 @@ export function EventDetailClient({ slug }: { slug: string }) {
   );
   const gst = parseFloat(((discountedSubtotal + platformFee) * (gstPct / 100)).toFixed(2));
   const grandTotal = parseFloat((discountedSubtotal + platformFee + gst).toFixed(2));
+  const ticketRequiresSeatSelection = (ticketType: TicketType) =>
+    ticketType.inventoryMode === "ASSIGNED_SEAT" ||
+    ticketType.inventoryMode === "TABLE" ||
+    Boolean(ticketType.sectionId);
   const requiresSeatSelection = Boolean(
-    event?.venue?.seatingConfig &&
-    event.ticketTypes.some((t) => t.sectionId),
+    event?.seatingConfig &&
+    event.ticketTypes.some(ticketRequiresSeatSelection),
   );
   // Only count tickets tied to a section — GA tickets need no seat
   const totalSeatedTickets = cartItems.reduce((sum, [ticketTypeId, qty]) => {
     const tt = event?.ticketTypes.find((t) => t.id === ticketTypeId);
-    return tt?.sectionId ? sum + qty : sum;
+    return tt && ticketRequiresSeatSelection(tt) ? sum + qty : sum;
   }, 0);
 
   useEffect(() => {
@@ -625,8 +634,8 @@ export function EventDetailClient({ slug }: { slug: string }) {
 
   function getSectionStats(section: SeatingSection) {
     const descriptors = listSeatDescriptors(
-      { ...event!.venue!.seatingConfig!, sections: [section] },
-      event!.venue!.seatState,
+      { ...event!.seatingConfig!, sections: [section] },
+      event!.seatState,
     );
     const total = descriptors.length;
     const booked = descriptors.filter((d) => seatAvailability[d.seatId]?.status === "BOOKED").length;
@@ -877,7 +886,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
               </div>
             )}
 
-            {(event.venue?.seatingConfig?.sections.length ?? 0) > 0 || event.ticketTypes.some((t) => !t.sectionId) ? (
+            {(event.seatingConfig?.sections.length ?? 0) > 0 || event.ticketTypes.some((t) => !ticketRequiresSeatSelection(t)) ? (
               <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
                 <h2 className="mb-1 text-lg font-semibold text-neutral-900">Ticket Categories</h2>
                 <p className="mb-4 text-sm text-neutral-500">
@@ -885,7 +894,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
                 </p>
                 <div className="space-y-3">
                   {/* Seated sections — only shown when a ticket type is linked */}
-                  {(event.venue?.seatingConfig?.sections ?? []).map((section) => {
+                  {(event.seatingConfig?.sections ?? []).map((section) => {
                     const linkedTicket = event.ticketTypes.find((t) => t.sectionId === section.id);
                     if (!linkedTicket) return null;
                     const stats = getSectionStats(section);
@@ -920,8 +929,8 @@ export function EventDetailClient({ slug }: { slug: string }) {
                         {isExpanded && (
                           <div className="overflow-x-auto border-t border-[var(--border)] p-4">
                             <SeatMapLive
-                              config={{ ...event.venue!.seatingConfig!, sections: [section] }}
-                              seatState={event.venue!.seatState}
+                              config={{ ...event.seatingConfig!, sections: [section] }}
+                              seatState={event.seatState}
                               bookingStates={seatAvailability}
                               selectedSeatIds={selectedSeatIds}
                               onSeatToggle={toggleSeatSelection}
@@ -933,7 +942,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
                   })}
 
                   {/* General Admission — ticket types with no section */}
-                  {event.ticketTypes.filter((t) => !t.sectionId).map((ticket) => {
+                  {event.ticketTypes.filter((t) => !ticketRequiresSeatSelection(t)).map((ticket) => {
                     const available = ticket.quantity - ticket.sold - ticket.reservedQty;
                     return (
                       <div key={ticket.id} className="rounded-xl border border-[var(--border)] p-4">

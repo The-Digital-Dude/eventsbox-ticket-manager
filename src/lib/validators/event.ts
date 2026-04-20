@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  getTicketClassType,
+  getTicketInventoryMode,
+  ticketClassTypes,
+  ticketInventoryModes,
+} from "@/src/lib/ticket-classes";
 
 export const eventCreateSchema = z.object({
   title: z.string().min(3).max(200),
@@ -7,7 +13,9 @@ export const eventCreateSchema = z.object({
   venueId: z.string().optional(),
   countryId: z.string().optional(),
   stateId: z.string().optional(),
+  stateName: z.string().trim().min(1).optional(),
   cityId: z.string().optional(),
+  cityName: z.string().trim().min(1).optional(),
   heroImage: z.string().url().optional().or(z.literal("")),
   videoUrl: z.string().url().optional().or(z.literal("")),
   images: z.array(z.string().url()).max(10).optional(),
@@ -45,11 +53,17 @@ export const eventSeriesSchema = z.object({
   recurrenceEndDate: z.string().datetime().nullable().optional(),
 });
 
-export const ticketTypeCreateSchema = z.object({
+const ticketClassTypeSchema = z.enum(ticketClassTypes);
+const ticketInventoryModeSchema = z.enum(ticketInventoryModes);
+
+const ticketTypeShape = {
   name: z.string().min(1).max(200),
   description: z.string().max(1000).optional(),
   kind: z.enum(["DIRECT", "COMBO"]).default("DIRECT"),
+  classType: ticketClassTypeSchema.optional(),
+  inventoryMode: ticketInventoryModeSchema.optional(),
   sectionId: z.string().optional().nullable(),
+  eventSeatingSectionId: z.string().cuid().optional().nullable(),
   price: z.coerce.number().min(0),
   quantity: z.coerce.number().int().min(1),
   reservedQty: z.coerce.number().int().min(0).default(0),
@@ -58,9 +72,43 @@ export const ticketTypeCreateSchema = z.object({
   maxPerOrder: z.coerce.number().int().min(1).max(100).default(10),
   isActive: z.boolean().default(true),
   sortOrder: z.coerce.number().int().default(0),
+};
+
+export const ticketTypeCreateSchema = z.object(ticketTypeShape).transform((data) => {
+  const classType = data.classType ?? getTicketClassType(data.inventoryMode);
+  return {
+    ...data,
+    classType,
+    inventoryMode: data.inventoryMode ?? getTicketInventoryMode(classType),
+  };
 });
 
-export const ticketTypeUpdateSchema = ticketTypeCreateSchema.partial();
+export const ticketTypeUpdateSchema = z.object({
+  name: ticketTypeShape.name.optional(),
+  description: ticketTypeShape.description.optional(),
+  kind: ticketTypeShape.kind.optional(),
+  classType: ticketClassTypeSchema.optional(),
+  inventoryMode: ticketInventoryModeSchema.optional(),
+  sectionId: ticketTypeShape.sectionId.optional(),
+  eventSeatingSectionId: ticketTypeShape.eventSeatingSectionId.optional(),
+  price: ticketTypeShape.price.optional(),
+  quantity: ticketTypeShape.quantity.optional(),
+  reservedQty: ticketTypeShape.reservedQty.optional(),
+  saleStartAt: ticketTypeShape.saleStartAt.optional(),
+  saleEndAt: ticketTypeShape.saleEndAt.optional(),
+  maxPerOrder: ticketTypeShape.maxPerOrder.optional(),
+  isActive: ticketTypeShape.isActive.optional(),
+  sortOrder: ticketTypeShape.sortOrder.optional(),
+}).transform((data) => {
+  if (!data.classType && !data.inventoryMode) return data;
+
+  const classType = data.classType ?? getTicketClassType(data.inventoryMode);
+  return {
+    ...data,
+    classType,
+    inventoryMode: data.inventoryMode ?? getTicketInventoryMode(classType),
+  };
+});
 
 export const checkoutIntentSchema = z.object({
   eventId: z.string().min(1),

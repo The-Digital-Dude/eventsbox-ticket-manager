@@ -3,6 +3,7 @@ import { Prisma, Role } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
+import { resolveLocationIds } from "@/src/lib/location-resolution";
 import { venueRequestSchema } from "@/src/lib/validators/organizer";
 import { computeSeatingSummary } from "@/src/lib/validators/venue-seating";
 
@@ -52,6 +53,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const { stateId, cityId } = await resolveLocationIds(parsed.data);
+    if (!stateId || !cityId) {
+      return fail(400, { code: "LOCATION_REQUIRED", message: "State and city are required" });
+    }
+
     const venue = await prisma.venue.create({
       data: {
         organizerProfileId: profile.id,
@@ -59,8 +65,8 @@ export async function POST(req: NextRequest) {
         addressLine1: parsed.data.addressLine1,
         addressLine2: parsed.data.addressLine2,
         countryId: parsed.data.countryId,
-        stateId: parsed.data.stateId,
-        cityId: parsed.data.cityId,
+        stateId,
+        cityId,
         categoryId: parsed.data.categoryId,
         lat: parsed.data.lat,
         lng: parsed.data.lng,
@@ -75,6 +81,9 @@ export async function POST(req: NextRequest) {
 
     return ok(venue, 201);
   } catch (error) {
+    if (error instanceof Error && error.message === "CITY_REQUIRES_STATE") {
+      return fail(400, { code: "CITY_REQUIRES_STATE", message: "Enter or select a state before the city" });
+    }
     return fail(500, {
       code: "INTERNAL_ERROR",
       message: "Unable to create venue request",

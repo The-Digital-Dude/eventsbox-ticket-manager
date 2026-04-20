@@ -11,6 +11,12 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import Link from "next/link";
+import {
+  deriveEventLayoutModeFromTicketClasses,
+  formatTicketClassTypeLabel,
+  type TicketClassType,
+} from "@/src/lib/ticket-classes";
+import type { VenueSeatingConfig, SeatState } from "@/src/types/venue-seating";
 
 type VenueSection = {
   id: string;
@@ -18,11 +24,13 @@ type VenueSection = {
   mapType: string;
 };
 
-type TicketType = {
+type TicketClassView = {
   id: string;
   name: string;
   description: string | null;
   kind: string;
+  inventoryMode?: string | null;
+  classType: TicketClassType;
   sectionId: string | null;
   price: number | string;
   quantity: number;
@@ -61,7 +69,8 @@ type EventDetail = {
     addressLine1: string;
     seatingConfig: { sections: VenueSection[] } | null;
   } | null;
-  ticketTypes: TicketType[];
+  ticketTypes: TicketClassView[];
+  ticketClasses?: TicketClassView[];
   _count: { orders: number; waitlist: number };
   orders: Array<{ total: number | string; platformFee: number | string; gst: number | string }>;
   auditLogs: Array<{
@@ -113,10 +122,56 @@ function formatAuditAction(action: string) {
   return action.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
+function formatLayoutRequirement(layoutMode: string) {
+  switch (layoutMode) {
+    case "ROWS":
+      return "Seating layout required";
+    case "TABLES":
+      return "Table layout required";
+    case "MIXED":
+      return "Mixed layout required";
+    default:
+      return "No layout required";
+  }
+}
+
+type LayoutData = {
+  event: {
+    id: string;
+    title: string;
+    status: string;
+    venue: EventDetail['venue'];
+    seatingMode: string;
+    ticketClasses: TicketClassView[];
+  };
+  layoutDecision: {
+    layoutType: 'none' | 'seating' | 'table' | 'mixed';
+    eventSeatingMode: 'GA_ONLY' | 'ROWS' | 'TABLES' | 'MIXED';
+    requiresLayout: boolean;
+    requiresVenue: boolean;
+    supportsSeating: boolean;
+    supportsTables: boolean;
+  };
+  seating: {
+    seatingConfig: VenueSeatingConfig;
+    seatState?: Record<string, SeatState>;
+  };
+  sections: Array<{
+    id: string;
+    key: string;
+    name: string;
+    sectionType: string;
+    capacity: number | null;
+    usedQuantity: number;
+    remainingCapacity: number | null;
+  }>;
+};
+
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [event, setEvent] = useState<EventDetail | null>(null);
+  const [layoutData, setLayoutData] = useState<LayoutData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [canceling, setCanceling] = useState(false);
@@ -128,6 +183,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [tName, setTName] = useState("");
   const [tDescription, setTDescription] = useState("");
   const [tKind, setTKind] = useState("DIRECT");
+  const [tClassType, setTClassType] = useState<TicketClassType>("general");
   const [tSectionId, setTSectionId] = useState("");
   const [tPrice, setTPrice] = useState("");
   const [tQuantity, setTQuantity] = useState("");
@@ -138,6 +194,24 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     const payload = await res.json();
     if (!res.ok) { toast.error("Event not found"); router.push("/organizer/events"); return; }
     setEvent(payload.data);
+
+    const derivedLayoutMode = deriveEventLayoutModeFromTicketClasses(
+      (payload.data.ticketClasses ?? payload.data.ticketTypes ?? []).filter((ticketClass: TicketClassView) => ticketClass.isActive).map((ticketClass: TicketClassView) => ticketClass.classType),
+    );
+
+    if (derivedLayoutMode !== "GA_ONLY") {
+      const layoutRes = await fetch(`/api/organizer/events/${id}/layout`);
+      const layoutPayload = await layoutRes.json();
+      if (layoutRes.ok) {
+        setLayoutData(layoutPayload.data);
+      } else {
+        console.error("Failed to load layout data:", layoutPayload);
+        setLayoutData(null);
+      }
+    } else {
+      setLayoutData(null);
+    }
+
     setLoading(false);
   }
 
@@ -155,7 +229,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   async function addTicket() {
-    if (!tName.trim()) return toast.error("Ticket name is required");
+    if (!tName.trim()) return toast.error("Ticket class name is required");
     if (!tPrice) return toast.error("Price is required");
     if (!tQuantity) return toast.error("Quantity is required");
     setTicketSaving(true);
@@ -164,18 +238,30 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: tName, description: tDescription || undefined,
-        kind: tKind, sectionId: tSectionId || null,
+        kind: tKind, classType: tClassType, sectionId: tSectionId || null,
         price: Number(tPrice), quantity: Number(tQuantity),
         maxPerOrder: Number(tMaxPerOrder),
       }),
     });
     const payload = await res.json();
     setTicketSaving(false);
-    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to add ticket");
-    toast.success("Ticket type added");
-    setTName(""); setTDescription(""); setTPrice(""); setTQuantity(""); setTMaxPerOrder("10"); setTKind("DIRECT"); setTSectionId("");
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to add ticket class");
+
+    const nextLayoutMode = deriveEventLayoutModeFromTicketClasses([
+      ...ticketClasses.filter((ticketClass) => ticketClass.isActive).map((ticketClass) => ticketClass.classType),
+      tClassType,
+    ]);
+
+    toast.success("Ticket class added");
+    setTName(""); setTDescription(""); setTPrice(""); setTQuantity(""); setTMaxPerOrder("10"); setTKind("DIRECT"); setTClassType("general"); setTSectionId("");
     setShowTicketForm(false);
-    await load();
+
+    if (nextLayoutMode === "GA_ONLY") {
+      await load();
+      toast.message("General admission ticket classes do not require seating setup");
+      return;
+    }
+    router.push(`/organizer/events/${id}/layout`);
   }
 
   async function toggleTicket(ticketId: string, isActive: boolean) {
@@ -185,16 +271,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       body: JSON.stringify({ isActive: !isActive }),
     });
     if (!res.ok) return toast.error("Failed to update ticket");
-    toast.success(isActive ? "Ticket deactivated" : "Ticket activated");
+    toast.success(isActive ? "Ticket class deactivated" : "Ticket class activated");
     await load();
   }
 
   async function deleteTicket(ticketId: string, name: string) {
-    if (!confirm(`Delete ticket type "${name}"?`)) return;
+    if (!confirm(`Delete ticket class "${name}"?`)) return;
     const res = await fetch(`/api/organizer/events/${id}/tickets/${ticketId}`, { method: "DELETE" });
     const payload = await res.json();
-    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to delete ticket");
-    toast.success("Ticket type deleted");
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to delete ticket class");
+    toast.success("Ticket class deleted");
     await load();
   }
 
@@ -223,7 +309,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   async function duplicateEvent() {
-    if (!confirm("Duplicate this event? A new DRAFT copy will be created with all ticket types.")) return;
+    if (!confirm("Duplicate this event? A new DRAFT copy will be created with all ticket classes.")) return;
     const res = await fetch(`/api/organizer/events/${id}/duplicate`, { method: "POST" });
     const payload = await res.json();
     if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to duplicate event");
@@ -242,7 +328,24 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   const canEdit = event?.status === "DRAFT" || event?.status === "REJECTED";
-  const canSubmit = canEdit && (event?.ticketTypes?.filter((t) => t.isActive).length ?? 0) > 0;
+  const ticketClasses = event?.ticketClasses ?? event?.ticketTypes ?? [];
+
+  const derivedLayoutMode = layoutData?.layoutDecision.eventSeatingMode ?? "GA_ONLY";
+
+  const canSubmit =
+    canEdit &&
+    ticketClasses.filter((ticketClass) => ticketClass.isActive).length > 0 &&
+    (!layoutData ||
+      !layoutData.layoutDecision.requiresLayout ||
+      (layoutData.layoutDecision.requiresLayout && layoutData.sections.length > 0));
+
+  function continueSetup() {
+    if (derivedLayoutMode === "GA_ONLY") {
+      toast.message("This event does not need venue seating or table layout setup");
+      return;
+    }
+    router.push(`/organizer/events/${id}/layout`);
+  }
 
   if (loading) {
     return (
@@ -330,6 +433,91 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
+      {ticketClasses.length > 0 && (
+        <div className="rounded-xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-[rgb(var(--theme-accent-rgb)/0.05)] px-4 py-3 text-sm text-neutral-700">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-medium text-neutral-900">{formatLayoutRequirement(derivedLayoutMode)}</p>
+              <p className="mt-1">
+                {derivedLayoutMode === "GA_ONLY"
+                  ? "All active ticket classes are general admission. You can continue reviewing the event without seating setup."
+                  : event.venue?.id
+                    ? "Ticket classes require layout setup. Continue into the event layout builder to finish the flow."
+                    : "Ticket classes require layout setup. Continue into the event layout builder, then attach or create the venue as needed."}
+              </p>
+            </div>
+            {derivedLayoutMode !== "GA_ONLY" && (
+              <Button size="sm" onClick={continueSetup}>
+                Continue Layout Setup
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {layoutData && (layoutData.layoutDecision.requiresLayout || layoutData.seating.seatingConfig) && (
+        <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold text-neutral-900">Layout Configuration</h2>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+            <div className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
+              <p className="text-sm text-neutral-500">Total Seats</p>
+              <p className="text-lg font-semibold text-neutral-900">{layoutData.seating.seatingConfig?.summary?.totalSeats ?? 0}</p>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
+              <p className="text-sm text-neutral-500">Total Tables</p>
+              <p className="text-lg font-semibold text-neutral-900">{layoutData.seating.seatingConfig?.summary?.totalTables ?? 0}</p>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
+              <p className="text-sm text-neutral-500">Number of Sections</p>
+              <p className="text-lg font-semibold text-neutral-900">{layoutData.seating.seatingConfig?.sections?.length ?? 0}</p>
+            </div>
+          </div>
+
+          <h3 className="mb-4 text-base font-semibold text-neutral-900">Sections</h3>
+          {layoutData.sections.length === 0 ? (
+            <p className="text-sm text-neutral-500">No sections defined.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-neutral-50">
+                  <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-neutral-500">
+                    <th className="px-4 py-3">Name</th>
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3">Capacity</th>
+                    <th className="px-4 py-3">Used</th>
+                    <th className="px-4 py-3">Remaining</th>
+                    <th className="px-4 py-3">Mapped Ticket Classes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {layoutData.sections.map((section) => (
+                    <tr key={section.id}>
+                      <td className="px-4 py-3 font-medium text-neutral-900">{section.name}</td>
+                      <td className="px-4 py-3 text-neutral-700">
+                        <Badge>{section.sectionType}</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-neutral-600">{section.capacity ?? "Unbounded"}</td>
+                      <td className="px-4 py-3 text-neutral-600">{section.usedQuantity}</td>
+                      <td className="px-4 py-3 text-neutral-600">{section.remainingCapacity ?? "Unbounded"}</td>
+                      <td className="px-4 py-3">
+                        {layoutData.event.ticketClasses
+                          .filter((ticket) => ticket.eventSeatingSectionId === section.id)
+                          .map((ticket) => (
+                            <Badge key={ticket.id} className="mr-1 mb-1 border-transparent bg-violet-100 text-violet-700">
+                              {ticket.name}
+                            </Badge>
+                          ))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -349,10 +537,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         </div>
         <div className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-neutral-600">
-            <Package className="h-4 w-4 text-[var(--theme-accent)]" /> Tickets
+            <Package className="h-4 w-4 text-[var(--theme-accent)]" /> Ticket Classes
           </div>
-          <p className="text-4xl font-semibold tracking-tight text-neutral-900">{event.ticketTypes.length}</p>
-          <p className="text-sm text-neutral-500">ticket type{event.ticketTypes.length !== 1 ? "s" : ""}</p>
+          <p className="text-4xl font-semibold tracking-tight text-neutral-900">{ticketClasses.length}</p>
+          <p className="text-sm text-neutral-500">ticket class{ticketClasses.length !== 1 ? "es" : ""}</p>
         </div>
         <div className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-neutral-600">
@@ -406,20 +594,20 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         )}
       </section>
 
-      {/* Ticket Types */}
+      {/* Ticket Classes */}
       <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-neutral-900">Ticket Types</h2>
+          <h2 className="text-lg font-semibold text-neutral-900">Ticket Classes</h2>
           {canEdit && (
             <Button size="sm" onClick={() => setShowTicketForm((v) => !v)}>
-              {showTicketForm ? "Cancel" : "+ Add Ticket"}
+              {showTicketForm ? "Cancel" : "+ Add Ticket Class"}
             </Button>
           )}
         </div>
 
         {showTicketForm && (
           <div className="mb-6 rounded-xl border border-[rgb(var(--theme-accent-rgb)/0.2)] bg-[rgb(var(--theme-accent-rgb)/0.04)] p-5">
-            <h3 className="mb-4 text-base font-semibold text-neutral-900">New Ticket Type</h3>
+            <h3 className="mb-4 text-base font-semibold text-neutral-900">New Ticket Class</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2 md:col-span-2">
                 <Label>Name <span className="text-red-500">*</span></Label>
@@ -430,23 +618,35 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 <Input value={tDescription} onChange={(e) => setTDescription(e.target.value)} placeholder="Optional description" />
               </div>
               <div className="space-y-2">
-                <Label>Type</Label>
+                <Label>Record Type</Label>
                 <select className="app-select" value={tKind} onChange={(e) => setTKind(e.target.value)}>
                   <option value="DIRECT">Direct</option>
                   <option value="COMBO">Combo</option>
                 </select>
               </div>
-              {(event.venue?.seatingConfig?.sections ?? []).length > 0 && (
+              <div className="space-y-2">
+                <Label>Class Type</Label>
+                <select className="app-select" value={tClassType} onChange={(e) => setTClassType(e.target.value as TicketClassType)}>
+                  <option value="general">General</option>
+                  <option value="seating">Seating</option>
+                  <option value="table">Table</option>
+                  <option value="mixed">Mixed</option>
+                </select>
+                <p className="text-xs text-neutral-500">
+                  Class type drives whether the event needs no layout, seating, table, or mixed setup.
+                </p>
+              </div>
+              {(event.venue?.seatingConfig?.sections ?? []).length > 0 && tClassType !== "general" && (
                 <div className="space-y-2">
                   <Label>Seating Section</Label>
                   <select className="app-select" value={tSectionId} onChange={(e) => setTSectionId(e.target.value)}>
-                    <option value="">— General Admission (no assigned seat) —</option>
+                    <option value="">— Select later during seating setup —</option>
                     {(event.venue!.seatingConfig!.sections).map((s) => (
                       <option key={s.id} value={s.id}>{s.name} ({s.mapType})</option>
                     ))}
                   </select>
                   <p className="text-xs text-neutral-500">
-                    Link to a section so buyers pick a specific seat. Leave blank for standing / GA tickets.
+                    Optional compatibility mapping for existing venue sections. Event-owned section mapping will replace this flow.
                   </p>
                 </div>
               )}
@@ -464,16 +664,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             </div>
             <Button className="mt-4" onClick={addTicket} disabled={ticketSaving}>
-              {ticketSaving ? "Adding..." : "Add Ticket Type"}
+              {ticketSaving ? "Adding..." : "Add Ticket Class"}
             </Button>
           </div>
         )}
 
-        {event.ticketTypes.length === 0 ? (
-          <p className="text-sm text-neutral-500">No ticket types yet. Add one above to get started.</p>
+        {ticketClasses.length === 0 ? (
+          <p className="text-sm text-neutral-500">No ticket classes yet. Add one above to get started.</p>
         ) : (
           <div className="space-y-3">
-            {event.ticketTypes.map((ticket) => {
+            {ticketClasses.map((ticket) => {
               const available = ticket.quantity - ticket.sold - ticket.reservedQty;
               const soldPct = Math.round((ticket.sold / ticket.quantity) * 100);
               return (
@@ -483,6 +683,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium text-neutral-900">{ticket.name}</span>
                         <Badge>{ticket.kind}</Badge>
+                        <Badge className="border-transparent bg-violet-100 text-violet-700">
+                          {formatTicketClassTypeLabel(ticket.classType)}
+                        </Badge>
                         {ticket.sectionId ? (
                           <Badge className="border-transparent bg-sky-100 text-sky-700">
                             {event.venue?.seatingConfig?.sections.find((s) => s.id === ticket.sectionId)?.name ?? "Seated"}

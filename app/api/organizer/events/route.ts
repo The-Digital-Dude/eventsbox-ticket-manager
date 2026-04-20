@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
+import { resolveLocationIds } from "@/src/lib/location-resolution";
 import { eventCreateSchema } from "@/src/lib/validators/event";
 import { slugify } from "@/src/lib/utils/slug";
 
@@ -47,15 +48,24 @@ export async function POST(req: NextRequest) {
       return fail(400, { code: "VALIDATION_ERROR", message: "Invalid event data", details: parsed.error.flatten() });
     }
 
-    const { startAt, endAt, heroImage, videoUrl, contactEmail, ...rest } = parsed.data;
+    const { startAt, endAt, heroImage, videoUrl, contactEmail, stateName, cityName, ...rest } = parsed.data;
 
     if (new Date(endAt) <= new Date(startAt)) {
       return fail(400, { code: "INVALID_DATES", message: "End date must be after start date" });
     }
 
+    const resolvedLocation = await resolveLocationIds({
+      countryId: rest.countryId,
+      stateId: rest.stateId,
+      stateName,
+      cityId: rest.cityId,
+      cityName,
+    });
+
     const event = await prisma.event.create({
       data: {
         ...rest,
+        ...resolvedLocation,
         heroImage: heroImage || null,
         videoUrl: videoUrl || null,
         contactEmail: contactEmail || null,
@@ -72,6 +82,9 @@ export async function POST(req: NextRequest) {
 
     return ok(event, 201);
   } catch (error) {
+    if (error instanceof Error && error.message === "CITY_REQUIRES_STATE") {
+      return fail(400, { code: "CITY_REQUIRES_STATE", message: "Enter or select a state before the city" });
+    }
     console.error("[app/api/organizer/events/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Failed to create event" });
   }

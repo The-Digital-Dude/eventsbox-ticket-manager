@@ -3,7 +3,9 @@ import { Role } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
+import { resolveLocationIds } from "@/src/lib/location-resolution";
 import { eventUpdateSchema } from "@/src/lib/validators/event";
+import { serializeTicketClasses } from "@/src/lib/ticket-classes";
 import { getReviewAttendeeName } from "@/src/lib/services/event-reviews";
 import { sendEventDateChangedEmail } from "@/src/lib/services/notifications";
 
@@ -72,8 +74,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       take: 25,
     });
 
+    const ticketClasses = serializeTicketClasses(event.ticketTypes);
+
     return ok({
       ...event,
+      ticketTypes: ticketClasses,
+      ticketClasses,
       reviews: event.reviews.map((review) => ({
         ...review,
         attendeeName: getReviewAttendeeName(review),
@@ -105,7 +111,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return fail(400, { code: "VALIDATION_ERROR", message: "Invalid update data", details: parsed.error.flatten() });
     }
 
-    const { startAt, endAt, heroImage, videoUrl, contactEmail, images, seriesId, ...rest } = parsed.data;
+    const { startAt, endAt, heroImage, videoUrl, contactEmail, images, seriesId, stateName, cityName, ...rest } = parsed.data;
 
     if (seriesId !== undefined && seriesId !== null) {
       const ownedSeries = await prisma.eventSeries.findFirst({
@@ -117,12 +123,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
+    const resolvedLocation = await resolveLocationIds({
+      countryId: rest.countryId,
+      stateId: rest.stateId,
+      stateName,
+      cityId: rest.cityId,
+      cityName,
+    });
+
     const oldStartAt = existing.startAt;
 
     const event = await prisma.event.update({
       where: { id },
       data: {
         ...rest,
+        ...resolvedLocation,
         ...(heroImage !== undefined ? { heroImage: heroImage || null } : {}),
         ...(videoUrl !== undefined ? { videoUrl: videoUrl || null } : {}),
         ...(images !== undefined ? { images } : {}),
@@ -152,6 +167,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     return ok(event);
   } catch (error) {
+    if (error instanceof Error && error.message === "CITY_REQUIRES_STATE") {
+      return fail(400, { code: "CITY_REQUIRES_STATE", message: "Enter or select a state before the city" });
+    }
     console.error("[app/api/organizer/events/[id]/route.ts]", error);
     return fail(500, { code: "INTERNAL_ERROR", message: "Failed to update event" });
   }

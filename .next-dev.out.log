@@ -1,0 +1,185 @@
+
+> client_side@0.1.0 dev
+> next dev --webpack --hostname 0.0.0.0 --port 3000
+
+▲ Next.js 16.1.6 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+- Environments: .env
+- Experiments (use with caution):
+  · clientTraceMetadata
+
+✓ Starting...
+[@sentry/nextjs] It seems like you don't have a global error handler set up. It is recommended that you add a 'global-error.js' file with Sentry instrumentation so that React rendering errors are reported to Sentry. Read more: https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/#react-render-errors-in-app-router (you can suppress this warning by setting SENTRY_SUPPRESS_GLOBAL_ERROR_HANDLER_FILE_WARNING=1 as environment variable)
+✓ Ready in 2.6s
+○ Compiling proxy ...
+○ Compiling / ...
+prisma:error 
+Invalid `prisma.event.count()` invocation:
+
+
+Can't reach database server at `127.0.0.1:5432`
+
+Please make sure your database server is running at `127.0.0.1:5432`.
+prisma:error 
+Invalid `prisma.order.count()` invocation:
+
+
+Can't reach database server at `127.0.0.1:5432`
+
+Please make sure your database server is running at `127.0.0.1:5432`.
+prisma:error 
+Invalid `prisma.event.findMany()` invocation:
+
+
+Can't reach database server at `127.0.0.1:5432`
+
+Please make sure your database server is running at `127.0.0.1:5432`.
+prisma:error 
+Invalid `prisma.category.findMany()` invocation:
+
+
+Can't reach database server at `127.0.0.1:5432`
+
+Please make sure your database server is running at `127.0.0.1:5432`.
+prisma:error 
+Invalid `prisma.event.count()` invocation:
+
+
+Can't reach database server at `127.0.0.1:5432`
+
+Please make sure your database server is running at `127.0.0.1:5432`.
+prisma:error 
+Invalid `prisma.order.count()` invocation:
+
+
+Can't reach database server at `127.0.0.1:5432`
+
+Please make sure your database server is running at `127.0.0.1:5432`.
+prisma:error 
+Invalid `prisma.event.findMany()` invocation:
+
+
+Can't reach database server at `127.0.0.1:5432`
+
+Please make sure your database server is running at `127.0.0.1:5432`.
+prisma:error 
+Invalid `prisma.category.findMany()` invocation:
+
+
+Can't reach database server at `127.0.0.1:5432`
+
+Please make sure your database server is running at `127.0.0.1:5432`.
+ GET / 200 in 2.9s (compile: 26ms, proxy.ts: 1285ms, render: 1623ms)
+ GET / 200 in 17.1s (compile: 14.0s, proxy.ts: 429ms, render: 2.7s)
+○ Compiling /auth/login ...
+ GET /auth/login 200 in 8.8s (compile: 7.1s, proxy.ts: 27ms, render: 1641ms)
+○ Compiling /api/auth/login ...
+prisma:error 
+Invalid `prisma.user.findUnique()` invocation:
+
+
+Can't reach database server at `127.0.0.1:5432`
+
+Please make sure your database server is running at `127.0.0.1:5432`.
+ POST /api/auth/login 500 in 18.2s (compile: 15.5s, render: 2.7s)
+prisma:error 
+Invalid `prisma.user.findUnique()` invocation:
+
+
+Can't reach database server at `127.0.0.1:5432`
+
+Please make sure your database server is running at `127.0.0.1:5432`.
+ POST /api/auth/login 500 in 2.5s (compile: 14ms, render: 2.5s)
+ POST /api/auth/login 200 in 1260ms (compile: 204ms, render: 1057ms)
+ POST /api/auth/login 200 in 367ms (compile: 19ms, render: 349ms)
+○ Compiling /_not-found ...
+ GET /admin 404 in 10.5s (compile: 8.7s, proxy.ts: 54ms, render: 1757ms)
+ GET /admin 404 in 880ms (compile: 67ms, proxy.ts: 56ms, render: 757ms)
+ GET /admin 404 in 866ms (compile: 36ms, proxy.ts: 67ms, render: 762ms)
+○ Compiling /admin/dashboard ...
+ GET /admin/dashboard 200 in 18.5s (compile: 14.7s, proxy.ts: 37ms, render: 3.8s)
+ GET /admin/dashboard 200 in 1441ms (compile: 118ms, proxy.ts: 401ms, render: 922ms)
+ GET /admin/dashboard 200 in 3.9s (compile: 748ms, proxy.ts: 159ms, render: 3.0s)
+○ Compiling /admin/events ...
+ GET /admin/events 200 in 135ms (compile: 17ms, proxy.ts: 34ms, render: 84ms)
+○ Compiling /api/admin/events ...
+ GET /api/admin/events?status=PENDING_APPROVAL 200 in 7.4s (compile: 7.2s, render: 201ms)
+ GET /api/admin/events? 200 in 160ms (compile: 19ms, render: 141ms)
+ GET /api/admin/events?status=PENDING_APPROVAL 200 in 74ms (compile: 17ms, render: 57ms)
+ GET /api/admin/events?status=PENDING_APPROVAL 200 in 42ms (compile: 10ms, render: 32ms)
+ GET /api/admin/events? 200 in 56ms (compile: 10ms, render: 46ms)
+○ Compiling /api/auth/logout ...
+ POST /api/auth/logout 200 in 4.5s (compile: 4.4s, render: 95ms)
+ GET /auth/login 200 in 375ms (compile: 195ms, proxy.ts: 26ms, render: 155ms)
+ GET /auth/login 200 in 192ms (compile: 19ms, proxy.ts: 32ms, render: 142ms)
+○ Compiling /api/auth/login ...
+ POST /api/auth/login 401 in 4.8s (compile: 4.7s, render: 56ms)
+ POST /api/auth/login 401 in 375ms (compile: 11ms, render: 364ms)
+ POST /api/auth/login 200 in 461ms (compile: 14ms, render: 447ms)
+○ Compiling /organizer/status ...
+ GET /organizer/status 200 in 12.6s (compile: 11.9s, proxy.ts: 142ms, render: 549ms)
+ GET /organizer/status 200 in 229ms (compile: 21ms, proxy.ts: 49ms, render: 160ms)
+○ Compiling /api/organizer/status ...
+ GET /api/organizer/status 200 in 11.8s (compile: 11.7s, render: 77ms)
+ GET /api/organizer/status 200 in 48ms (compile: 22ms, render: 27ms)
+○ Compiling /organizer/events ...
+ GET /organizer/events 200 in 8.1s (compile: 7.5s, proxy.ts: 31ms, render: 598ms)
+○ Compiling /api/organizer/events ...
+ GET /api/organizer/events? 200 in 10.1s (compile: 9.9s, render: 120ms)
+ GET /api/organizer/events? 200 in 101ms (compile: 10ms, render: 91ms)
+○ Compiling /organizer/events/new ...
+ GET /organizer/events/new 200 in 20.2s (compile: 18.1s, proxy.ts: 907ms, render: 1137ms)
+○ Compiling /api/organizer/venues ...
+ GET /api/public/categories 200 in 12.9s (compile: 12.8s, render: 126ms)
+ GET /api/public/locations 200 in 12.9s (compile: 12.8s, render: 132ms)
+ GET /api/organizer/venues 200 in 13.0s (compile: 12.8s, render: 205ms)
+ GET /api/public/categories 200 in 69ms (compile: 20ms, render: 48ms)
+ GET /api/public/locations 200 in 70ms (compile: 32ms, render: 38ms)
+ GET /api/organizer/venues 200 in 65ms (compile: 15ms, render: 50ms)
+ POST /api/organizer/events 400 in 195ms (compile: 120ms, render: 75ms)
+ GET /organizer/events/new 200 in 1673ms (compile: 444ms, proxy.ts: 57ms, render: 1173ms)
+ POST /api/organizer/events 201 in 711ms (compile: 583ms, render: 128ms)
+○ Compiling /organizer/events/[id] ...
+ GET /organizer/events/cmo73517g0007kn6g310m87r1 200 in 14.8s (compile: 13.8s, proxy.ts: 21ms, render: 1053ms)
+○ Compiling /api/organizer/events/[id] ...
+ GET /api/organizer/events/cmo73517g0007kn6g310m87r1 200 in 10.0s (compile: 9.8s, render: 159ms)
+ GET /api/organizer/events/cmo73517g0007kn6g310m87r1 200 in 101ms (compile: 29ms, render: 71ms)
+○ Compiling /api/organizer/events/[id]/tickets ...
+ POST /api/organizer/events/cmo73517g0007kn6g310m87r1/tickets 201 in 6.5s (compile: 6.3s, render: 181ms)
+ GET /api/organizer/events/cmo73517g0007kn6g310m87r1 200 in 373ms (compile: 287ms, render: 86ms)
+○ Compiling /organizer/events/[id]/edit ...
+ GET /organizer/events/cmo73517g0007kn6g310m87r1/edit 200 in 19.5s (compile: 18.3s, proxy.ts: 40ms, render: 1153ms)
+○ Compiling /api/public/locations ...
+ GET /api/public/categories 200 in 15.8s (compile: 15.6s, render: 193ms)
+ GET /api/public/locations 200 in 15.9s (compile: 15.6s, render: 258ms)
+ GET /api/organizer/venues 200 in 16.4s (compile: 16.1s, render: 275ms)
+ GET /api/public/categories 200 in 63ms (compile: 14ms, render: 49ms)
+ GET /api/public/locations 200 in 60ms (compile: 15ms, render: 45ms)
+ GET /api/organizer/venues 200 in 95ms (compile: 33ms, render: 63ms)
+ GET /api/organizer/events/cmo73517g0007kn6g310m87r1 200 in 16.5s (compile: 16.1s, render: 415ms)
+ GET /api/organizer/events/cmo73517g0007kn6g310m87r1 200 in 70ms (compile: 9ms, render: 61ms)
+ GET /organizer/events/cmo73517g0007kn6g310m87r1 200 in 446ms (compile: 226ms, proxy.ts: 38ms, render: 182ms)
+ GET /api/organizer/events/cmo73517g0007kn6g310m87r1 200 in 112ms (compile: 45ms, render: 67ms)
+ GET /api/organizer/events/cmo73517g0007kn6g310m87r1 200 in 106ms (compile: 8ms, render: 97ms)
+○ Compiling /organizer/venues ...
+ GET /organizer/venues 200 in 16.6s (compile: 16.0s, proxy.ts: 28ms, render: 590ms)
+ GET /api/public/locations 200 in 567ms (compile: 482ms, render: 86ms)
+ GET /api/public/categories 200 in 571ms (compile: 532ms, render: 39ms)
+ GET /api/organizer/venues 200 in 608ms (compile: 442ms, render: 166ms)
+ GET /api/public/locations 200 in 67ms (compile: 30ms, render: 37ms)
+ GET /api/public/categories 200 in 62ms (compile: 34ms, render: 28ms)
+ GET /api/organizer/venues 200 in 98ms (compile: 62ms, render: 37ms)
+○ Compiling /auth/login ...
+ GET /auth/login?redirect=%2Forganizer%2Fvenues 200 in 8.7s (compile: 7.3s, proxy.ts: 26ms, render: 1317ms)
+ GET /auth/login?redirect=%2Forganizer%2Fvenues 200 in 900ms (compile: 79ms, proxy.ts: 137ms, render: 684ms)
+ GET /auth/login?redirect=%2Forganizer%2Fvenues 200 in 699ms (compile: 80ms, proxy.ts: 101ms, render: 517ms)
+ GET /auth/login?redirect=%2Forganizer%2Fvenues 200 in 176ms (compile: 30ms, proxy.ts: 38ms, render: 108ms)
+ GET /auth/login?redirect=%2Forganizer%2Fvenues 200 in 604ms (compile: 39ms, proxy.ts: 82ms, render: 483ms)
+ GET /auth/login?redirect=%2Forganizer%2Fvenues 200 in 170ms (compile: 30ms, proxy.ts: 31ms, render: 109ms)
+ GET /auth/login?redirect=%2Forganizer%2Fvenues 200 in 144ms (compile: 17ms, proxy.ts: 22ms, render: 104ms)
+ GET /auth/login?redirect=%2Forganizer%2Fvenues 200 in 165ms (compile: 26ms, proxy.ts: 29ms, render: 111ms)
+ GET /auth/login?redirect=%2Forganizer%2Fvenues 200 in 153ms (compile: 22ms, proxy.ts: 31ms, render: 100ms)
+ GET /auth/login?redirect=%2Forganizer%2Fvenues 200 in 170ms (compile: 22ms, proxy.ts: 32ms, render: 116ms)
+ GET /auth/login?redirect=%2Forganizer%2Fvenues 200 in 173ms (compile: 24ms, proxy.ts: 47ms, render: 101ms)
+ GET /auth/login?redirect=%2Forganizer%2Fvenues 200 in 205ms (compile: 34ms, proxy.ts: 43ms, render: 128ms)
