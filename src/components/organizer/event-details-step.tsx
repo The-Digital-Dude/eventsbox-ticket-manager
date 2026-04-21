@@ -1,4 +1,4 @@
-'use client';
+ "use client";
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -7,43 +7,17 @@ import { Label } from "@/src/components/ui/label";
 import { PlacesAutocomplete } from "@/src/components/ui/places-autocomplete";
 import { SearchableSelect } from "@/src/components/ui/searchable-select";
 import { Button } from "@/src/components/ui/button";
-import { matchLocation } from "@/src/lib/location-match";
+
+import { EventDetailsFormData, matchLocation } from "@/src/types/event-form-data";
 import { TIMEZONES } from "@/src/lib/timezones";
 import { CURRENCIES } from "@/src/lib/currency";
+import { validate } from "@/src/lib/validate";
+import { sharedEventSchema } from "@/src/lib/validators/shared-event-schema";
 
 type CountryRow = { id: string; code: string; name: string };
 type StateRow = { id: string; name: string; countryId: string | null; cities: { id: string; name: string }[] };
 type CategoryRow = { id: string; name: string };
 type VenueRow = { id: string; name: string; status: string };
-
-type EventDetailsFormData = {
-  title: string;
-  description: string;
-  categoryId: string;
-  venueId: string;
-  countryId: string;
-  stateId: string;
-  cityName: string;
-  startAt: string;
-  endAt: string;
-  timezone: string;
-  contactEmail: string;
-  contactPhone: string;
-  heroImage: string;
-  videoUrl: string;
-  cancelPolicy: string;
-  refundPolicy: string;
-  currency: string;
-  commissionPct: string;
-  gstPct: string;
-  platformFeeFixed: string;
-  tags: string[];
-  audience: string;
-  lat?: number;
-  lng?: number;
-  stateName: string;
-  cityId: string;
-};
 
 export function EventDetailsStep({
   initialData,
@@ -58,7 +32,6 @@ export function EventDetailsStep({
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [venues, setVenues] = useState<VenueRow[]>([]);
 
-  // Form fields
   const [title, setTitle] = useState(initialData?.title ?? "");
   const [description, setDescription] = useState(initialData?.description ?? "");
   const [categoryId, setCategoryId] = useState(initialData?.categoryId ?? "");
@@ -121,20 +94,27 @@ export function EventDetailsStep({
     });
   }, []);
 
+
+
+// ...
+
   async function handleSubmit() {
-    if (!title.trim()) return toast.error("Event title is required");
-    if (!startAt || !endAt) return toast.error("Start and end dates are required");
-    if (new Date(endAt) <= new Date(startAt)) return toast.error("End date must be after start date");
-
-    setSaving(true);
-
     const formData: EventDetailsFormData = {
       title, description, categoryId, venueId, countryId,
-      stateId, cityName, startAt, endAt, timezone, contactEmail,
+      stateId, cityName, startAt: toIsoDatetime(startAt), endAt: toIsoDatetime(endAt), timezone, contactEmail,
       contactPhone, heroImage, videoUrl, cancelPolicy, refundPolicy,
       currency, commissionPct, gstPct, platformFeeFixed, tags, audience,
       lat, lng, stateName, cityId
     };
+
+    const { isValid, errors } = validate(sharedEventSchema.pick({ title: true, startAt: true, endAt: true }), formData);
+    if (!isValid) {
+      const errorMessages = Object.values(errors).flat().join("\n");
+      toast.error("Invalid event details:", { description: errorMessages });
+      return;
+    }
+
+    setSaving(true);
     onNext(formData);
     setSaving(false);
   }
@@ -416,7 +396,7 @@ export function EventDetailsStep({
 
       <div className="flex justify-end gap-3">
         <Button onClick={handleSubmit} disabled={saving}>
-          {saving ? "Saving..." : "Save & Continue"}
+          {saving ? "Saving..." : "Next: Tickets"}
         </Button>
       </div>
     </div>

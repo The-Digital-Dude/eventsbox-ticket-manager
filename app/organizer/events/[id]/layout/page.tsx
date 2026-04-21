@@ -91,6 +91,7 @@ export default function OrganizerEventLayoutPage({ params }: { params: Promise<{
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
     void load();
   }, [id]);
 

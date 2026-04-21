@@ -39,6 +39,8 @@ export const eventCreateSchema = z.object({
   audience: z.string().max(50).optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
+  ticketClasses: z.array(z.any()).optional(),
+  layout: z.any().optional(),
 });
 
 export const eventUpdateSchema = eventCreateSchema.partial().extend({

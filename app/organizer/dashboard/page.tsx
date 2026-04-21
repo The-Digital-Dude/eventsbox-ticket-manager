@@ -23,6 +23,20 @@ const nav = [
   { href: "/organizer/scanner", label: "Scanner" },
 ];
 
+type DraftEventPreview = {
+  step1?: {
+    title?: string;
+  };
+};
+
+function hasDraftEventPreview(value: unknown): value is DraftEventPreview {
+  if (!value || typeof value !== "object" || !("step1" in value)) {
+    return false;
+  }
+  const step1 = (value as { step1?: unknown }).step1;
+  return !step1 || typeof step1 === "object";
+}
+
 export default async function OrganizerDashboardPage() {
   const session = await getServerSession();
   if (!session || session.user.role !== "ORGANIZER") {
@@ -119,6 +133,7 @@ export default async function OrganizerDashboardPage() {
       },
     }),
   ]);
+  const draftEvent = hasDraftEventPreview(profile.draftEvent) ? profile.draftEvent : null;
 
   return (
     <SidebarLayout role="organizer" title="Organizer" items={nav}>
@@ -126,6 +141,27 @@ export default async function OrganizerDashboardPage() {
         title="Home"
         subtitle="Track onboarding completion, venue approvals, and payout readiness in one place."
       />
+
+      {draftEvent?.step1 && (
+        <section className="mb-6">
+          <div className="rounded-2xl border-2 border-dashed border-neutral-300 bg-neutral-50 p-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-neutral-500">IN-PROGRESS EVENT</p>
+                <h3 className="text-xl font-semibold text-neutral-900 mt-1">
+                  {draftEvent.step1.title || "Untitled Event"}
+                </h3>
+                <p className="text-xs text-neutral-500 mt-1">
+                  Last saved: {new Date(profile.updatedAt).toLocaleString()}
+                </p>
+              </div>
+              <Link href="/organizer/events/new" className={cn(buttonVariants({ size: "lg" }))}>
+                Continue Setup &rarr;
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       {(rejectedEvents > 0 || pendingApprovalEvents > 0) && (
         <section className="space-y-3">

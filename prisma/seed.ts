@@ -23,6 +23,10 @@ async function main() {
     update: {},
     create: {
       id: "singleton",
+      platformName: "EventsBox",
+      brandColor: "#000000",
+      smtpFromName: "EventsBox",
+      smtpFromEmail: "noreply@eventsbox.com",
       defaultCommissionPct: 8.5,
       defaultGstPct: 15,
       payoutModeDefault: PayoutMode.MANUAL,

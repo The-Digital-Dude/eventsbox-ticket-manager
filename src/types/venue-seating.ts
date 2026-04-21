@@ -1,4 +1,5 @@
 export type SeatingMapType = "seats" | "table";
+export type VenueSeatingMapType = SeatingMapType | "mixed";
 
 export type SeatingColumn = {
   index: number;
@@ -15,7 +16,6 @@ export type SeatingTableConfig = {
 export type SeatingSection = {
   id: string;
   name: string;
-  price?: number | null;
   mapType: SeatingMapType;
   rowStart: number;
   maxRows: number;
@@ -40,7 +40,7 @@ export type PublicSeatBookingState = {
 export type SeatAvailabilityStatus = "available" | "reserved" | "booked";
 
 export type VenueSeatingConfig = {
-  mapType: SeatingMapType;
+  mapType: VenueSeatingMapType;
   sections: SeatingSection[];
   seatState?: Record<string, SeatState>;
   summary: {

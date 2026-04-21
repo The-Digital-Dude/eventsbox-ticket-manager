@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Armchair, MoveHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/src/components/ui/button";
@@ -10,8 +10,8 @@ import { Label } from "@/src/components/ui/label";
 import { Badge } from "@/src/components/ui/badge";
 import type { SeatState, SeatingColumn, SeatingMapType, SeatingSection, VenueSeatingConfig } from "@/src/types/venue-seating";
 import { computeSeatingSummary } from "@/src/lib/validators/venue-seating";
-
-const SECTION_NAME_OPTIONS = ["VIP", "Premium", "Balcony", "General"];
+import { TicketClass } from "../organizer/ticket-classes-step";
+import { getLayoutCapacityByType, getLayoutCapacityDemand } from "@/src/lib/layout-auto-generator";
 
 function rowLabel(index: number) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -46,20 +46,22 @@ type SavePayload = {
   seatState?: Record<string, SeatState>;
   summary: { totalSeats: number; totalTables: number; sectionCount: number };
 };
-
 export function SeatMapBuilder({
   initialConfig,
   initialSeatState,
   onSave,
   saveLabel,
+  onSummaryChange,
+  ticketClasses,
 }: {
   initialConfig?: VenueSeatingConfig | null;
   initialSeatState?: Record<string, SeatState> | null;
-  onSave: (payload: SavePayload) => Promise<void>;
+  onSave: (payload: SavePayload) => void | Promise<void>;
   saveLabel: string;
+  onSummaryChange?: (summary: { totalSeats: number; totalTables: number; sectionCount: number }) => void;
+  ticketClasses: TicketClass[];
 }) {
-  const [sectionName, setSectionName] = useState(SECTION_NAME_OPTIONS[0]);
-  const [price, setPrice] = useState("7");
+  const [selectedTicketClassId, setSelectedTicketClassId] = useState<string | null>(null);
   const [mapType, setMapType] = useState<SeatingMapType>("seats");
   const [columnCount, setColumnCount] = useState(3);
   const [columnConfig, setColumnConfig] = useState<Array<{ rows: number; seats: number }>>(
@@ -82,6 +84,19 @@ export function SeatMapBuilder({
     const deletedCount = Object.values(seatState).filter((s) => s.deleted).length;
     return { ...base, totalSeats: base.totalSeats - deletedCount };
   }, [sections, seatState]);
+  const demand = useMemo(() => getLayoutCapacityDemand(ticketClasses), [ticketClasses]);
+  const capacityByType = useMemo(() => getLayoutCapacityByType(sections), [sections]);
+  const deletedCount = useMemo(() => Object.values(seatState).filter((s) => s.deleted).length, [seatState]);
+  const isAssignedSeatCapacityShort = capacityByType.assignedSeatCapacity < demand.assignedSeatDemand;
+  const isTableCapacityShort = capacityByType.tableSeatCapacity < demand.tableSeatDemand;
+  const isTotalCapacityShort = summary.totalSeats < demand.totalLayoutDemand;
+  const hasCapacityIssue = isAssignedSeatCapacityShort || isTableCapacityShort || isTotalCapacityShort;
+
+  useEffect(() => {
+    if (onSummaryChange) {
+      onSummaryChange(summary);
+    }
+  }, [onSummaryChange, summary]);
 
   function normalizeRowStarts(nextSections: SeatingSection[]) {
     let running = 0;
@@ -128,13 +143,23 @@ export function SeatMapBuilder({
   }
 
   function addSection() {
+    if (!selectedTicketClassId) {
+      toast.error("Please select a ticket class to create a section for.");
+      return;
+    }
+
+    const ticketClass = ticketClasses.find(tc => tc.id === selectedTicketClassId);
+    if (!ticketClass) {
+      toast.error("Selected ticket class not found.");
+      return;
+    }
+
     const rowStart = sections.reduce((sum, section) => sum + section.maxRows, 0);
     const maxRows = mapType === "table" ? tableRows : Math.max(...columnConfig.slice(0, columnCount).map((c) => c.rows));
 
     const nextSection: SeatingSection = {
       id: crypto.randomUUID(),
-      name: sectionName,
-      price: Number(price || 7),
+      name: ticketClass.name,
       mapType,
       rowStart,
       maxRows,
@@ -159,8 +184,7 @@ export function SeatMapBuilder({
     };
 
     setSections((prev) => [...prev, nextSection]);
-    setSectionName(SECTION_NAME_OPTIONS[0]);
-    setPrice("7");
+    setSelectedTicketClassId(null);
     toast.success("Section added");
   }
 
@@ -192,6 +216,10 @@ export function SeatMapBuilder({
     toast.success("Section deleted");
   }
 
+  function updateSection(sectionId: string, updater: (section: SeatingSection) => SeatingSection) {
+    setSections((prev) => normalizeRowStarts(prev.map((section) => (section.id === sectionId ? updater(section) : section))));
+  }
+
   function openPreview(sectionId: string) {
     setPreviewSectionId(sectionId);
     setIsPreviewOpen(true);
@@ -202,9 +230,17 @@ export function SeatMapBuilder({
       toast.error("Please add at least one seating section");
       return;
     }
+    if (hasCapacityIssue) {
+      toast.error("Layout capacity is below ticket demand", {
+        description: "Add seats or tables before saving this layout.",
+      });
+      return;
+    }
 
     const seatingConfig: VenueSeatingConfig = {
-      mapType: sections[sections.length - 1]?.mapType ?? "seats",
+      mapType: sections.some((section) => section.mapType === "table") && sections.some((section) => section.mapType === "seats")
+        ? "mixed"
+        : sections[sections.length - 1]?.mapType ?? "seats",
       sections,
       seatState,
       summary,
@@ -259,10 +295,70 @@ export function SeatMapBuilder({
         </div>
 
         {section.mapType === "table" && section.tableConfig ? (
-          <div
-            className="grid justify-center gap-3"
-            style={{ gridTemplateColumns: `repeat(${section.tableConfig.columns}, ${compact ? 58 : 90}px)` }}
-          >
+          <div className="space-y-3">
+            {!compact ? (
+              <div className="grid gap-3 rounded-xl bg-neutral-50 p-3 md:grid-cols-3">
+                <div className="space-y-1">
+                  <Label>Table Rows</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={section.tableConfig.rows}
+                    onChange={(event) =>
+                      updateSection(section.id, (current) => ({
+                        ...current,
+                        maxRows: Math.max(1, Number(event.target.value || 1)),
+                        tableConfig: {
+                          ...current.tableConfig!,
+                          rows: Math.max(1, Number(event.target.value || 1)),
+                        },
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Table Columns</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={section.tableConfig.columns}
+                    onChange={(event) =>
+                      updateSection(section.id, (current) => ({
+                        ...current,
+                        tableConfig: {
+                          ...current.tableConfig!,
+                          columns: Math.max(1, Number(event.target.value || 1)),
+                        },
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Seats / Table</Label>
+                  <Input
+                    type="number"
+                    min={2}
+                    max={20}
+                    value={section.tableConfig.seatsPerTable}
+                    onChange={(event) =>
+                      updateSection(section.id, (current) => ({
+                        ...current,
+                        tableConfig: {
+                          ...current.tableConfig!,
+                          seatsPerTable: Math.max(2, Number(event.target.value || 2)),
+                        },
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            ) : null}
+            <div
+              className="grid justify-center gap-3"
+              style={{ gridTemplateColumns: `repeat(${section.tableConfig.columns}, ${compact ? 58 : 90}px)` }}
+            >
             {Array.from({ length: section.tableConfig.rows * section.tableConfig.columns }).map((_, idx) => {
               const tableIndex = idx + 1;
               const size = compact ? 58 : 90;
@@ -301,9 +397,64 @@ export function SeatMapBuilder({
                 </div>
               );
             })}
+            </div>
           </div>
         ) : (
           <div className="space-y-2">
+            {!compact ? (
+              <div className="grid gap-3 rounded-xl bg-neutral-50 p-3 md:grid-cols-2">
+                {section.columns?.map((column, index) => (
+                  <div key={`${section.id}-edit-${column.index}`} className="grid gap-2 rounded-lg border border-neutral-200 bg-white p-3 md:grid-cols-2">
+                    <p className="text-sm font-medium md:col-span-2">Section {column.index}</p>
+                    <div className="space-y-1">
+                      <Label>Rows</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={column.rows}
+                        onChange={(event) =>
+                          updateSection(section.id, (current) => {
+                            const nextColumns = [...(current.columns ?? [])];
+                            nextColumns[index] = {
+                              ...column,
+                              rows: Math.max(1, Number(event.target.value || 1)),
+                            };
+                            return {
+                              ...current,
+                              columns: nextColumns,
+                              maxRows: Math.max(...nextColumns.map((entry) => entry.rows)),
+                            };
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Seats / Row</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={column.seats}
+                        onChange={(event) =>
+                          updateSection(section.id, (current) => {
+                            const nextColumns = [...(current.columns ?? [])];
+                            nextColumns[index] = {
+                              ...column,
+                              seats: Math.max(1, Number(event.target.value || 1)),
+                            };
+                            return {
+                              ...current,
+                              columns: nextColumns,
+                            };
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {(section.columns?.length ?? 0) > (compact ? 1 : 3) ? (
               <div className="flex items-center justify-end gap-1.5 text-xs font-medium text-neutral-600">
                 <MoveHorizontal className="h-3.5 w-3.5 text-[var(--theme-secondary)]" />
@@ -447,32 +598,21 @@ export function SeatMapBuilder({
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.16)] bg-gradient-to-br from-white via-white to-[rgb(var(--theme-accent-rgb)/0.04)] p-6 shadow-sm">
-        <div className="mb-5 grid gap-5 md:grid-cols-3">
+        <div className="mb-5 grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Ticket Class</Label>
             <select
               className="app-select"
-              value={sectionName}
-              onChange={(event) => setSectionName(event.target.value)}
+              value={selectedTicketClassId ?? ""}
+              onChange={(event) => setSelectedTicketClassId(event.target.value)}
             >
-              {SECTION_NAME_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
+              <option value="" disabled>Select a ticket class</option>
+              {ticketClasses.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.name} (${option.price})
                 </option>
               ))}
             </select>
-          </div>
-          <div className="space-y-2">
-            <Label>Price</Label>
-            <Input
-              value={price}
-              onChange={(event) => setPrice(event.target.value)}
-              onWheel={(event) => event.currentTarget.blur()}
-              type="number"
-              min={0}
-              step="0.01"
-              placeholder="7.00"
-            />
           </div>
           <div className="space-y-2">
             <Label>Map Type</Label>
@@ -562,10 +702,19 @@ export function SeatMapBuilder({
 
       <div className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-gradient-to-br from-white via-white to-[rgb(var(--theme-accent-rgb)/0.06)] p-6 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Badge>Required Seats: {demand.totalLayoutDemand}</Badge>
           <Badge>Sections: {summary.sectionCount}</Badge>
           <Badge>Total Seats: {summary.totalSeats}</Badge>
           <Badge>Total Tables: {summary.totalTables}</Badge>
         </div>
+        {hasCapacityIssue ? (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Layout capacity is below ticket demand. Required: {demand.totalLayoutDemand} seats
+            {demand.tableSeatDemand > 0 ? `, including ${demand.tableSeatDemand} table seats` : ""}
+            {demand.assignedSeatDemand > 0 ? `, including ${demand.assignedSeatDemand} assigned seats` : ""}.
+            Current capacity is {summary.totalSeats} seats{deletedCount > 0 ? ` after ${deletedCount} deleted seats` : ""}.
+          </div>
+        ) : null}
 
         {sections.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[rgb(var(--theme-accent-rgb)/0.28)] bg-white/80 px-4 py-8 text-center">

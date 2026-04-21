@@ -418,6 +418,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 {canceling ? "Cancelling..." : "Cancel Event"}
               </Button>
             )}
+            {/* Placeholder for event.createdViaSimpleMode */}
+            <Button variant="outline" size="sm" onClick={() => router.push(`/organizer/events/new?fromEventId=${id}`)}>
+              Switch to Advanced Setup
+            </Button>
             {canSubmit && (
               <Button onClick={submitForApproval} disabled={submitting}>
                 {submitting ? "Submitting..." : "Submit for Approval"}

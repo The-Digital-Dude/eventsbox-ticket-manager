@@ -82,7 +82,7 @@ enum EventSeatingSectionType {
   SECTIONED_GA
 }
 
-enum TicketInventoryMode {
+enum TicketClassType {
   GENERAL_ADMISSION
   ASSIGNED_SEAT
   TABLE
@@ -202,6 +202,22 @@ model OrganizerProfile {
   eventSeries      EventSeries[]
   affiliateLinks   AffiliateLink[]
   scannerProfiles  ScannerProfile[]
+  draftHistory     DraftHistory[]
+}
+
+model DraftHistory {
+  id              String   @id @default(cuid())
+  organizerId     String
+  organizer       OrganizerProfile @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  version         Int
+  savedAt         DateTime @default(now())
+  stepName        String
+  changeSummary   String?
+  formData        Json
+  createdAt       DateTime @default(now())
+
+  @@unique([organizerId, version])
+  @@index([organizerId])
 }
 
 model AttendeeProfile {
@@ -511,7 +527,7 @@ model TicketType {
   description           String?
   kind                  TicketTypeKind       @default(DIRECT)
   /// Persisted inventory behavior for an event-owned ticket class
-  inventoryMode         TicketInventoryMode  @default(GENERAL_ADMISSION)
+  classType             TicketClassType      @default(GENERAL_ADMISSION)
   price                 Decimal              @db.Decimal(10, 2)
   quantity              Int
   sold                  Int                  @default(0)

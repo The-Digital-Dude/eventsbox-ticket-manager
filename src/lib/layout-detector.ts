@@ -1,3 +1,4 @@
+import { TicketClassType } from '@prisma/client';
 import type { TicketClass } from "@/src/components/organizer/ticket-classes-step";
 
 export type LayoutType = 'none' | 'seating' | 'table' | 'mixed';
@@ -10,11 +11,10 @@ export type LayoutDecision = {
 export function deriveLayoutFromTicketClasses(ticketClasses: Pick<TicketClass, 'classType'>[]): LayoutDecision {
   const classTypes = new Set(ticketClasses.map(tc => tc.classType));
 
-  const hasSeating = classTypes.has('seating');
-  const hasTable = classTypes.has('table');
-  const hasMixed = classTypes.has('mixed');
+  const hasSeating = classTypes.has(TicketClassType.ASSIGNED_SEAT);
+  const hasTable = classTypes.has(TicketClassType.TABLE);
 
-  if (hasMixed || (hasSeating && hasTable)) {
+  if (hasSeating && hasTable) {
     return {
       layoutType: 'mixed',
       requiresLayout: true,

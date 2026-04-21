@@ -10,6 +10,8 @@ type SavePayload = {
   summary: { totalSeats: number; totalTables: number; sectionCount: number };
 };
 
+import { TicketClass } from "../organizer/ticket-classes-step";
+
 export function LayoutBuilderShell({
   title,
   description,
@@ -19,15 +21,19 @@ export function LayoutBuilderShell({
   onSave,
   backLabel,
   onBack,
+  onSummaryChange,
+  ticketClasses,
 }: {
   title: string;
   description: string;
   initialConfig?: VenueSeatingConfig | null;
   initialSeatState?: Record<string, SeatState> | null;
   saveLabel: string;
-  onSave: (payload: SavePayload) => Promise<void>;
+  onSave: (payload: SavePayload) => void | Promise<void>;
   backLabel?: string;
   onBack?: () => void;
+  onSummaryChange?: (summary: { totalSeats: number; totalTables: number; sectionCount: number }) => void;
+  ticketClasses: TicketClass[];
 }) {
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
@@ -41,6 +47,8 @@ export function LayoutBuilderShell({
         initialSeatState={initialSeatState ?? null}
         saveLabel={saveLabel}
         onSave={onSave}
+        onSummaryChange={onSummaryChange}
+        ticketClasses={ticketClasses}
       />
 
       {onBack ? (
