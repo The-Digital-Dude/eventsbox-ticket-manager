@@ -3,6 +3,7 @@ import { OrganizerApprovalStatus, Role } from "@prisma/client";
 import { accessTokenFromRequest } from "@/src/lib/auth/session";
 import { verifyAccessToken } from "@/src/lib/auth/jwt";
 import { prisma } from "@/src/lib/db";
+import { shouldAutoApproveOrganizer } from "@/src/lib/services/platform-settings";
 
 export async function requireAuth(req: NextRequest) {
   const token = accessTokenFromRequest(req);
@@ -36,7 +37,8 @@ export async function requireRole(req: NextRequest, role: Role) {
 export async function requireApprovedOrganizer(req: NextRequest) {
   const payload = await requireRole(req, Role.ORGANIZER);
   const profile = await prisma.organizerProfile.findUnique({ where: { userId: payload.sub } });
-  if (!profile || profile.approvalStatus !== OrganizerApprovalStatus.APPROVED) {
+  const approvalRequired = !(await shouldAutoApproveOrganizer());
+  if (!profile || (approvalRequired && profile.approvalStatus !== OrganizerApprovalStatus.APPROVED)) {
     throw new Error("ORGANIZER_NOT_APPROVED");
   }
   return { payload, profile };

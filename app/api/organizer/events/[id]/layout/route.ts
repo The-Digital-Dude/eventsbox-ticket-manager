@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { Prisma, Role } from "@prisma/client";
+import { Prisma, Role, EventSeatingPlan, EventSeatingSection, EventSeatingMode, EventSeatingSource, EventSeatingSectionType } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { resolveEventSeating } from "@/src/lib/event-seating";
@@ -7,15 +7,25 @@ import { fail, ok } from "@/src/lib/http/response";
 import { getEventLayoutDecision, syncEventLayoutMode } from "@/src/lib/services/ticket-class-layout";
 import { getEventSeatingSectionSummaries } from "@/src/lib/services/event-seating-sections";
 import { getTicketClassType } from "@/src/lib/ticket-classes";
+import { z } from "zod";
 
-import { venueUpdateSchema } from "@/src/lib/validators/organizer";
-import { computeSeatingSummary } from "@/src/lib/validators/venue-seating";
+const SeatingSectionInputSchema = z.object({
+  id: z.string().optional(),
+  key: z.string(),
+  name: z.string(),
+  sectionType: z.nativeEnum(EventSeatingSectionType),
+  capacity: z.number().nullable(),
+  sortOrder: z.number().default(0),
+});
 
-type PersistedLayoutSection = {
-  id: string;
-  sectionType: string;
-  capacity: number | null;
-};
+const EventSeatingPlanInputSchema = z.object({
+  id: z.string().optional(),
+  mode: z.nativeEnum(EventSeatingMode),
+  source: z.nativeEnum(EventSeatingSource).default(EventSeatingSource.CUSTOM),
+  venueSeatingTemplateId: z.string().optional().nullable(),
+  sourceVenueId: z.string().optional().nullable(),
+  sections: z.array(SeatingSectionInputSchema),
+});
 
 async function getOwnEventLayout(eventId: string, organizerUserId: string) {
   const profile = await prisma.organizerProfile.findUnique({ where: { userId: organizerUserId } });
@@ -29,8 +39,6 @@ async function getOwnEventLayout(eventId: string, organizerUserId: string) {
           id: true,
           name: true,
           addressLine1: true,
-          seatingConfig: true,
-          seatState: true,
         },
       },
       seatingPlan: {
@@ -67,10 +75,10 @@ async function getOwnEventLayout(eventId: string, organizerUserId: string) {
   return { profile, event };
 }
 
-function isCompatibleLayoutSection(classType: string, section: PersistedLayoutSection) {
-  if (classType === "mixed") return section.sectionType === "ROWS" || section.sectionType === "TABLES";
-  if (classType === "seating") return section.sectionType === "ROWS";
-  if (classType === "table") return section.sectionType === "TABLES";
+function isCompatibleLayoutSection(classType: string, section: Pick<EventSeatingSection, "sectionType">) {
+  if (classType === "mixed") return section.sectionType === EventSeatingSectionType.ROWS || section.sectionType === EventSeatingSectionType.TABLES;
+  if (classType === "seating") return section.sectionType === EventSeatingSectionType.ROWS;
+  if (classType === "table") return section.sectionType === EventSeatingSectionType.TABLES;
   return false;
 }
 
@@ -100,39 +108,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const layoutDecision = await getEventLayoutDecision(event.id);
     console.log("6. getEventLayoutDecision SUCCESS. Decision:", layoutDecision);
 
-    console.log("7. Calling resolveEventSeating...");
-    const seating = resolveEventSeating(event);
-    console.log("8. resolveEventSeating SUCCESS.");
-
-    const persistedSections = event.seatingPlan?.sections ?? [];
-    const displaySections = persistedSections.length > 0
-      ? persistedSections
-      : (seating.seatingConfig
-          ? getEventSeatingSectionSummaries(seating.seatingConfig).map((section) => ({
-              id: section.key,
-              key: section.key,
-              name: section.name,
-              sectionType: section.sectionType,
-              capacity: section.capacity,
-              sortOrder: section.sortOrder,
-            }))
-          : []);
-
-    const sections = displaySections.map((section) => {
-      const usedQuantity = event.ticketTypes
-        .filter((ticketClass) => ticketClass.eventSeatingSectionId === section.id)
-        .reduce((sum, ticketClass) => sum + ticketClass.quantity, 0);
-
-      return {
-        id: section.id,
-        key: section.key,
-        name: section.name,
-        sectionType: section.sectionType,
-        capacity: section.capacity,
-        usedQuantity,
-        remainingCapacity: section.capacity === null ? null : Math.max(0, section.capacity - usedQuantity),
-      };
-    });
+    const sections = event.seatingPlan?.sections ?? [];
 
     return ok({
       event: {
@@ -144,7 +120,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
               id: event.venue.id,
               name: event.venue.name,
               addressLine1: event.venue.addressLine1,
-              seatingConfig: event.venue.seatingConfig,
             }
           : null,
         seatingMode: event.seatingMode,
@@ -154,12 +129,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         })),
       },
       layoutDecision,
-      seating: {
-        source: seating.source,
-        seatingConfig: seating.seatingConfig,
-        seatState: seating.seatState,
-      },
-      sections,
+      seating: event.seatingPlan, // Return the relational seatingPlan directly
+      sections: sections.map((section) => {
+        const usedQuantity = event.ticketTypes
+          .filter((ticketClass) => ticketClass.eventSeatingSectionId === section.id)
+          .reduce((sum, ticketClass) => sum + ticketClass.quantity, 0);
+  
+        return {
+          id: section.id,
+          key: section.key,
+          name: section.name,
+          sectionType: section.sectionType,
+          capacity: section.capacity,
+          usedQuantity,
+          remainingCapacity: section.capacity === null ? null : Math.max(0, section.capacity - usedQuantity),
+        };
+      }),
     });
   } catch (error) {
     console.error("--- [GET /layout] CAUGHT ERROR ---", error);
@@ -192,66 +177,39 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       });
     }
 
-    const parsed = venueUpdateSchema.safeParse(await req.json());
+    const parsed = EventSeatingPlanInputSchema.safeParse(await req.json());
     if (!parsed.success) {
       return fail(400, { code: "VALIDATION_ERROR", message: "Invalid layout payload", details: parsed.error.flatten() });
     }
 
-    const computed = computeSeatingSummary(parsed.data.seatingConfig.sections);
-    const deletedCount = parsed.data.seatState
-      ? Object.values(parsed.data.seatState).filter((s: { deleted?: boolean }) => s.deleted).length
-      : 0;
-    const adjustedTotalSeats = computed.totalSeats - deletedCount;
-    if (adjustedTotalSeats !== parsed.data.summary.totalSeats || computed.totalTables !== parsed.data.summary.totalTables) {
-      return fail(400, {
-        code: "SEATING_SUMMARY_MISMATCH",
-        message: "Layout summary does not match seating configuration",
-        details: { computed, provided: parsed.data.summary },
-      });
-    }
+    const incomingSeatingPlan = parsed.data;
 
-    if (!layoutDecision.supportsSeating && parsed.data.summary.totalSeats > parsed.data.summary.totalTables * 0) {
-      const hasSeatSections = parsed.data.seatingConfig.sections.some((section) => section.mapType === "seats");
-      if (hasSeatSections) {
-        return fail(400, { code: "INVALID_LAYOUT_FOR_EVENT", message: "This event only supports table layouts" });
-      }
-    }
-
-    if (!layoutDecision.supportsTables) {
-      const hasTableSections = parsed.data.seatingConfig.sections.some((section) => section.mapType === "table");
-      if (hasTableSections) {
-        return fail(400, { code: "INVALID_LAYOUT_FOR_EVENT", message: "This event only supports seating layouts" });
-      }
-    }
+    // --- NO LEGACY SUMMARY COMPUTATION OR VALIDATION HERE ---
 
     const savedPlan = await prisma.$transaction(async (tx) => {
       const plan = await tx.eventSeatingPlan.upsert({
         where: { eventId: event.id },
         create: {
           eventId: event.id,
-          mode: layoutDecision.eventSeatingMode,
-          source: "CUSTOM",
-          sourceVenueId: event.venueId ?? undefined,
-          seatingConfig: parsed.data.seatingConfig as Prisma.InputJsonValue,
-          seatState: parsed.data.seatState ? (parsed.data.seatState as Prisma.InputJsonValue) : Prisma.JsonNull,
-          summary: parsed.data.summary as Prisma.InputJsonValue,
+          mode: incomingSeatingPlan.mode,
+          source: incomingSeatingPlan.source,
+          venueSeatingTemplateId: incomingSeatingPlan.venueSeatingTemplateId,
+          sourceVenueId: incomingSeatingPlan.sourceVenueId,
         },
         update: {
-          mode: layoutDecision.eventSeatingMode,
-          source: "CUSTOM",
-          sourceVenueId: event.venueId ?? undefined,
-          seatingConfig: parsed.data.seatingConfig as Prisma.InputJsonValue,
-          seatState: parsed.data.seatState ? (parsed.data.seatState as Prisma.InputJsonValue) : Prisma.JsonNull,
-          summary: parsed.data.summary as Prisma.InputJsonValue,
-          schemaVersion: parsed.data.seatingConfig.schemaVersion,
+          mode: incomingSeatingPlan.mode,
+          source: incomingSeatingPlan.source,
+          venueSeatingTemplateId: incomingSeatingPlan.venueSeatingTemplateId,
+          sourceVenueId: incomingSeatingPlan.sourceVenueId,
         },
+        include: { sections: true }, // Include sections to return a complete plan
       });
 
       await tx.eventSeatingSection.deleteMany({ where: { eventSeatingPlanId: plan.id } });
 
-      if (parsed.data.seatingConfig.sections.length > 0) {
+      if (incomingSeatingPlan.sections.length > 0) {
         await tx.eventSeatingSection.createMany({
-          data: getEventSeatingSectionSummaries(parsed.data.seatingConfig).map((section) => ({
+          data: incomingSeatingPlan.sections.map((section) => ({
             eventSeatingPlanId: plan.id,
             key: section.key,
             name: section.name,
@@ -297,7 +255,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         });
       }
 
-      return plan;
+      return { ...plan, sections }; // Return the updated plan with sections
     });
 
     await syncEventLayoutMode(event.id);

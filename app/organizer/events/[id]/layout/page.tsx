@@ -9,7 +9,7 @@ import { LayoutBuilderShell } from "@/src/components/organizer/layout-builder-sh
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
+import { RelationalSeatingLayout } from "@/src/types/event-draft";
 
 type TicketClassSummary = {
   id: string;
@@ -34,11 +34,7 @@ type LayoutPayload = {
     eventSeatingMode: "GA_ONLY" | "ROWS" | "TABLES" | "MIXED";
     requiresLayout: boolean;
   };
-  seating: {
-    source: "event" | "venue" | "none";
-    seatingConfig: VenueSeatingConfig | null;
-    seatState: Record<string, SeatState> | null;
-  };
+  seating: RelationalSeatingLayout | null;
   sections: Array<{
     id: string;
     key: string;
@@ -95,11 +91,7 @@ export default function OrganizerEventLayoutPage({ params }: { params: Promise<{
     void load();
   }, [id, load]);
 
-  async function saveLayout(payload: {
-    seatingConfig: VenueSeatingConfig;
-    seatState?: Record<string, SeatState>;
-    summary: { totalSeats: number; totalTables: number; sectionCount: number };
-  }) {
+  async function saveLayout(payload: RelationalSeatingLayout) {
     const res = await fetch(`/api/organizer/events/${id}/layout`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -174,7 +166,7 @@ export default function OrganizerEventLayoutPage({ params }: { params: Promise<{
 
           <div className="mt-4 flex flex-wrap gap-2 text-sm text-neutral-600">
             <span className="rounded-full border border-[var(--border)] px-3 py-1">
-              Layout source: {data.seating.source}
+              Layout source: {data.seating?.source ?? 'none'}
             </span>
             <span className="rounded-full border border-[var(--border)] px-3 py-1">
               Venue: {data.event.venue?.name ?? "Not linked"}
@@ -199,8 +191,7 @@ export default function OrganizerEventLayoutPage({ params }: { params: Promise<{
         <LayoutBuilderShell
           title="Event Layout Builder"
           description="This reuses the existing seating map builder and saves the layout under the event, so the organizer flow stays continuous."
-          initialConfig={data.seating.seatingConfig}
-          initialSeatState={data.seating.seatState}
+          initialConfig={data.seating}
           saveLabel="Save Event Layout"
           onSave={saveLayout}
           backLabel="Back to Event"

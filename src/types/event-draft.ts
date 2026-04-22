@@ -10,6 +10,31 @@ export type EventMedia = EventDetailsFormData["media"];
 export type EventPolicies = EventDetailsFormData["policies"];
 export type EventVisibility = EventDetailsFormData["visibility"];
 
+
+
+export type EventSeatingLayout = {
+  seatingConfig: VenueSeatingConfig;
+  seatState?: Record<string, SeatState>;
+  summary: { totalSeats: number; totalTables: number; sectionCount: number };
+};
+
+export type RelationalSeatingSection = {
+  id: string;
+  key: string;
+  name: string;
+  sectionType: "ROWS" | "TABLES" | "SECTIONED_GA";
+  capacity: number;
+  sortOrder: number;
+};
+
+export type RelationalSeatingLayout = {
+  id: string;
+  eventId?: string;
+  mode: "GA_ONLY" | "ROWS" | "TABLES" | "MIXED";
+  source?: "CUSTOM" | "VENUE_TEMPLATE";
+  sections: RelationalSeatingSection[];
+};
+
 export type EventTicketClass = {
   id: string;
   name: string;
@@ -21,12 +46,6 @@ export type EventTicketClass = {
 export type TicketMapping = {
   ticketClassId: string;
   targetId: string;
-};
-
-export type EventSeatingLayout = {
-  seatingConfig: VenueSeatingConfig;
-  seatState?: Record<string, SeatState>;
-  summary: { totalSeats: number; totalTables: number; sectionCount: number };
 };
 
 export type EventDraftMeta = {

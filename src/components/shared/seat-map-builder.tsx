@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { Armchair, MoveHorizontal } from "lucide-react";
@@ -10,7 +10,6 @@ import { Label } from "@/src/components/ui/label";
 import { Badge } from "@/src/components/ui/badge";
 import type { SeatState, SeatingColumn, SeatingMapType, SeatingSection, VenueSeatingConfig } from "@/src/types/venue-seating";
 import { computeSeatingSummary } from "@/src/lib/validators/venue-seating";
-import { EventTicketClass } from "@/src/types/event-draft";
 
 function rowLabel(index: number) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -51,16 +50,14 @@ export function SeatMapBuilder({
   onSave,
   saveLabel,
   onSummaryChange,
-  ticketClasses,
 }: {
   initialConfig?: VenueSeatingConfig | null;
   initialSeatState?: Record<string, SeatState> | null;
   onSave: (payload: SavePayload) => void | Promise<void>;
   saveLabel: string;
   onSummaryChange?: (summary: { totalSeats: number; totalTables: number; sectionCount: number }) => void;
-  ticketClasses: EventTicketClass[];
 }) {
-  const [selectedTicketClassId, setSelectedTicketClassId] = useState<string | null>(null);
+  const [sectionName, setSectionName] = useState("");
   const [mapType, setMapType] = useState<SeatingMapType>("seats");
   const [columnCount, setColumnCount] = useState(3);
   const [columnConfig, setColumnConfig] = useState<Array<{ rows: number; seats: number }>>(
@@ -135,14 +132,8 @@ export function SeatMapBuilder({
   }
 
   function addSection() {
-    if (!selectedTicketClassId) {
-      toast.error("Please select a ticket class to create a section for.");
-      return;
-    }
-
-    const ticketClass = ticketClasses.find(tc => tc.id === selectedTicketClassId);
-    if (!ticketClass) {
-      toast.error("Selected ticket class not found.");
+    if (!sectionName) {
+      toast.error("Please enter a name for the section.");
       return;
     }
 
@@ -151,7 +142,8 @@ export function SeatMapBuilder({
 
     const nextSection: SeatingSection = {
       id: crypto.randomUUID(),
-      name: ticketClass.name,
+      name: sectionName,
+      price: 0,
       mapType,
       rowStart,
       maxRows,
@@ -176,7 +168,7 @@ export function SeatMapBuilder({
     };
 
     setSections((prev) => [...prev, nextSection]);
-    setSelectedTicketClassId(null);
+    setSectionName("");
     toast.success("Section added");
   }
 
@@ -236,7 +228,6 @@ export function SeatMapBuilder({
     setIsSaving(true);
     try {
       await onSave({ seatingConfig, seatState, summary });
-      toast.success("Seating configuration saved");
     } finally {
       setIsSaving(false);
     }
@@ -256,6 +247,10 @@ export function SeatMapBuilder({
           <div className="flex items-center gap-2">
             {!compact ? (
               <>
+                <div className="w-24">
+                  <Label>Price</Label>
+                  <Input type="number" value={section.price} onChange={(e) => updateSection(section.id, (s) => ({ ...s, price: Number(e.target.value) }))} />
+                </div>
                 <Button
                   type="button"
                   size="sm"
@@ -583,22 +578,11 @@ export function SeatMapBuilder({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-gradient-to-br from-white via-white to-[rgb(var(--theme-accent-rgb)/0.06)] p-6 shadow-sm">
+      <div className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.16)] bg-gradient-to-br from-white via-white to-[rgb(var(--theme-accent-rgb)/0.04)] p-6 shadow-sm">
         <div className="mb-5 grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>Ticket Class</Label>
-            <select
-              className="app-select"
-              value={selectedTicketClassId ?? ""}
-              onChange={(event) => setSelectedTicketClassId(event.target.value)}
-            >
-              <option value="" disabled>Select a ticket class</option>
-              {ticketClasses.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.name} (${option.price})
-                </option>
-              ))}
-            </select>
+            <Label>Section Name</Label>
+            <Input value={sectionName} onChange={(e) => setSectionName(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label>Map Type</Label>

@@ -1,15 +1,72 @@
 import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
-import { getTicketSeatingSectionKey, resolveEventSeating } from "@/src/lib/event-seating";
 import { fail, ok } from "@/src/lib/http/response";
 import { getStripeClient } from "@/src/lib/stripe/client";
 import { checkoutIntentSchema } from "@/src/lib/validators/event";
 import { getServerSession } from "@/src/lib/auth/server-auth";
 import { validatePromoCodeById } from "@/src/lib/services/promo-code";
-import { getSeatDescriptorMap } from "@/src/lib/venue-seating";
+import { getPlatformFinancialDefaults } from "@/src/lib/services/platform-settings";
 
 const SEAT_HOLD_MS = 15 * 60 * 1000;
+
+type CheckoutTicketType = {
+  id: string;
+  name: string;
+  classType?: string | null;
+  sourceSeatingSectionId?: string | null;
+  eventSeatingSectionId?: string | null;
+  sectionId?: string | null;
+};
+
+type CheckoutSeatSection = {
+  id: string;
+  key: string;
+  name: string;
+  sectionType: string;
+  capacity: number | null;
+};
+
+function ticketRequiresSeatSelection(ticketType: CheckoutTicketType) {
+  return (
+    ticketType.classType === "ASSIGNED_SEAT" ||
+    ticketType.classType === "TABLE" ||
+    Boolean(getTicketSectionId(ticketType))
+  );
+}
+
+function getTicketSectionId(ticketType: CheckoutTicketType) {
+  return (
+    ticketType.eventSeatingSectionId ??
+    ticketType.sourceSeatingSectionId ??
+    ticketType.sectionId ??
+    null
+  );
+}
+
+function seatIdFor(sectionName: string, index: number) {
+  return `${sectionName}-A${index}`;
+}
+
+function seatLabelFor(sectionName: string, index: number) {
+  return `${sectionName} A${index}`;
+}
+
+function buildSeatCatalog(sections: CheckoutSeatSection[]) {
+  const catalog = new Map<string, { sectionId: string; seatLabel: string }>();
+
+  for (const section of sections) {
+    const capacity = Math.max(0, section.capacity ?? 0);
+    for (let index = 1; index <= capacity; index += 1) {
+      catalog.set(seatIdFor(section.name, index), {
+        sectionId: section.id,
+        seatLabel: seatLabelFor(section.name, index),
+      });
+    }
+  }
+
+  return catalog;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,30 +91,30 @@ export async function POST(req: NextRequest) {
       where: { id: eventId, status: "PUBLISHED" },
       include: {
         ticketTypes: {
-          include: {
-            eventSeatingSection: {
-              select: {
-                key: true,
-              },
-            },
+          select: {
+            id: true,
+            name: true,
+            classType: true,
+            sourceSeatingSectionId: true,
+            isActive: true,
+            price: true,
+            quantity: true,
+            sold: true,
+            reservedQty: true,
+            maxPerOrder: true,
           },
         },
         seatingPlan: {
           select: {
-            seatingConfig: true,
-            seatState: true,
             sections: {
               select: {
+                id: true,
                 key: true,
                 name: true,
+                sectionType: true,
+                capacity: true,
               },
             },
-          },
-        },
-        venue: {
-          select: {
-            seatingConfig: true,
-            seatState: true,
           },
         },
       },
@@ -83,71 +140,11 @@ export async function POST(req: NextRequest) {
         : null;
 
     const uniqueSelectedSeatIds = Array.from(new Set(selectedSeatIds));
-    const resolvedSeating = resolveEventSeating(event);
-    const seatingConfig = resolvedSeating.seatingConfig;
-    const seatState = resolvedSeating.seatState;
-    const seatDescriptorMap = seatingConfig ? getSeatDescriptorMap(seatingConfig, seatState) : {};
 
     if (selectedSeatIds.length !== uniqueSelectedSeatIds.length) {
       return fail(400, {
         code: "DUPLICATE_SEAT_SELECTION",
         message: "Each selected seat must be unique",
-      });
-    }
-
-    if (seatingConfig) {
-      // Only ticket types linked to a section require seat selection
-      const totalSeatedTickets = items.reduce((sum, item) => {
-        const tt = event.ticketTypes.find((t) => t.id === item.ticketTypeId);
-        return getTicketSeatingSectionKey(tt ?? {}) ? sum + item.quantity : sum;
-      }, 0);
-
-      if (uniqueSelectedSeatIds.length !== totalSeatedTickets) {
-        return fail(400, {
-          code: "SEAT_SELECTION_REQUIRED",
-          message: `Select ${totalSeatedTickets} seat${totalSeatedTickets === 1 ? "" : "s"} before checkout`,
-        });
-      }
-
-      const invalidSeatId = uniqueSelectedSeatIds.find((seatId) => !seatDescriptorMap[seatId]);
-      if (invalidSeatId) {
-        return fail(400, {
-          code: "INVALID_SEAT",
-          message: `Seat ${invalidSeatId} is not available for this event`,
-        });
-      }
-
-      // Each section must get exactly the right number of seats
-      const sectionRequired = new Map<string, number>();
-      for (const item of items) {
-        const tt = event.ticketTypes.find((t) => t.id === item.ticketTypeId);
-        const sectionKey = getTicketSeatingSectionKey(tt ?? {});
-        if (sectionKey) {
-          sectionRequired.set(sectionKey, (sectionRequired.get(sectionKey) ?? 0) + item.quantity);
-        }
-      }
-
-      const sectionSelected = new Map<string, number>();
-      for (const seatId of uniqueSelectedSeatIds) {
-        const descriptor = seatDescriptorMap[seatId];
-        if (descriptor) {
-          sectionSelected.set(descriptor.sectionId, (sectionSelected.get(descriptor.sectionId) ?? 0) + 1);
-        }
-      }
-
-      for (const [sectionId, required] of sectionRequired) {
-        const selected = sectionSelected.get(sectionId) ?? 0;
-        if (selected !== required) {
-          return fail(400, {
-            code: "SEAT_SECTION_MISMATCH",
-            message: `Please select ${required} seat${required === 1 ? "" : "s"} from the correct section`,
-          });
-        }
-      }
-    } else if (uniqueSelectedSeatIds.length > 0) {
-      return fail(400, {
-        code: "SEATING_NOT_ENABLED",
-        message: "This event does not support reserved seating",
       });
     }
 
@@ -193,7 +190,23 @@ export async function POST(req: NextRequest) {
 
       const freshEvent = await tx.event.findFirst({
         where: { id: eventId, status: "PUBLISHED" },
-        include: { ticketTypes: true, addOns: true },
+        include: {
+          ticketTypes: true,
+          addOns: true,
+          seatingPlan: {
+            select: {
+              sections: {
+                select: {
+                  id: true,
+                  key: true,
+                  name: true,
+                  sectionType: true,
+                  capacity: true,
+                },
+              },
+            },
+          },
+        },
       });
       if (!freshEvent) {
         throw new Error("EVENT_NOT_AVAILABLE");
@@ -232,6 +245,71 @@ export async function POST(req: NextRequest) {
           unitPrice,
           subtotal: itemSubtotal,
         });
+      }
+
+      const seatingSections = freshEvent.seatingPlan?.sections ?? [];
+      const seatCatalog = buildSeatCatalog(seatingSections);
+      const seatedItems = resolvedItems.filter((resolved) =>
+        ticketRequiresSeatSelection(resolved.ticketType as CheckoutTicketType),
+      );
+      const requiredSeatCount = seatedItems.reduce((sum, item) => sum + item.quantity, 0);
+
+      if (requiredSeatCount > 0 && uniqueSelectedSeatIds.length !== requiredSeatCount) {
+        throw new Error(`SEAT_SELECTION_REQUIRED:${requiredSeatCount}`);
+      }
+
+      if (requiredSeatCount === 0 && uniqueSelectedSeatIds.length > 0) {
+        throw new Error("SEAT_SELECTION_NOT_ALLOWED");
+      }
+
+      const requiredBySection = new Map<string, number>();
+      for (const item of seatedItems) {
+        const sectionId = getTicketSectionId(item.ticketType as CheckoutTicketType);
+        if (!sectionId) {
+          throw new Error(`SEAT_LAYOUT_REQUIRED:${item.ticketType.name}`);
+        }
+        requiredBySection.set(sectionId, (requiredBySection.get(sectionId) ?? 0) + item.quantity);
+      }
+
+      const selectedBySection = new Map<string, number>();
+      const seatReservations = uniqueSelectedSeatIds.map((seatId) => {
+        const seat = seatCatalog.get(seatId);
+        if (!seat) {
+          throw new Error(`INVALID_SEAT:${seatId}`);
+        }
+        selectedBySection.set(seat.sectionId, (selectedBySection.get(seat.sectionId) ?? 0) + 1);
+        return { seatId, ...seat };
+      });
+
+      for (const [sectionId, requiredCount] of requiredBySection.entries()) {
+        const selectedCount = selectedBySection.get(sectionId) ?? 0;
+        if (selectedCount !== requiredCount) {
+          throw new Error(`SEAT_SECTION_MISMATCH:${requiredCount}`);
+        }
+      }
+
+      for (const sectionId of selectedBySection.keys()) {
+        if (!requiredBySection.has(sectionId)) {
+          throw new Error("SEAT_SECTION_MISMATCH");
+        }
+      }
+
+      if (seatReservations.length > 0) {
+        const unavailableSeats = await tx.eventSeatBooking.findMany({
+          where: {
+            eventId,
+            seatId: { in: uniqueSelectedSeatIds },
+            OR: [
+              { status: "BOOKED" },
+              { status: "RESERVED", expiresAt: { gt: now } },
+            ],
+          },
+          select: { seatId: true },
+        });
+
+        if (unavailableSeats.length > 0) {
+          throw new Error(`SEAT_ALREADY_RESERVED:${unavailableSeats[0].seatId}`);
+        }
       }
 
       const resolvedAddOns: Array<{
@@ -274,14 +352,16 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      const financialDefaults = await getPlatformFinancialDefaults();
       const discountedSubtotal = parseFloat(Math.max(0, subtotal - discountAmount).toFixed(2));
       const platformFee = parseFloat(
         (discountedSubtotal * (Number(freshEvent.commissionPct) / 100) + Number(freshEvent.platformFeeFixed)).toFixed(2),
       );
+      const buyerPlatformFee = financialDefaults.feeStrategy === "ABSORB" ? 0 : platformFee;
       const gst = parseFloat(
-        ((discountedSubtotal + platformFee) * (Number(freshEvent.gstPct) / 100)).toFixed(2),
+        ((discountedSubtotal + buyerPlatformFee) * (Number(freshEvent.gstPct) / 100)).toFixed(2),
       );
-      const total = parseFloat((discountedSubtotal + platformFee + gst).toFixed(2));
+      const total = parseFloat((discountedSubtotal + buyerPlatformFee + gst).toFixed(2));
 
       let affiliateLinkId: string | undefined;
       if (affiliateCode) {
@@ -326,28 +406,26 @@ export async function POST(req: NextRequest) {
         include: { items: true, orderAddOns: true },
       });
 
-      if (seatingConfig) {
-        for (const seatId of uniqueSelectedSeatIds) {
-          try {
-            await tx.eventSeatBooking.create({
-              data: {
-                eventId,
-                orderId: createdOrder.id,
-                seatId,
-                seatLabel: seatDescriptorMap[seatId].seatLabel,
-                status: "RESERVED",
-                expiresAt: holdUntil,
-              },
-            });
-          } catch (error) {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === "P2002"
-            ) {
-              throw new Error(`SEAT_ALREADY_RESERVED:${seatId}`);
-            }
-            throw error;
+      for (const reservation of seatReservations) {
+        try {
+          await tx.eventSeatBooking.create({
+            data: {
+              eventId,
+              orderId: createdOrder.id,
+              seatId: reservation.seatId,
+              seatLabel: reservation.seatLabel,
+              status: "RESERVED",
+              expiresAt: holdUntil,
+            },
+          });
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === "P2002"
+          ) {
+            throw new Error(`SEAT_ALREADY_RESERVED:${reservation.seatId}`);
           }
+          throw error;
         }
       }
 
@@ -413,7 +491,7 @@ export async function POST(req: NextRequest) {
         gst: Number(order.gst),
         total: Number(order.total),
       },
-      seatHoldExpiresAt: seatingConfig ? holdUntil.toISOString() : null,
+      seatHoldExpiresAt: uniqueSelectedSeatIds.length > 0 ? holdUntil.toISOString() : null,
     });
   } catch (err) {
     if (err instanceof Error) {
@@ -452,6 +530,36 @@ export async function POST(req: NextRequest) {
         return fail(400, {
           code: "EXCEEDS_MAX_ADDON",
           message: `Maximum ${extra} allowed per order for add-on "${detail}"`,
+        });
+      }
+      if (code === "SEAT_SELECTION_REQUIRED") {
+        return fail(400, {
+          code: "SEAT_SELECTION_REQUIRED",
+          message: `Select ${detail} seat${detail === "1" ? "" : "s"} before checkout`,
+        });
+      }
+      if (code === "SEAT_SELECTION_NOT_ALLOWED") {
+        return fail(400, {
+          code: "SEAT_SELECTION_NOT_ALLOWED",
+          message: "Seats were selected for tickets that do not use reserved seating",
+        });
+      }
+      if (code === "SEAT_LAYOUT_REQUIRED") {
+        return fail(400, {
+          code: "SEAT_LAYOUT_REQUIRED",
+          message: `Ticket type "${detail}" requires a seating section before it can be sold`,
+        });
+      }
+      if (code === "INVALID_SEAT") {
+        return fail(400, {
+          code: "INVALID_SEAT",
+          message: `Seat ${detail} is not available for this event`,
+        });
+      }
+      if (code === "SEAT_SECTION_MISMATCH") {
+        return fail(400, {
+          code: "SEAT_SECTION_MISMATCH",
+          message: "Selected seats do not match the selected ticket sections",
         });
       }
       if (code === "SEAT_ALREADY_RESERVED") {

@@ -9,16 +9,10 @@ import { SeatMapLive } from "@/src/components/shared/seat-map-live";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { listSeatDescriptors } from "@/src/lib/venue-seating";
 import { formatCurrency } from "@/src/lib/currency";
 import { getVideoEmbedUrl } from "@/src/lib/video";
 import { GoogleMap } from "@/src/components/ui/google-map";
-import type {
-  PublicSeatBookingState,
-  SeatingSection,
-  SeatState,
-  VenueSeatingConfig,
-} from "@/src/types/venue-seating";
+import { RelationalSeatingLayout, RelationalSeatingSection } from "@/src/types/event-draft";
 
 type TicketType = {
   id: string;
@@ -59,8 +53,7 @@ type EventDetail = {
   audience: string | null;
   category: { name: string } | null;
   series: { id: string; title: string } | null;
-  seatingConfig?: VenueSeatingConfig | null;
-  seatState?: Record<string, SeatState> | null;
+  seatingPlan?: RelationalSeatingLayout | null;
   seatingMode?: string | null;
   seatingSource?: string | null;
   venue: {
@@ -68,8 +61,6 @@ type EventDetail = {
     addressLine1: string;
     lat?: number | null;
     lng?: number | null;
-    seatingConfig?: VenueSeatingConfig | null;
-    seatState?: Record<string, SeatState> | null;
   } | null;
   state: { name: string } | null;
   city: { name: string } | null;
@@ -107,9 +98,16 @@ type AppliedPromo = {
   discountValue: number;
 };
 
+type SeatAvailabilityStatus = {
+  status: "AVAILABLE" | "RESERVED" | "BOOKED";
+  orderId?: string | null;
+  ticketId?: string | null;
+  holdExpiresAt?: string | null;
+};
+
 type SeatAvailabilityPayload = {
   seatingEnabled: boolean;
-  statuses: Record<string, PublicSeatBookingState>;
+  statuses: Record<string, SeatAvailabilityStatus>;
   refreshIntervalMs: number;
   updatedAt: string;
 };
@@ -177,7 +175,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
   const [waitlistMessageByTicket, setWaitlistMessageByTicket] = useState<Record<string, string>>({});
   const [waitlistErrorByTicket, setWaitlistErrorByTicket] = useState<Record<string, string>>({});
   const [selectedSeatIds, setSelectedSeatIds] = useState<string[]>([]);
-  const [seatAvailability, setSeatAvailability] = useState<Record<string, PublicSeatBookingState>>({});
+  const [seatAvailability, setSeatAvailability] = useState<Record<string, SeatAvailabilityStatus>>({});
   const [expandedSectionId, setExpandedSectionId] = useState<string | null>(null);
   const [seatPollIntervalMs, setSeatPollIntervalMs] = useState(10_000);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -303,7 +301,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
   }, [event?.id, session]);
 
   useEffect(() => {
-    if (!event?.seatingConfig) {
+    if (!event?.seatingPlan) {
       setSeatAvailability({});
       return;
     }
@@ -348,7 +346,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
       active = false;
       window.clearInterval(interval);
     };
-  }, [event?.seatingConfig, seatPollIntervalMs, slug]);
+  }, [event?.seatingPlan, seatPollIntervalMs, slug]);
 
   useEffect(() => {
     if (!selectedImage) {
@@ -429,7 +427,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
     ticketType.inventoryMode === "TABLE" ||
     Boolean(ticketType.sectionId);
   const requiresSeatSelection = Boolean(
-    event?.seatingConfig &&
+    event?.seatingPlan &&
     event.ticketTypes.some(ticketRequiresSeatSelection),
   );
   // Only count tickets tied to a section — GA tickets need no seat
@@ -632,16 +630,8 @@ export function EventDetailClient({ slug }: { slug: string }) {
     }
   }
 
-  function getSectionStats(section: SeatingSection) {
-    const descriptors = listSeatDescriptors(
-      { ...event!.seatingConfig!, sections: [section] },
-      event!.seatState,
-    );
-    const total = descriptors.length;
-    const booked = descriptors.filter((d) => seatAvailability[d.seatId]?.status === "BOOKED").length;
-    const reserved = descriptors.filter((d) => seatAvailability[d.seatId]?.status === "RESERVED").length;
-    const available = total - booked - reserved;
-    return { total, booked, reserved, available };
+  function getSectionStats(_section: RelationalSeatingSection) {
+    return { total: 0, booked: 0, reserved: 0, available: 0 };
   }
 
   function renderStars(rating: number, interactive = false, onSelect?: (value: number) => void) {
@@ -886,7 +876,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
               </div>
             )}
 
-            {(event.seatingConfig?.sections.length ?? 0) > 0 || event.ticketTypes.some((t) => !ticketRequiresSeatSelection(t)) ? (
+            {(event.seatingPlan?.sections?.length ?? 0) > 0 || event.ticketTypes.some((t) => !ticketRequiresSeatSelection(t)) ? (
               <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
                 <h2 className="mb-1 text-lg font-semibold text-neutral-900">Ticket Categories</h2>
                 <p className="mb-4 text-sm text-neutral-500">
@@ -894,7 +884,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
                 </p>
                 <div className="space-y-3">
                   {/* Seated sections — only shown when a ticket type is linked */}
-                  {(event.seatingConfig?.sections ?? []).map((section) => {
+                  {(event.seatingPlan?.sections ?? []).map((section) => {
                     const linkedTicket = event.ticketTypes.find((t) => t.sectionId === section.id);
                     if (!linkedTicket) return null;
                     const stats = getSectionStats(section);
@@ -904,7 +894,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
                         <div className="flex items-center justify-between gap-3 p-4">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="font-medium text-neutral-900">{linkedTicket.name}</p>
-                            <Badge>{section.mapType.toUpperCase()}</Badge>
+                            <Badge>{section.sectionType}</Badge>
                             <Badge className="border-transparent bg-emerald-100 text-emerald-700">
                               {formatCurrency(Number(linkedTicket.price), currency)}
                             </Badge>
@@ -929,8 +919,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
                         {isExpanded && (
                           <div className="overflow-x-auto border-t border-[var(--border)] p-4">
                             <SeatMapLive
-                              config={{ ...event.seatingConfig!, sections: [section] }}
-                              seatState={event.seatState}
+                              config={event.seatingPlan!}
                               bookingStates={seatAvailability}
                               selectedSeatIds={selectedSeatIds}
                               onSeatToggle={toggleSeatSelection}

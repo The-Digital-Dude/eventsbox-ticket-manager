@@ -4,6 +4,7 @@ import { prisma } from "@/src/lib/db";
 import { Badge } from "@/src/components/ui/badge";
 import { formatCurrency } from "@/src/lib/currency";
 import NearbyEventsClient from "@/app/events/nearby-events-client";
+import { getPlatformSettings } from "@/src/lib/services/platform-settings";
 
 export const revalidate = 60;
 
@@ -177,6 +178,25 @@ export default async function PublicEventsPage({
   }>;
 }) {
   const sp = await searchParams;
+  const settings = await getPlatformSettings();
+
+  if (!settings.publicSearchEnabled) {
+    return (
+      <div className="min-h-screen bg-[var(--page-bg,#f8f8f8)]">
+        <div className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center px-4 text-center">
+          <Ticket className="h-10 w-10 text-[var(--theme-accent)]" />
+          <h1 className="mt-6 text-3xl font-bold tracking-tight text-neutral-900">Event discovery is unavailable</h1>
+          <p className="mt-3 text-sm leading-6 text-neutral-600">
+            Public event search is currently disabled by the platform administrator.
+          </p>
+          <Link href="/" className="mt-6 inline-flex h-11 items-center rounded-xl bg-[var(--theme-accent)] px-5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90">
+            Back to home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
   const [{ events, total, pages }, categories, states, venues, cities] = await Promise.all([

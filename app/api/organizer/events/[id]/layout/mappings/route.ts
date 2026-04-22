@@ -4,9 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
-import { getEventSeatingSectionSummaries } from "@/src/lib/services/event-seating-sections";
 import { validateTicketClassAssignments } from "@/src/lib/services/ticket-class-layout";
-import type { VenueSeatingConfig } from "@/src/types/venue-seating";
 
 const ticketClassAssignmentSchema = z.object({
   ticketTypeId: z.string().cuid(),
@@ -32,24 +30,6 @@ async function getSectionLookup(eventId: string) {
   const plan = event?.seatingPlan;
   if (!plan) {
     return { byId: new Map<string, string>(), byKey: new Map<string, string>() };
-  }
-
-  if ((plan.sections ?? []).length === 0) {
-    const seatingConfig = plan.seatingConfig as VenueSeatingConfig;
-    const summaries = getEventSeatingSectionSummaries(seatingConfig);
-    if (summaries.length > 0) {
-      await prisma.eventSeatingSection.createMany({
-        data: summaries.map((section) => ({
-          eventSeatingPlanId: plan.id,
-          key: section.key,
-          name: section.name,
-          sectionType: section.sectionType,
-          capacity: section.capacity,
-          sortOrder: section.sortOrder,
-        })),
-        skipDuplicates: true,
-      });
-    }
   }
 
   const sections = await prisma.eventSeatingSection.findMany({

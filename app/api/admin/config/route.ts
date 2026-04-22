@@ -4,11 +4,13 @@ import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
 import { configSchema } from "@/src/lib/validators/admin";
+import { PLATFORM_CONFIG_ID, getPlatformSettings } from "@/src/lib/services/platform-settings";
+import { writeAuditLog } from "@/src/lib/services/audit";
 
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireRole(req, Role.SUPER_ADMIN);
-    const row = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
+    const row = await getPlatformSettings();
     return ok({ ...row, viewerRole: auth.role });
   } catch (error) {
     console.error("[app/api/admin/config/route.ts]", error);
@@ -18,16 +20,47 @@ export async function GET(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    await requireRole(req, Role.SUPER_ADMIN);
+    const actor = await requireRole(req, Role.SUPER_ADMIN);
     const parsed = configSchema.safeParse(await req.json());
     if (!parsed.success) {
-      return fail(400, { code: "VALIDATION_ERROR", message: "Invalid config payload" });
+      return fail(400, {
+        code: "VALIDATION_ERROR",
+        message: "Invalid config payload",
+        details: parsed.error.flatten(),
+      });
     }
 
+    const previous = await getPlatformSettings();
     const row = await prisma.platformConfig.upsert({
-      where: { id: "singleton" },
+      where: { id: PLATFORM_CONFIG_ID },
       update: parsed.data,
-      create: { id: "singleton", ...parsed.data },
+      create: { id: PLATFORM_CONFIG_ID, ...parsed.data },
+    });
+
+    const changedFields = Object.entries(parsed.data)
+      .filter(([key, value]) => String(previous[key as keyof typeof previous] ?? "") !== String(value ?? ""))
+      .map(([key]) => key);
+
+    await writeAuditLog({
+      actorUserId: actor.sub,
+      action: "PLATFORM_CONFIG_UPDATED",
+      entityType: "PlatformConfig",
+      entityId: PLATFORM_CONFIG_ID,
+      metadata: {
+        changedFields,
+        previousFinancials: {
+          defaultCommissionType: previous.defaultCommissionType,
+          defaultCommissionValue: previous.defaultCommissionValue,
+          defaultTaxRate: previous.defaultTaxRate,
+          defaultFeeStrategy: previous.defaultFeeStrategy,
+        },
+        nextFinancials: {
+          defaultCommissionType: row.defaultCommissionType,
+          defaultCommissionValue: Number(row.defaultCommissionValue),
+          defaultTaxRate: Number(row.defaultTaxRate),
+          defaultFeeStrategy: row.defaultFeeStrategy,
+        },
+      },
     });
 
     return ok(row);

@@ -4,6 +4,7 @@ import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
 import { deriveEventLayoutDecision, getTicketClassType } from "@/src/lib/ticket-classes";
+import { getEventApprovalDecision } from "@/src/lib/services/platform-settings";
 
 function hasText(value: unknown) {
   return typeof value === "string" && value.trim().length > 0;
@@ -97,9 +98,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
     }
 
+    const approvalDecision = await getEventApprovalDecision();
+    const shouldPublish = !approvalDecision.approvalRequired;
+
     const updated = await prisma.event.update({
       where: { id },
-      data: { status: "PENDING_APPROVAL", submittedAt: new Date(), rejectionReason: null },
+      data: {
+        status: shouldPublish ? "PUBLISHED" : "PENDING_APPROVAL",
+        submittedAt: new Date(),
+        publishedAt: shouldPublish ? new Date() : null,
+        rejectionReason: null,
+      },
     });
 
     return ok(updated);

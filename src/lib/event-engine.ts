@@ -335,9 +335,18 @@ export function validateStep(draft: EventDraft, step: number): z.ZodIssue[] {
             schema = eventDetailsSchema;
             dataToValidate = draft.details;
             break;
-        case 2: 
-            schema = publishableEventSchema.pick({ ticketClasses: true });
-            dataToValidate = { ticketClasses: draft.ticketClasses };
+        case 2:
+            schema = z.object({
+                seatingLayout: z.object({
+                    seatingConfig: z.object({
+                        sections: z.array(z.object({
+                            name: z.string().min(1, "Section name is required."),
+                            price: z.number().min(0, "Price must be a positive number."),
+                        }))
+                    })
+                })
+            });
+            dataToValidate = { seatingLayout: draft.seatingLayout };
             break;
         default: 
             return []; // No validation for other steps yet

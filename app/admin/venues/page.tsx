@@ -5,26 +5,19 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
 import { PageHeader } from "@/src/components/shared/page-header";
-import { SeatMapReadOnly } from "@/src/components/shared/seat-map-readonly";
 import { EmptyState } from "@/src/components/shared/empty-state";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
-import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
 type VenueRow = {
   id: string;
   name: string;
   status: "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
   rejectionReason: string | null;
-  totalSeats: number | null;
-  totalTables: number | null;
-  seatingUpdatedAt: string | null;
   updatedAt: string;
   addressLine1: string;
-  seatingConfig?: VenueSeatingConfig | null;
-  seatState?: Record<string, SeatState> | null;
   category?: { name: string } | null;
   state: { name: string };
   city: { name: string };
@@ -64,18 +57,14 @@ export default function AdminVenuesPage() {
   const [rows, setRows] = useState<VenueRow[]>([]);
   const [status, setStatus] = useState("");
   const [q, setQ] = useState("");
-  const [selectedVenue, setSelectedVenue] = useState<VenueRow | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [rejectDraft, setRejectDraft] = useState<{ id: string | null; reason: string }>({ id: null, reason: "" });
 
   async function load(
     nextStatus: string = status,
     nextQ: string = q,
-    includeLayout = false,
     onRows: (nextRows: VenueRow[]) => void = setRows,
   ) {
     const params = new URLSearchParams();
-    params.set("includeLayout", includeLayout ? "true" : "false");
     if (nextStatus) params.set("status", nextStatus);
     const trimmedQ = nextQ.trim();
     if (trimmedQ) params.set("q", trimmedQ);
@@ -90,7 +79,7 @@ export default function AdminVenuesPage() {
   useEffect(() => {
     let active = true;
 
-    load(status, q, false, (nextRows) => {
+    load(status, q, (nextRows) => {
       if (active) setRows(nextRows);
     });
 
@@ -113,16 +102,9 @@ export default function AdminVenuesPage() {
     await load();
   }
 
-  async function openLayout(venueId: string) {
-    const fullRows = await load(status, q, true, () => undefined);
-    const venue = fullRows.find((entry) => entry.id === venueId) ?? null;
-    setSelectedVenue(venue);
-    setPreviewOpen(true);
-  }
-
   return (
     <SidebarLayout role="admin" title="Admin" items={nav}>
-      <PageHeader title="Venue Requests" subtitle="Review venue requests and inspect seating layouts." />
+      <PageHeader title="Venue Requests" subtitle="Review venue requests." />
 
       <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
         <select className="app-select" value={status} onChange={(event) => setStatus(event.target.value)}>
@@ -160,9 +142,6 @@ export default function AdminVenuesPage() {
               <div className="mt-3 flex flex-wrap gap-2">
                 {venue.category?.name ? <Badge>{venue.category.name}</Badge> : <Badge>Uncategorized</Badge>}
                 <Badge>Submitted: {formatShortDate(venue.updatedAt)}</Badge>
-                <Badge>Seats: {venue.totalSeats ?? 0}</Badge>
-                <Badge>Tables: {venue.totalTables ?? 0}</Badge>
-                <Badge>Layout: {venue.seatingUpdatedAt ? "Configured" : "Not configured"}</Badge>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -175,7 +154,6 @@ export default function AdminVenuesPage() {
                 >
                   Reject
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => openLayout(venue.id)}>View Layout</Button>
               </div>
 
               {rejectDraft.id === venue.id ? (
@@ -208,19 +186,6 @@ export default function AdminVenuesPage() {
           ))}
         </div>
       )}
-
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Venue Layout Preview</h3>
-            {!selectedVenue?.seatingConfig ? (
-              <p className="text-sm text-neutral-600">No seating configuration found for this venue yet.</p>
-            ) : (
-              <SeatMapReadOnly config={selectedVenue.seatingConfig} seatState={selectedVenue.seatState} />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </SidebarLayout>
   );
 }

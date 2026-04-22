@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
+import { getPlatformSettings } from "@/src/lib/services/platform-settings";
 
 type NearbyEventRow = {
   id: string;
@@ -18,6 +19,11 @@ function parseNumber(value: string | null, fallback?: number) {
 }
 
 export async function GET(req: NextRequest) {
+  const settings = await getPlatformSettings();
+  if (!settings.publicSearchEnabled) {
+    return ok({ events: [], radiusKm: 0 });
+  }
+
   const rawLat = parseNumber(req.nextUrl.searchParams.get("lat"));
   const rawLng = parseNumber(req.nextUrl.searchParams.get("lng"));
   const rawRadiusKm = parseNumber(req.nextUrl.searchParams.get("radiusKm"), 50);

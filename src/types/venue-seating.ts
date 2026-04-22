@@ -16,6 +16,7 @@ export type SeatingTableConfig = {
 export type SeatingSection = {
   id: string;
   name: string;
+  price: number;
   mapType: SeatingMapType;
   rowStart: number;
   maxRows: number;

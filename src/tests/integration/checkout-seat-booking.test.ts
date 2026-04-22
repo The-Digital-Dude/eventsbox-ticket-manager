@@ -7,6 +7,7 @@ const {
   organizerPayoutSettingsFindUniqueMock,
   txEventFindFirstMock,
   txEventSeatBookingDeleteManyMock,
+  txEventSeatBookingFindManyMock,
   txEventSeatBookingCreateMock,
   orderCreateMock,
   orderUpdateMock,
@@ -18,6 +19,7 @@ const {
   organizerPayoutSettingsFindUniqueMock: vi.fn(),
   txEventFindFirstMock: vi.fn(),
   txEventSeatBookingDeleteManyMock: vi.fn(),
+  txEventSeatBookingFindManyMock: vi.fn(),
   txEventSeatBookingCreateMock: vi.fn(),
   orderCreateMock: vi.fn(),
   orderUpdateMock: vi.fn(),
@@ -70,28 +72,24 @@ const seatedEvent = {
   gstPct: new Prisma.Decimal(15),
   platformFeeFixed: new Prisma.Decimal(0),
   venue: {
-    seatingConfig: {
-      mapType: "seats" as const,
-      sections: [
-        {
-          id: "main",
-          name: "Main",
-          mapType: "seats" as const,
-          rowStart: 0,
-          maxRows: 1,
-          columns: [{ index: 1, rows: 1, seats: 2 }],
-        },
-      ],
-      seatState: {},
-      summary: { totalSeats: 2, totalTables: 0, sectionCount: 1 },
-      schemaVersion: 1 as const,
-    },
-    seatState: {},
+    name: "Grand Hall",
+  },
+  seatingPlan: {
+    sections: [
+      {
+        id: "main",
+        key: "main",
+        name: "Main",
+        sectionType: "ROWS",
+        capacity: 2,
+      },
+    ],
   },
   ticketTypes: [
     {
       id: "ticket-1",
-      sectionId: "main",
+      sourceSeatingSectionId: "main",
+      classType: "ASSIGNED_SEAT",
       isActive: true,
       sold: 0,
       reservedQty: 0,
@@ -111,6 +109,7 @@ describe("checkout seat booking integration", () => {
     organizerPayoutSettingsFindUniqueMock.mockResolvedValue(null);
     txEventFindFirstMock.mockResolvedValue(seatedEvent);
     txEventSeatBookingDeleteManyMock.mockResolvedValue({ count: 0 });
+    txEventSeatBookingFindManyMock.mockResolvedValue([]);
     txEventSeatBookingCreateMock.mockResolvedValue({});
     orderCreateMock.mockResolvedValue({
       id: "order-1",
@@ -134,6 +133,7 @@ describe("checkout seat booking integration", () => {
         event: { findFirst: txEventFindFirstMock },
         eventSeatBooking: {
           deleteMany: txEventSeatBookingDeleteManyMock,
+          findMany: txEventSeatBookingFindManyMock,
           create: txEventSeatBookingCreateMock,
         },
         order: { create: orderCreateMock },
@@ -162,6 +162,31 @@ describe("checkout seat booking integration", () => {
     expect(orderCreateMock).not.toHaveBeenCalled();
   });
 
+  it("rejects unavailable seats before creating an order", async () => {
+    txEventSeatBookingFindManyMock.mockResolvedValue([
+      { seatId: "Main-A1" },
+    ]);
+
+    const req = new NextRequest("http://localhost/api/checkout", {
+      method: "POST",
+      body: JSON.stringify({
+        eventId: "event-1",
+        buyerName: "Seat Buyer",
+        buyerEmail: "seat@example.com",
+        items: [{ ticketTypeId: "ticket-1", quantity: 2 }],
+        selectedSeatIds: ["Main-A1", "Main-A2"],
+      }),
+      headers: { "content-type": "application/json" },
+    });
+
+    const res = await POST(req);
+    const payload = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(payload.error.code).toBe("SEAT_ALREADY_RESERVED");
+    expect(orderCreateMock).not.toHaveBeenCalled();
+  });
+
   it("creates reserved seat bookings during checkout", async () => {
     const req = new NextRequest("http://localhost/api/checkout", {
       method: "POST",
@@ -180,13 +205,16 @@ describe("checkout seat booking integration", () => {
 
     expect(res.status).toBe(200);
     expect(payload.data.orderId).toBe("order-1");
+    expect(payload.data.seatHoldExpiresAt).toEqual(expect.any(String));
     expect(txEventSeatBookingCreateMock).toHaveBeenCalledTimes(2);
     expect(txEventSeatBookingCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           orderId: "order-1",
           seatId: "Main-A1",
+          seatLabel: "Main A1",
           status: "RESERVED",
+          expiresAt: expect.any(Date),
         }),
       }),
     );

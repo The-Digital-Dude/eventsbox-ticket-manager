@@ -1,252 +1,105 @@
-# Data Model Proposal
+# Data Model Restructure Proposal
 
-## Goal
+This document proposes changes to the Prisma data model to support the new seating-first event creation workflow. The guiding principle is to make the event's seating and pricing structure the single source of truth, with ticket types being an automatically generated consequence of that structure.
 
-Reorganize the domain so that:
+## 1. Core Concept: Seating Zone as the Source of Truth
 
-- `Event` is the organizer-facing aggregate root
-- `TicketClass` is the event-owned sellable unit
-- ticket class type drives layout behavior
-- venue remains reusable but no longer owns the runtime flow
-- the existing seating builder can populate an event-owned seating map
+The most significant change is elevating the `EventSeatingSection` (which we will conceptually rename to `SeatingZone` for clarity) to be the primary driver of inventory and pricing. Each `SeatingZone` will directly define a sellable area of the event.
 
-## Proposed Relationships
+## 2. Proposed Model Changes
 
-### Event
+Below are the proposed modifications to the `prisma.schema`.
 
-`Event` should remain the top-level organizer entity.
+### `Event` Model
 
-It should own:
+No major changes are required for the `Event` model itself. Its relationship to `EventSeatingPlan` remains key.
 
-- event metadata
-- venue assignment
-- ticket classes
-- derived layout mode
-- active event seating map
+### `EventSeatingPlan` Model
 
-Suggested conceptual shape:
+No changes are needed here. It will continue to act as the container for the collection of `SeatingZone`s for an event.
 
-- `id`
-- `organizerId`
-- `venueId?`
-- `title`
-- `status`
-- `layoutMode`
-- `ticketClasses[]`
-- `seatingMap?`
+### `EventSeatingSection` -> `SeatingZone`
 
-### TicketClass
+We will conceptually treat `EventSeatingSection` as a `SeatingZone`. The model will be modified to include pricing and become the definitive source for generating a ticket.
 
-`TicketClass` is the conceptual replacement for the current `TicketType`.
+```prisma
+// In prisma.schema
 
-It belongs to exactly one event.
+model EventSeatingSection {
+  id                 String                  @id @default(cuid())
+  eventSeatingPlanId String
+  key                String                  // Used as a stable identifier for frontend
+  name               String                  // Display name, e.g., "VIP Balcony"
+  sectionType        EventSeatingSectionType // ROWS, TABLES, SECTIONED_GA
+  capacity           Int
+  sortOrder          Int                     @default(0)
 
-It should describe:
+  // --- NEW FIELDS ---
+  price              Decimal                 @db.Decimal(10, 2) // Price for this zone
+  // The generated ticket type will be linked here
+  generatedTicketTypeId String?                @unique
 
-- the name of the class
-- price
-- quantity
-- class type
-- optional mapping to a seating section or table zone
+  // --- RELATIONS ---
+  eventSeatingPlan      EventSeatingPlan      @relation(fields: [eventSeatingPlanId], references: [id], onDelete: Cascade)
 
-Suggested conceptual shape:
+  // This relation replaces the old one on TicketType
+  generatedTicketType   TicketType?           @relation("GeneratedTicket", fields: [generatedTicketTypeId], references: [id], onDelete: SetNull)
 
-- `id`
-- `eventId`
-- `name`
-- `description?`
-- `price`
-- `quantity`
-- `soldCount`
-- `reservedCount`
-- `maxPerOrder`
-- `classType`
-- `sectionId?`
-- `tableGroupId?`
-- `sortOrder`
+  @@unique([eventSeatingPlanId, key])
+  @@index([eventSeatingPlanId])
+}
+```
 
-Supported `classType` values:
+**Key Changes:**
 
-- `general`
-- `seating`
-- `table`
-- `mixed`
+1.  **`price`**: A `Decimal` field is added directly to the section. This is the price for a single seat/spot in that zone.
+2.  **`generatedTicketTypeId` & `generatedTicketType`**: A new one-to-one relationship is established. Each seating zone will point to the single `TicketType` it generates. This creates a direct, unambiguous link.
+3.  **`capacity`**: This field becomes non-optional (`Int`) as it's crucial for inventory management.
 
-### Venue
+### `TicketType` Model
 
-`Venue` should represent the physical place and reusable venue-level assets.
+The `TicketType` model will be repurposed. Instead of being a manually created entity, it becomes a derivative of a `SeatingZone`. It stores information needed for the checkout/order process but is not the source of truth for pricing or capacity.
 
-It should not be the primary source of runtime sales layout.
+```prisma
+// In prisma.schema
 
-Venue should own:
+model TicketType {
+  id                    String      @id @default(cuid())
+  eventId               String
+  name                  String      // Name will be copied from the SeatingZone
+  price                 Decimal     @db.Decimal(10, 2) // Price will be copied from the SeatingZone
+  quantity              Int         // Quantity will be copied from the SeatingZone capacity
 
-- place identity
-- address data
-- optional reusable layout templates
+  // --- NEW / MODIFIED FIELDS ---
+  isGenerated           Boolean     @default(true) // Flag to distinguish auto-generated tickets
+  sourceSeatingSectionId String?     @unique // Foreign key for the reverse 1:1 relation
 
-Suggested conceptual shape:
+  // --- RELATIONS ---
+  event                 Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  // The SeatingZone that generated this ticket
+  sourceSeatingSection  EventSeatingSection? @relation("GeneratedTicket")
 
-- `id`
-- `name`
-- `address`
-- `city`
-- `state`
-- `country`
-- `capacity?`
-- `layoutTemplates[]`
+  // --- UNCHANGED RELATIONS & FIELDS ---
+  sold                  Int         @default(0)
+  reservedQty           Int         @default(0)
+  // ... other fields like orderItems, saleStartAt, etc., remain
+}
+```
 
-### SeatingMap
+**Key Changes:**
 
-`SeatingMap` should be event-owned at runtime.
+1.  **`isGenerated`**: A boolean flag to clearly identify tickets created by the new system versus any legacy, manually created tickets. This helps with backward compatibility and migration.
+2.  **`sourceSeatingSection` relation**: The other side of the one-to-one relationship, linking the ticket back to its source `EventSeatingSection`.
+3.  **Removed fields**: The previous, looser `eventSeatingSectionId` foreign key is removed in favor of the new, stricter one-to-one relation.
 
-It may be:
+## 3. Data Synchronization Logic
 
-- created from scratch inside the event flow
-- copied from a venue template
-- customized per event after selection
+The backend service responsible for creating/updating an event will now perform the following transactional logic:
 
-Suggested conceptual shape:
-
-- `id`
-- `eventId`
-- `venueId?`
-- `mode`
-- `sourceType`
-- `sourceTemplateId?`
-- `sections[]`
-
-Suggested `mode` values:
-
-- `no_layout`
-- `seating_layout`
-- `table_layout`
-- `mixed_layout`
-
-### Section
-
-`Section` should be an event-level partition inside a seating map.
-
-It allows ticket classes to map to distinct areas of the event layout.
-
-Suggested conceptual shape:
-
-- `id`
-- `seatingMapId`
-- `name`
-- `sectionType`
-- `capacity?`
-- `sortOrder`
-- `tables[]`
-
-Suggested `sectionType` values:
-
-- `general`
-- `seat_section`
-- `table_section`
-- `mixed_section`
-
-### Table
-
-`Table` should belong to a section within an event seating map.
-
-This makes table-oriented inventory first-class instead of leaving it trapped in an opaque JSON blob.
-
-Suggested conceptual shape:
-
-- `id`
-- `sectionId`
-- `name`
-- `capacity`
-- `sortOrder`
-- `positionData?`
-
-## Recommended Cardinality
-
-- `Event 1 -> many TicketClass`
-- `Event 1 -> 0..1 Venue`
-- `Event 1 -> 0..1 SeatingMap`
-- `SeatingMap 1 -> many Section`
-- `Section 1 -> many Table`
-- `TicketClass many -> 0..1 Section`
-- `TicketClass many -> 0..1 TableGroup/Section area`
-
-## How Layout Should Be Derived
-
-The event layout mode should be computed from the set of ticket class types.
-
-### Rules
-
-- all ticket classes are `general` -> `no_layout`
-- any `seating` classes, without table behavior -> `seating_layout`
-- any `table` classes, without seat behavior -> `table_layout`
-- any `mixed` class, or any combination of seat and table requirements -> `mixed_layout`
-
-This can be stored on the event for convenience, but it should always be conceptually derived from ticket classes.
-
-## Recommended Backward-Compatible Mapping
-
-The system does not need a destructive rewrite.
-
-### Near-term interpretation of current models
-
-- current `TicketType` -> conceptual `TicketClass`
-- current `EventSeatingPlan` -> conceptual `SeatingMap`
-- current `EventSeatingSection` -> conceptual `Section`
-- current `VenueSeatingTemplate` -> venue-level layout template source
-
-### Current fields that can be reinterpreted
-
-- `TicketType.inventoryMode` can evolve into organizer-facing `classType`
-- `TicketType.eventSeatingSectionId` can remain the primary section mapping field
-- `Event.seatingMode` can store the event-derived layout mode
-
-### Venue compatibility
-
-Existing venue-based seating should remain supported by treating it as:
-
-- a reusable template source
-- a legacy fallback for events that still rely on venue seating config
-
-That preserves existing behavior while shifting ownership toward the event.
-
-## Practical Model Direction
-
-### Event as runtime owner
-
-Checkout, seat selection, and availability should resolve against the event-owned seating map.
-
-### Venue as reusable source
-
-Venue can offer:
-
-- reusable rows/sections layout
-- reusable table arrangements
-- reusable mixed templates
-
-But once an organizer is configuring a specific event, the active runtime layout should belong to that event.
-
-## Resulting Conceptual Model
-
-The target model becomes:
-
-- `Event`
-  - owns `TicketClass`
-  - derives `layoutMode`
-  - owns active `SeatingMap`
-- `Venue`
-  - supplies place context
-  - optionally supplies reusable templates
-- `SeatingMap`
-  - contains `Section`
-  - contains `Table` where relevant
-- `TicketClass`
-  - maps into the seating map when layout is required
-
-That structure supports:
-
-- general admission events
-- reserved seating events
-- table-based events
-- mixed inventory events
-
-without splitting the organizer flow across unrelated modules.
+1.  When an organizer saves the "Seating Map & Pricing" step, the service receives an array of `SeatingZone` data (name, type, capacity, price).
+2.  For each `SeatingZone` in the payload:
+    -   **If it's a new zone**: Create a new `EventSeatingSection` record. Then, immediately create a new `TicketType` record, copying the `name`, `price`, and `capacity` (`quantity`). Link the two records together.
+    -   **If it's an existing zone**: Update the `EventSeatingSection` record. Then, find the linked `TicketType` and update its `name`, `price`, and `quantity` to match.
+    -   **If a zone was removed**: Delete the `EventSeatingSection`. The `onDelete: SetNull` rule on the relation will ensure the linked `TicketType` is not deleted but its link is severed. A cleanup job could then archive or handle these orphaned (but potentially sold) tickets.
+
+This ensures that the `TicketType` entities sold to customers always reflect the structure defined by the organizer in the seating map.

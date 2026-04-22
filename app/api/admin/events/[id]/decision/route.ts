@@ -6,10 +6,12 @@ import { fail, ok } from "@/src/lib/http/response";
 import { eventDecisionSchema } from "@/src/lib/validators/event";
 import { env } from "@/src/lib/env";
 import { sendOrganizerEventStatusEmail } from "@/src/lib/services/notifications";
+import { writeAuditLog } from "@/src/lib/services/audit";
+import { getCommunicationSettings } from "@/src/lib/services/platform-settings";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireRole(req, Role.SUPER_ADMIN);
+    const actor = await requireRole(req, Role.SUPER_ADMIN);
     const { id } = await params;
 
     const parsed = eventDecisionSchema.safeParse(await req.json());
@@ -43,12 +45,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
     });
 
-    await sendOrganizerEventStatusEmail({
-      to: event.organizerProfile.user.email,
-      eventTitle: event.title,
-      status: action,
-      reason: action === "REJECTED" ? reason ?? "Rejected by admin" : undefined,
-      eventUrl: `${env.APP_URL}/organizer/events/${id}`,
+    const communicationSettings = await getCommunicationSettings();
+    if (
+      communicationSettings.emailNotificationsEnabled &&
+      communicationSettings.eventApprovalEmailEnabled
+    ) {
+      await sendOrganizerEventStatusEmail({
+        to: event.organizerProfile.user.email,
+        eventTitle: event.title,
+        status: action,
+        reason: action === "REJECTED" ? reason ?? "Rejected by admin" : undefined,
+        eventUrl: `${env.APP_URL}/organizer/events/${id}`,
+      });
+    }
+
+    await writeAuditLog({
+      actorUserId: actor.sub,
+      action: action === "PUBLISHED" ? "EVENT_PUBLISHED" : "EVENT_REJECTED",
+      entityType: "Event",
+      entityId: updated.id,
+      metadata: {
+        previousStatus: event.status,
+        nextStatus: action,
+        reason: action === "REJECTED" ? reason ?? "Rejected by admin" : null,
+      },
     });
 
     return ok(updated);

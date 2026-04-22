@@ -16,12 +16,12 @@ import {
   formatTicketClassTypeLabel,
   type TicketClassType,
 } from "@/src/lib/ticket-classes";
-import type { VenueSeatingConfig, SeatState } from "@/src/types/venue-seating";
+import { RelationalSeatingLayout } from "@/src/types/event-draft";
 
 type VenueSection = {
   id: string;
   name: string;
-  mapType: string;
+  sectionType: string;
 };
 
 type TicketClassView = {
@@ -88,7 +88,6 @@ type EventDetail = {
     id: string;
     name: string;
     addressLine1: string;
-    seatingConfig: { sections: VenueSection[] } | null;
   } | null;
   ticketTypes: TicketClassView[];
   ticketClasses?: TicketClassView[];
@@ -207,10 +206,7 @@ type LayoutData = {
     supportsSeating: boolean;
     supportsTables: boolean;
   };
-  seating: {
-    seatingConfig: VenueSeatingConfig | null;
-    seatState?: Record<string, SeatState> | null;
-  };
+  seating: RelationalSeatingLayout | null;
   sections: Array<{
     id: string;
     key: string;
@@ -438,11 +434,6 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     if (ticket.eventSeatingSectionId) {
       return layoutSections.find((section) => section.id === ticket.eventSeatingSectionId)?.name ?? "Mapped layout";
     }
-
-    if (ticket.sectionId) {
-      return event?.venue?.seatingConfig?.sections.find((section) => section.id === ticket.sectionId)?.name ?? "Mapped venue";
-    }
-
     return ticket.classType === "general" ? "GA" : "Unmapped";
   }
 
@@ -559,25 +550,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      {layoutData && (layoutData.layoutDecision?.requiresLayout || layoutData.seating?.seatingConfig) && (
+      {layoutData && (layoutData.layoutDecision?.requiresLayout || layoutData.seating) && (
         <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold text-neutral-900">Layout Configuration</h2>
-
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-            <div className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
-              <p className="text-sm text-neutral-500">Total Seats</p>
-              <p className="text-lg font-semibold text-neutral-900">{layoutData.seating?.seatingConfig?.summary?.totalSeats ?? 0}</p>
-            </div>
-            <div className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
-              <p className="text-sm text-neutral-500">Total Tables</p>
-              <p className="text-lg font-semibold text-neutral-900">{layoutData.seating?.seatingConfig?.summary?.totalTables ?? 0}</p>
-            </div>
-            <div className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
-              <p className="text-sm text-neutral-500">Number of Sections</p>
-              <p className="text-lg font-semibold text-neutral-900">{layoutData.seating?.seatingConfig?.sections?.length ?? 0}</p>
-            </div>
-          </div>
-
           <h3 className="mb-4 text-base font-semibold text-neutral-900">Sections</h3>
           {layoutSections.length === 0 ? (
             <p className="text-sm text-neutral-500">No sections defined.</p>
@@ -740,20 +715,15 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   Class type drives whether the event needs no layout, seating, table, or mixed setup.
                 </p>
               </div>
-              {(event.venue?.seatingConfig?.sections ?? []).length > 0 && tClassType !== "general" && (
-                <div className="space-y-2">
+              <div className="space-y-2">
                   <Label>Seating Section</Label>
                   <select className="app-select" value={tSectionId} onChange={(e) => setTSectionId(e.target.value)}>
                     <option value="">— Select later during seating setup —</option>
-                    {(event.venue!.seatingConfig!.sections).map((s) => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.mapType})</option>
-                    ))}
                   </select>
                   <p className="text-xs text-neutral-500">
                     Optional compatibility mapping for existing venue sections. Event-owned section mapping will replace this flow.
                   </p>
                 </div>
-              )}
               <div className="space-y-2">
                 <Label>Price ($) <span className="text-red-500">*</span></Label>
                 <Input type="number" min="0" step="0.01" value={tPrice} onChange={(e) => setTPrice(e.target.value)} placeholder="0.00" />
@@ -881,7 +851,6 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           )}
           {event.description && (
             <div className="md:col-span-2">
-              <p className="text-sm text-neutral-500">Description</p>
               <p className="text-sm text-neutral-900">{event.description}</p>
             </div>
           )}

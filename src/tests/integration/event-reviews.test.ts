@@ -58,9 +58,7 @@ vi.mock("@/src/lib/services/event-reviews", () => ({
     review.attendee?.displayName ?? review.order?.buyerName ?? "Anonymous",
 }));
 
-vi.mock("@/src/lib/venue-seating", () => ({
-  sanitizePublicSeatState: vi.fn((input) => input ?? null),
-}));
+
 
 vi.mock("@/src/lib/db", () => ({
   prisma: {

@@ -13,6 +13,30 @@ import {
 } from "@/src/lib/services/seat-booking";
 import { notifyWaitlist } from "@/src/lib/services/waitlist";
 
+type WebhookTicketType = {
+  classType?: string | null;
+  sourceSeatingSectionId?: string | null;
+  eventSeatingSectionId?: string | null;
+  sectionId?: string | null;
+};
+
+function getTicketSectionId(ticketType: WebhookTicketType) {
+  return (
+    ticketType.eventSeatingSectionId ??
+    ticketType.sourceSeatingSectionId ??
+    ticketType.sectionId ??
+    null
+  );
+}
+
+function ticketRequiresSeatSelection(ticketType: WebhookTicketType) {
+  return (
+    ticketType.classType === "ASSIGNED_SEAT" ||
+    ticketType.classType === "TABLE" ||
+    Boolean(getTicketSectionId(ticketType))
+  );
+}
+
 function getWebhookSecrets() {
   return [env.STRIPE_WEBHOOK_SECRET, env.STRIPE_CONNECT_WEBHOOK_SECRET].filter(
     (secret): secret is string => Boolean(secret),
@@ -203,8 +227,12 @@ async function handlePaymentSucceeded(intent: Stripe.PaymentIntent) {
       });
 
       for (let index = 0; index < item.quantity; index += 1) {
-        const seatBooking = seatBookings[seatCursor] ?? null;
-        seatCursor += 1;
+        const seatBooking = ticketRequiresSeatSelection(item.ticketType)
+          ? seatBookings[seatCursor] ?? null
+          : null;
+        if (ticketRequiresSeatSelection(item.ticketType)) {
+          seatCursor += 1;
+        }
 
         await tx.qRTicket.create({
           data: {

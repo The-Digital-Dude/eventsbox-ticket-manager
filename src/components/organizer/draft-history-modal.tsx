@@ -1,5 +1,6 @@
-
 'use client';
+
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
@@ -26,7 +27,10 @@ export function DraftHistoryModal({ open, onOpenChange, history, onRestore }: Pr
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-neutral-900">Draft History</h2>
+          <DialogPrimitive.Title className="text-lg font-semibold text-neutral-900">Draft History</DialogPrimitive.Title>
+          <DialogPrimitive.Description className="text-sm text-neutral-500">
+            Here you can see the history of your draft and restore to a previous version.
+          </DialogPrimitive.Description>
         </div>
         <div className="space-y-4">
           {historyEntries.length === 0 ? (

@@ -3,9 +3,11 @@ import { NextRequest } from "next/server";
 
 const {
   eventFindFirstMock,
+  eventSeatBookingDeleteManyMock,
   eventSeatBookingFindManyMock,
 } = vi.hoisted(() => ({
   eventFindFirstMock: vi.fn(),
+  eventSeatBookingDeleteManyMock: vi.fn(),
   eventSeatBookingFindManyMock: vi.fn(),
 }));
 
@@ -15,6 +17,7 @@ vi.mock("@/src/lib/db", () => ({
       findFirst: eventFindFirstMock,
     },
     eventSeatBooking: {
+      deleteMany: eventSeatBookingDeleteManyMock,
       findMany: eventSeatBookingFindManyMock,
     },
   },
@@ -23,26 +26,25 @@ vi.mock("@/src/lib/db", () => ({
 import { GET as getPublicEvent } from "@/app/api/public/events/[slug]/route";
 import { GET as getPublicEventSeats } from "@/app/api/public/events/[slug]/seats/route";
 
-const seatingConfig = {
-  mapType: "seats" as const,
+const seatingPlan = {
+  id: "plan-1",
+  mode: "ROWS",
   sections: [
     {
       id: "main",
+      key: "main",
       name: "Main",
-      mapType: "seats" as const,
-      rowStart: 0,
-      maxRows: 1,
-      columns: [{ index: 1, rows: 1, seats: 3 }],
+      sectionType: "ROWS",
+      capacity: 3,
+      sortOrder: 0,
     },
   ],
-  seatState: {},
-  summary: { totalSeats: 3, totalTables: 0, sectionCount: 1 },
-  schemaVersion: 1 as const,
 };
 
 describe("public event seating integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    eventSeatBookingDeleteManyMock.mockResolvedValue({ count: 0 });
     eventSeatBookingFindManyMock.mockResolvedValue([]);
   });
 
@@ -54,14 +56,18 @@ describe("public event seating integration", () => {
         id: "venue-1",
         name: "Grand Hall",
         addressLine1: "1 Test Street",
-        seatingConfig,
-        seatState: { "Main-A3": { deleted: true } },
       },
+      seatingPlan,
       category: null,
       state: null,
       city: null,
+      addOns: [],
       ticketTypes: [],
       organizerProfile: null,
+      reviews: [],
+      images: [],
+      avgRating: 0,
+      reviewCount: 0,
     });
 
     const response = await getPublicEvent(
@@ -71,17 +77,13 @@ describe("public event seating integration", () => {
     const payload = await response.json();
 
     expect(response.status).toBe(200);
-    expect(payload.data.venue.seatingConfig).toEqual(seatingConfig);
-    expect(payload.data.venue.seatState).toEqual({ "Main-A3": { deleted: true, offset: 0 } });
+    expect(payload.data.seatingPlan).toEqual(seatingPlan);
   });
 
   it("returns live booked and reserved seat availability", async () => {
     eventFindFirstMock.mockResolvedValue({
       id: "event-1",
-      venue: {
-        seatingConfig,
-        seatState: {},
-      },
+      seatingPlan,
     });
     eventSeatBookingFindManyMock.mockResolvedValue([
       { seatId: "Main-A1", seatLabel: "Main A1", status: "BOOKED", expiresAt: null },

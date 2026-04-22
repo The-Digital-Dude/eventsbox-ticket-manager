@@ -1,6 +1,5 @@
 import { PayoutMode } from "@prisma/client";
 import { z } from "zod";
-import { seatStateSchema, seatingSummarySchema, venueSeatingConfigSchema } from "@/src/lib/validators/venue-seating";
 
 export const organizerOnboardingSchema = z.object({
   companyName: z.string().min(2),
@@ -50,9 +49,6 @@ export const venueRequestSchema = z.object({
   categoryId: z.string().optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
-  seatingConfig: venueSeatingConfigSchema,
-  seatState: seatStateSchema.optional(),
-  summary: seatingSummarySchema,
 }).superRefine((data, ctx) => {
   if (!data.stateId && !data.stateName) {
     ctx.addIssue({ code: "custom", path: ["stateId"], message: "State is required" });
@@ -60,10 +56,4 @@ export const venueRequestSchema = z.object({
   if (!data.cityId && !data.cityName) {
     ctx.addIssue({ code: "custom", path: ["cityId"], message: "City is required" });
   }
-});
-
-export const venueUpdateSchema = z.object({
-  seatingConfig: venueSeatingConfigSchema,
-  seatState: seatStateSchema.optional(),
-  summary: seatingSummarySchema,
 });

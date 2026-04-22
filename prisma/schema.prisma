@@ -128,6 +128,22 @@ enum TicketTransferStatus {
   EXPIRED
 }
 
+enum PlatformCommissionType {
+  PERCENTAGE
+  FIXED
+  BOTH
+}
+
+enum PlatformFeeStrategy {
+  PASS_TO_BUYER
+  ABSORB
+}
+
+enum PlatformAutoPublishMode {
+  NEVER
+  APPROVED_ORGANIZERS
+}
+
 model User {
   id               String                   @id @default(cuid())
   email            String                   @unique
@@ -282,16 +298,41 @@ model StripeWebhookEvent {
 }
 
 model PlatformConfig {
-  id                   String     @id @default("singleton")
-  platformName         String     @default("EventsBox")
-  brandColor           String     @default("#000000")
-  smtpFromName         String     @default("EventsBox")
-  smtpFromEmail        String     @default("noreply@eventsbox.com")
-  defaultCommissionPct Decimal    @db.Decimal(5, 2)
-  defaultGstPct        Decimal    @db.Decimal(5, 2)
-  payoutModeDefault    PayoutMode
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
+  id                                String                  @id @default("singleton")
+  platformName                      String                  @default("EventsBox")
+  supportEmail                      String                  @default("support@eventsbox.com")
+  timezone                          String                  @default("UTC")
+  defaultCurrency                   String                  @default("USD")
+  defaultLocale                     String                  @default("en")
+  logoUrl                           String?
+  faviconUrl                        String?
+  brandColor                        String                  @default("#000000")
+  secondaryBrandColor               String                  @default("#111827")
+  footerText                        String?
+  defaultEventApprovalRequired      Boolean                 @default(true)
+  defaultOrganizerApprovalRequired  Boolean                 @default(true)
+  autoPublishMode                   PlatformAutoPublishMode @default(NEVER)
+  defaultCancellationPolicy         String?
+  defaultCommissionType             PlatformCommissionType  @default(PERCENTAGE)
+  defaultCommissionValue            Decimal                 @default(10) @db.Decimal(10, 2)
+  defaultTaxRate                    Decimal                 @default(15) @db.Decimal(5, 2)
+  defaultFeeStrategy                PlatformFeeStrategy     @default(PASS_TO_BUYER)
+  smtpFromName                      String                  @default("EventsBox")
+  smtpFromEmail                     String                  @default("noreply@eventsbox.com")
+  emailNotificationsEnabled         Boolean                 @default(true)
+  adminAlertsEnabled                Boolean                 @default(true)
+  organizerApprovalEmailEnabled     Boolean                 @default(true)
+  eventApprovalEmailEnabled         Boolean                 @default(true)
+  defaultMetaTitle                  String?
+  defaultMetaDescription            String?
+  featuredEventLimit                Int                     @default(6)
+  publicSearchEnabled               Boolean                 @default(true)
+  searchIndexingEnabled             Boolean                 @default(true)
+  defaultCommissionPct              Decimal                 @db.Decimal(5, 2)
+  defaultGstPct                     Decimal                 @db.Decimal(5, 2)
+  payoutModeDefault                 PayoutMode
+  createdAt                         DateTime                @default(now())
+  updatedAt                         DateTime                @updatedAt
 }
 
 model Category {
@@ -354,12 +395,6 @@ model Venue {
   categoryId           String?
   lat                  Float?
   lng                  Float?
-  seatingConfig        Json?
-  seatState            Json?
-  seatingSchemaVersion Int                    @default(1)
-  seatingUpdatedAt     DateTime?
-  totalSeats           Int?
-  totalTables          Int?
   status               VenueStatus            @default(PENDING_APPROVAL)
   rejectionReason      String?
   createdAt            DateTime               @default(now())
@@ -382,10 +417,6 @@ model VenueSeatingTemplate {
   venueId       String
   name          String
   mode          EventSeatingMode
-  seatingConfig Json
-  seatState     Json?
-  summary       Json?
-  schemaVersion Int                @default(1)
   isDefault     Boolean            @default(false)
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
@@ -476,10 +507,6 @@ model EventSeatingPlan {
   source                 EventSeatingSource    @default(CUSTOM)
   venueSeatingTemplateId String?
   sourceVenueId          String?
-  seatingConfig          Json
-  seatState              Json?
-  summary                Json?
-  schemaVersion          Int                   @default(1)
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
   event                  Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -493,17 +520,19 @@ model EventSeatingPlan {
 }
 
 model EventSeatingSection {
-  id                 String                  @id @default(cuid())
-  eventSeatingPlanId String
-  key                String
-  name               String
-  sectionType        EventSeatingSectionType
-  capacity           Int?
-  sortOrder          Int                     @default(0)
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
-  eventSeatingPlan   EventSeatingPlan        @relation(fields: [eventSeatingPlanId], references: [id], onDelete: Cascade)
-  ticketTypes        TicketType[]
+  id                    String                  @id @default(cuid())
+  eventSeatingPlanId    String
+  key                   String
+  name                  String
+  sectionType           EventSeatingSectionType
+  capacity              Int
+  sortOrder             Int                     @default(0)
+  price                 Decimal                 @db.Decimal(10, 2)
+  generatedTicketTypeId String?                 @unique
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  eventSeatingPlan      EventSeatingPlan        @relation(fields: [eventSeatingPlanId], references: [id], onDelete: Cascade)
+  generatedTicketType   TicketType?             @relation("GeneratedTicket", fields: [generatedTicketTypeId], references: [id], onDelete: SetNull)
 
   @@unique([eventSeatingPlanId, key])
   @@index([eventSeatingPlanId])
@@ -526,35 +555,33 @@ model EventSeries {
 }
 
 model TicketType {
-  id                    String               @id @default(cuid())
-  eventId               String
-  sectionId             String?
-  eventSeatingSectionId String?
-  name                  String
-  description           String?
-  kind                  TicketTypeKind       @default(DIRECT)
-  /// Persisted inventory behavior for an event-owned ticket class
-  classType             TicketClassType      @default(GENERAL_ADMISSION)
-  price                 Decimal              @db.Decimal(10, 2)
-  quantity              Int
-  sold                  Int                  @default(0)
-  reservedQty           Int                  @default(0)
-  compIssued            Int                  @default(0)
-  saleStartAt           DateTime?
-  saleEndAt             DateTime?
-  maxPerOrder           Int                  @default(10)
-  isActive              Boolean              @default(true)
-  sortOrder             Int                  @default(0)
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-  event                 Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  eventSeatingSection   EventSeatingSection? @relation(fields: [eventSeatingSectionId], references: [id], onDelete: SetNull)
-  orderItems            OrderItem[]
-  waitlist              Waitlist[]
-  compIssuances         CompTicketIssuance[]
+  id                     String               @id @default(cuid())
+  eventId                String
+  name                   String
+  description            String?
+  kind                   TicketTypeKind       @default(DIRECT)
+  classType              TicketClassType      @default(GENERAL_ADMISSION)
+  price                  Decimal              @db.Decimal(10, 2)
+  quantity               Int
+  sold                   Int                  @default(0)
+  reservedQty            Int                  @default(0)
+  compIssued             Int                  @default(0)
+  saleStartAt            DateTime?
+  saleEndAt              DateTime?
+  maxPerOrder            Int                  @default(10)
+  isActive               Boolean              @default(true)
+  sortOrder              Int                  @default(0)
+  isGenerated            Boolean              @default(true)
+  sourceSeatingSectionId String?              @unique
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  event                  Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  sourceSeatingSection   EventSeatingSection? @relation("GeneratedTicket")
+  orderItems             OrderItem[]
+  waitlist               Waitlist[]
+  compIssuances          CompTicketIssuance[]
 
   @@index([eventId])
-  @@index([eventSeatingSectionId])
 }
 
 model PromoCode {

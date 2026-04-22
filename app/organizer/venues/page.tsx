@@ -8,7 +8,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
 import { PageHeader } from "@/src/components/shared/page-header";
 import { EmptyState } from "@/src/components/shared/empty-state";
-import { LayoutBuilderShell } from "@/src/components/organizer/layout-builder-shell";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -17,7 +16,6 @@ import { PlacesAutocomplete } from "@/src/components/ui/places-autocomplete";
 import { SearchableSelect } from "@/src/components/ui/searchable-select";
 import { matchLocation } from "@/src/lib/location-match";
 import { nav } from "@/app/organizer/nav";
-import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
 type CountryRow = { id: string; code: string; name: string };
 type CityRow = { id: string; name: string };
@@ -28,33 +26,14 @@ type VenueRow = {
   name: string;
   addressLine1: string;
   status: string;
-  totalSeats: number | null;
-  totalTables: number | null;
-  seatingConfig?: VenueSeatingConfig | null;
-  seatState?: Record<string, SeatState> | null;
 };
 
-type Step = "details" | "seating";
 type EventContext = {
   id: string;
   title: string;
   venueId: string | null;
   venueName: string | null;
-  layoutMode: string | null;
 };
-
-function formatLayoutMode(layoutMode: string | null) {
-  switch (layoutMode) {
-    case "ROWS":
-      return "seating layout";
-    case "TABLES":
-      return "table layout";
-    case "MIXED":
-      return "mixed layout";
-    default:
-      return "venue setup";
-  }
-}
 
 export default function OrganizerVenuesPage() {
   const router = useRouter();
@@ -74,16 +53,12 @@ export default function OrganizerVenuesPage() {
   const [countries, setCountries] = useState<CountryRow[]>([]);
   const [states, setStates] = useState<StateRow[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
-  const [step, setStep] = useState<Step>("details");
   const [editingVenueId, setEditingVenueId] = useState<string | null>(null);
   const [eventContext, setEventContext] = useState<EventContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [refetch, setRefetch] = useState(0);
   const eventId = searchParams.get("eventId");
-  const incomingStep = searchParams.get("step");
-  const incomingVenueId = searchParams.get("venueId");
-  const incomingLayoutMode = searchParams.get("layoutMode");
-  const isTicketFlow = searchParams.get("from") === "ticket" || searchParams.get("from") === "ticket-class";
+
   const filteredStates = states.filter((state) => !countryId || state.countryId === countryId);
   const cities = filteredStates.find((state) => state.id === stateId)?.cities ?? [];
 
@@ -110,27 +85,14 @@ export default function OrganizerVenuesPage() {
           title: eventPayload.data.title,
           venueId: eventPayload.data.venue?.id ?? null,
           venueName: eventPayload.data.venue?.name ?? null,
-          layoutMode: incomingLayoutMode ?? eventPayload.data.seatingMode ?? null,
         });
       } else {
         setEventContext(null);
       }
-      const initialEditingVenueId = incomingVenueId ?? eventPayload?.data?.venue?.id ?? null;
-      const requestedStep: Step =
-        incomingStep === "seating" || (isTicketFlow && initialEditingVenueId)
-          ? "seating"
-          : "details";
-      const nextStep: Step = requestedStep === "seating" && !initialEditingVenueId ? "details" : requestedStep;
-      setStep(nextStep);
-      if (nextStep === "seating") {
-        setEditingVenueId(initialEditingVenueId);
-      } else {
-        setEditingVenueId(null);
-      }
       setLoading(false);
     }
     void load();
-  }, [eventId, incomingStep, incomingVenueId, incomingLayoutMode, isTicketFlow, refetch]);
+  }, [eventId, refetch]);
 
   function validateDetails() {
     if (!name.trim()) {
@@ -152,12 +114,6 @@ export default function OrganizerVenuesPage() {
     return true;
   }
 
-  function beginCreateWithSeating() {
-    if (!validateDetails()) return;
-    setEditingVenueId(null);
-    setStep("seating");
-  }
-
   function resetForm() {
     setName("");
     setAddressLine1("");
@@ -171,14 +127,11 @@ export default function OrganizerVenuesPage() {
     setLat(undefined);
     setLng(undefined);
     setEditingVenueId(null);
-    setStep("details");
   }
 
-  async function submitNewVenue(payload: {
-    seatingConfig: VenueSeatingConfig;
-    seatState?: Record<string, SeatState>;
-    summary: { totalSeats: number; totalTables: number; sectionCount: number };
-  }) {
+  async function submitNewVenue() {
+    if (!validateDetails()) return;
+
     const res = await fetch("/api/organizer/venues", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -194,9 +147,6 @@ export default function OrganizerVenuesPage() {
         categoryId: categoryId || undefined,
         lat,
         lng,
-        seatingConfig: payload.seatingConfig,
-        seatState: payload.seatState,
-        summary: payload.summary,
       }),
     });
 
@@ -207,19 +157,12 @@ export default function OrganizerVenuesPage() {
     }
 
     const createdVenueId = response?.data?.id as string | undefined;
-    if (isTicketFlow && eventContext?.id && createdVenueId) {
+    if (eventContext?.id && createdVenueId) {
       const linkRes = await fetch(`/api/organizer/events/${eventContext.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           venueId: createdVenueId,
-          countryId: countryId || undefined,
-          stateId: (response?.data?.stateId ?? stateId) || undefined,
-          stateName: stateName.trim() || undefined,
-          cityId: (response?.data?.cityId ?? cityId) || undefined,
-          cityName: cityName.trim() || undefined,
-          ...(lat !== undefined ? { lat } : {}),
-          ...(lng !== undefined ? { lng } : {}),
         }),
       });
       const linkPayload = await linkRes.json();
@@ -230,50 +173,18 @@ export default function OrganizerVenuesPage() {
       }
     }
 
-    toast.success("Venue and seating configuration submitted");
+    toast.success("Venue submitted");
     resetForm();
     setRefetch(c => c + 1);
-    if (isTicketFlow && eventContext?.id) {
+    if (eventContext?.id) {
       router.push(`/organizer/events/${eventContext.id}`);
     }
   }
 
-  async function saveExistingVenueSeating(
-    venueId: string,
-    payload: {
-      seatingConfig: VenueSeatingConfig;
-      seatState?: Record<string, SeatState>;
-      summary: { totalSeats: number; totalTables: number; sectionCount: number };
-    },
-  ) {
-    const res = await fetch(`/api/organizer/venues/${venueId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const response = await res.json();
-    if (!res.ok) {
-      toast.error(response?.error?.message ?? "Unable to update venue seating");
-      return;
-    }
-
-    toast.success("Venue seating updated");
-    resetForm();
-    setRefetch(c => c + 1);
-  }
-
-  function startEditSeating(venueId: string) {
-    setEditingVenueId(venueId);
-    setStep("seating");
-  }
-
-  const editingVenue = venues.find((venue) => venue.id === editingVenueId) ?? null;
-
   if (loading) {
     return (
       <SidebarLayout role="organizer" title="Organizer" items={nav}>
-        <PageHeader title="Venue Requests" subtitle="Step 1: venue details. Step 2: seating configuration." />
+        <PageHeader title="Venues" subtitle="Create and manage your venues." />
         <div className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
           <div className="h-64 animate-pulse rounded-xl bg-neutral-100" />
         </div>
@@ -283,16 +194,11 @@ export default function OrganizerVenuesPage() {
 
   return (
     <SidebarLayout role="organizer" title="Organizer" items={nav}>
-      <PageHeader title="Venue Requests" subtitle="Step 1: venue details. Step 2: seating configuration." />
+      <PageHeader title="Venues" subtitle="Create and manage your venues." />
 
-      {isTicketFlow && eventContext ? (
+      {eventContext ? (
         <div className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-[rgb(var(--theme-accent-rgb)/0.05)] px-5 py-4 text-sm text-neutral-700 shadow-sm">
           <p className="font-medium text-neutral-900">Continuing setup for {eventContext.title}</p>
-          <p className="mt-1">
-            {eventContext.venueId
-              ? `Venue${eventContext.venueName ? ` "${eventContext.venueName}"` : ""} is already linked. Continue with ${formatLayoutMode(eventContext.layoutMode)} below.`
-              : `Create the venue details first, then continue into ${formatLayoutMode(eventContext.layoutMode)}.`}
-          </p>
           <div className="mt-3">
             <Link href={`/organizer/events/${eventContext.id}`} className="text-sm font-medium text-[var(--theme-accent)] underline underline-offset-4">
               Back to event
@@ -302,28 +208,7 @@ export default function OrganizerVenuesPage() {
       ) : null}
 
       <div className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
-        <div className="mb-6 flex items-center gap-3">
-          <button
-            onClick={() => setStep("details")}
-            className={`cursor-pointer rounded-full px-5 py-2 text-sm font-semibold transition ${step === "details" ? "bg-[var(--theme-accent)] text-white shadow-sm" : "border border-[var(--border)] text-neutral-600 hover:bg-neutral-50"}`}
-          >
-            Step 1 · Details
-          </button>
-          <button
-            onClick={() => setStep("seating")}
-            className={`cursor-pointer rounded-full px-5 py-2 text-sm font-semibold transition ${step === "seating" ? "bg-[var(--theme-accent)] text-white shadow-sm" : "border border-[var(--border)] text-neutral-600 hover:bg-neutral-50"}`}
-          >
-            Step 2 · Seating
-          </button>
-          {editingVenue ? (
-            <span className="rounded-full border border-[var(--border)] px-4 py-2 text-sm font-medium text-neutral-500">
-              Edit mode: {editingVenue.name}
-            </span>
-          ) : null}
-        </div>
-
-        {step === "details" ? (
-          <div className="space-y-5">
+        <div className="space-y-5">
             <div className="space-y-2">
               <Label>Search Address</Label>
               <PlacesAutocomplete
@@ -392,42 +277,14 @@ export default function OrganizerVenuesPage() {
               </div>
             </div>
             <div className="flex gap-3">
-              <Button onClick={beginCreateWithSeating}>Next: Seating Configuration</Button>
+              <Button onClick={submitNewVenue}>Submit Venue</Button>
               <Button variant="outline" onClick={resetForm}>Reset</Button>
             </div>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <p className="text-sm text-neutral-600">
-              {editingVenue
-                ? `Updating ${formatLayoutMode(eventContext?.layoutMode ?? null)} for an existing venue.`
-                : `Configure the existing seat map builder for this ${formatLayoutMode(eventContext?.layoutMode ?? null)}.`}
-            </p>
-            <LayoutBuilderShell
-              title="Venue Seating Builder"
-              description={
-                editingVenue
-                  ? `Updating ${formatLayoutMode(eventContext?.layoutMode ?? null)} for an existing venue.`
-                  : `Configure the existing seat map builder for this ${formatLayoutMode(eventContext?.layoutMode ?? null)}.`
-              }
-              initialConfig={editingVenue?.seatingConfig ?? null}
-              initialSeatState={editingVenue?.seatState ?? null}
-              saveLabel={editingVenue ? "Save Seating Update" : "Submit Venue Request"}
-              onSave={(payload) =>
-                editingVenue
-                  ? saveExistingVenueSeating(editingVenue.id, payload)
-                  : submitNewVenue(payload)
-              }
-              backLabel="Back to Details"
-              onBack={() => setStep("details")}
-              ticketClasses={[]}
-            />
-          </div>
-        )}
       </div>
 
       {venues.length === 0 ? (
-        <EmptyState title="No venue requests yet" subtitle="Add venue details and configure seats/tables in step 2." />
+        <EmptyState title="No venues yet" subtitle="Add your first venue above." />
       ) : null}
 
       <div className="grid gap-4">
@@ -449,19 +306,6 @@ export default function OrganizerVenuesPage() {
                 </div>
               </div>
               <Badge>{venue.status}</Badge>
-            </div>
-            <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2">
-              <div className="rounded-xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-white/85 px-3 py-2">
-                <p className="text-neutral-500">Total seats</p>
-                <p className="mt-1 text-sm font-semibold text-neutral-900">{venue.totalSeats ?? 0}</p>
-              </div>
-              <div className="rounded-xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-white/85 px-3 py-2">
-                <p className="text-neutral-500">Total tables</p>
-                <p className="mt-1 text-sm font-semibold text-neutral-900">{venue.totalTables ?? 0}</p>
-              </div>
-            </div>
-            <div className="mt-4">
-              <Button size="sm" variant="outline" onClick={() => startEditSeating(venue.id)}>Edit Seating</Button>
             </div>
           </article>
         ))}

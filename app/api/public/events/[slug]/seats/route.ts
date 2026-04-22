@@ -1,8 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
-import { resolveEventSeating } from "@/src/lib/event-seating";
 import { fail, ok } from "@/src/lib/http/response";
-import { buildPublicSeatStatusMap, getSeatDescriptorMap, sanitizePublicSeatState } from "@/src/lib/venue-seating";
 
 const REFRESH_INTERVAL_MS = 10_000;
 
@@ -15,20 +13,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
       id: true,
       seatingPlan: {
         select: {
-          seatingConfig: true,
-          seatState: true,
           sections: {
             select: {
               key: true,
               name: true,
             },
           },
-        },
-      },
-      venue: {
-        select: {
-          seatingConfig: true,
-          seatState: true,
         },
       },
     },
@@ -38,11 +28,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
     return fail(404, { code: "NOT_FOUND", message: "Event not found" });
   }
 
-  const resolvedSeating = resolveEventSeating(event);
-  const seatingConfig = resolvedSeating.seatingConfig;
-  const seatState = sanitizePublicSeatState(resolvedSeating.seatState);
-
-  if (!seatingConfig) {
+  if (!event.seatingPlan) {
     return ok({
       seatingEnabled: false,
       statuses: {},
@@ -50,12 +36,24 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
     });
   }
 
+  const now = new Date();
+  await prisma.eventSeatBooking.deleteMany({
+    where: {
+      eventId: event.id,
+      status: "RESERVED",
+      expiresAt: { lt: now },
+    },
+  });
+
   const bookings = await prisma.eventSeatBooking.findMany({
     where: {
       eventId: event.id,
       OR: [
         { status: "BOOKED" },
-        { status: "RESERVED", expiresAt: { gte: new Date() } },
+        {
+          status: "RESERVED",
+          expiresAt: { gt: now },
+        },
       ],
     },
     select: {
@@ -66,30 +64,29 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
     },
   });
 
-  const seatDescriptorMap = getSeatDescriptorMap(seatingConfig, seatState);
-  const statuses = buildPublicSeatStatusMap(
-    Object.keys(seatDescriptorMap),
-    bookings.map((booking) => ({
-      ...booking,
-      seatLabel: booking.seatLabel ?? seatDescriptorMap[booking.seatId]?.seatLabel ?? booking.seatId,
-    })),
+  const statuses = Object.fromEntries(
+    bookings.map((booking) => [
+      booking.seatId,
+      {
+        status: booking.status,
+        seatLabel: booking.seatLabel,
+        expiresAt: booking.expiresAt?.toISOString() ?? null,
+      },
+    ]),
   );
 
   const seatAvailability = Object.fromEntries(
-    Object.entries(statuses)
-      .filter(([, value]) => value.status !== "AVAILABLE")
-      .map(([seatId, value]) => [seatId, value.status === "BOOKED" ? "booked" : "reserved"]),
+    bookings.map((booking) => [booking.seatId, booking.status.toLowerCase()]),
   );
-  const summary = {
-    booked: Object.values(statuses).filter((value) => value.status === "BOOKED").length,
-    reserved: Object.values(statuses).filter((value) => value.status === "RESERVED").length,
-  };
 
   return ok({
     seatingEnabled: true,
     statuses,
     seatAvailability,
-    summary,
+    summary: {
+      booked: bookings.filter((booking) => booking.status === "BOOKED").length,
+      reserved: bookings.filter((booking) => booking.status === "RESERVED").length,
+    },
     refreshIntervalMs: REFRESH_INTERVAL_MS,
     updatedAt: new Date().toISOString(),
   });

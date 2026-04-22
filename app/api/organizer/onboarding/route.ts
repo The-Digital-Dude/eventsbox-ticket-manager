@@ -4,6 +4,7 @@ import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
 import { requireRole } from "@/src/lib/auth/guards";
 import { organizerOnboardingSchema } from "@/src/lib/validators/organizer";
+import { shouldAutoApproveOrganizer } from "@/src/lib/services/platform-settings";
 
 function toDbOptional(value?: string) {
   const trimmed = value?.trim();
@@ -30,7 +31,12 @@ export async function POST(req: NextRequest) {
     }
 
     const { submit, ...payload } = parsed.data;
-    const nextStatus = submit ? OrganizerApprovalStatus.PENDING_APPROVAL : OrganizerApprovalStatus.DRAFT;
+    const autoApprove = submit ? await shouldAutoApproveOrganizer() : false;
+    const nextStatus = submit
+      ? autoApprove
+        ? OrganizerApprovalStatus.APPROVED
+        : OrganizerApprovalStatus.PENDING_APPROVAL
+      : OrganizerApprovalStatus.DRAFT;
     const profile = await prisma.organizerProfile.update({
       where: { userId: auth.sub },
       data: {
@@ -53,6 +59,7 @@ export async function POST(req: NextRequest) {
         approvalStatus: nextStatus,
         rejectionReason: submit ? null : undefined,
         submittedAt: submit ? new Date() : undefined,
+        approvedAt: autoApprove ? new Date() : undefined,
         onboardingDoneAt: new Date(),
       },
     });

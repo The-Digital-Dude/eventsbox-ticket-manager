@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Prisma } from "@prisma/client";
 import { CalendarDays, MapPin, QrCode, Shield, Ticket } from "lucide-react";
 import { prisma } from "@/src/lib/db";
+import { getPlatformSettings } from "@/src/lib/services/platform-settings";
 
 export const revalidate = 60;
 
@@ -38,32 +39,39 @@ async function getStats() {
   const now = new Date();
 
   try {
+    const settings = await getPlatformSettings();
+    const featuredLimit = settings.publicSearchEnabled ? settings.featuredEventLimit : 0;
+
     const [eventCount, orderCount, featuredEvents, categoryRows] = await Promise.all([
-      prisma.event.count({ where: { status: "PUBLISHED" } }),
+      settings.publicSearchEnabled ? prisma.event.count({ where: { status: "PUBLISHED" } }) : Promise.resolve(0),
       prisma.order.count({ where: { status: "PAID" } }),
-      prisma.event.findMany({
-        where: {
-          isFeatured: true,
-          status: "PUBLISHED",
-          startAt: { gte: now },
-        },
-        include: featuredEventInclude,
-        orderBy: { startAt: "asc" },
-        take: 6,
-      }),
-      prisma.category.findMany({
-        where: { isActive: true },
-        include: {
-          _count: {
-            select: {
-              events: {
-                where: { status: "PUBLISHED" },
+      settings.publicSearchEnabled
+        ? prisma.event.findMany({
+            where: {
+              isFeatured: true,
+              status: "PUBLISHED",
+              startAt: { gte: now },
+            },
+            include: featuredEventInclude,
+            orderBy: { startAt: "asc" },
+            take: featuredLimit,
+          })
+        : Promise.resolve([]),
+      settings.publicSearchEnabled
+        ? prisma.category.findMany({
+            where: { isActive: true },
+            include: {
+              _count: {
+                select: {
+                  events: {
+                    where: { status: "PUBLISHED" },
+                  },
+                },
               },
             },
-          },
-        },
-        orderBy: { name: "asc" },
-      }),
+            orderBy: { name: "asc" },
+          })
+        : Promise.resolve([]),
     ]);
 
     const categories = categoryRows
@@ -74,7 +82,7 @@ async function getStats() {
         eventCount: category._count.events,
       }));
 
-    if (featuredEvents.length >= 3) {
+    if (featuredEvents.length >= featuredLimit) {
       return { eventCount, orderCount, featuredEvents, categories };
     }
 
@@ -86,7 +94,7 @@ async function getStats() {
       },
       include: featuredEventInclude,
       orderBy: { startAt: "asc" },
-      take: 3 - featuredEvents.length,
+      take: featuredLimit - featuredEvents.length,
     });
 
     return { eventCount, orderCount, featuredEvents: [...featuredEvents, ...fallbackEvents], categories };
@@ -110,6 +118,7 @@ function formatDate(iso: Date) {
 }
 
 export default async function HomePage() {
+  const settings = await getPlatformSettings();
   const { eventCount, orderCount, featuredEvents, categories } = await getStats();
 
   return (
@@ -119,12 +128,14 @@ export default async function HomePage() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2 text-lg font-semibold text-neutral-900">
             <Ticket className="h-5 w-5 text-[var(--theme-accent)]" />
-            EventsBox
+            {settings.platformName}
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/events" className="rounded-lg px-3 py-1.5 text-sm font-medium text-neutral-600 hover:bg-neutral-100 transition">
-              Browse Events
-            </Link>
+            {settings.publicSearchEnabled && (
+              <Link href="/events" className="rounded-lg px-3 py-1.5 text-sm font-medium text-neutral-600 hover:bg-neutral-100 transition">
+                Browse Events
+              </Link>
+            )}
             <Link href="/auth/register" className="hidden rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition sm:inline-flex">
               Register
             </Link>
@@ -146,12 +157,14 @@ export default async function HomePage() {
             <span className="text-[var(--theme-accent)]">Effortlessly.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-lg text-neutral-600">
-            EventsBox makes it easy to create events, sell tickets, and check in attendees — all in one place.
+            {settings.platformName} makes it easy to create events, sell tickets, and check in attendees — all in one place.
           </p>
           <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <Link href="/events" className="inline-flex h-12 items-center rounded-xl bg-[var(--theme-accent)] px-8 text-sm font-semibold text-white shadow-sm transition hover:opacity-90">
-              Browse Events
-            </Link>
+            {settings.publicSearchEnabled && (
+              <Link href="/events" className="inline-flex h-12 items-center rounded-xl bg-[var(--theme-accent)] px-8 text-sm font-semibold text-white shadow-sm transition hover:opacity-90">
+                Browse Events
+              </Link>
+            )}
             <Link href="/auth/login" className="inline-flex h-12 items-center rounded-xl border border-[var(--border)] bg-white px-8 text-sm font-semibold text-neutral-700 shadow-sm transition hover:bg-neutral-50">
               Organiser Sign In
             </Link>
@@ -304,9 +317,11 @@ export default async function HomePage() {
         <h2 className="text-3xl font-bold tracking-tight text-neutral-900">Ready to get started?</h2>
         <p className="mx-auto mt-4 max-w-md text-neutral-600">Join EventsBox today and start selling tickets to your next event.</p>
         <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-          <Link href="/events" className="inline-flex h-12 items-center rounded-xl bg-[var(--theme-accent)] px-8 text-sm font-semibold text-white shadow-sm transition hover:opacity-90">
-            Browse Events
-          </Link>
+          {settings.publicSearchEnabled && (
+            <Link href="/events" className="inline-flex h-12 items-center rounded-xl bg-[var(--theme-accent)] px-8 text-sm font-semibold text-white shadow-sm transition hover:opacity-90">
+              Browse Events
+            </Link>
+          )}
           <Link href="/auth/login" className="inline-flex h-12 items-center rounded-xl border border-[var(--border)] bg-white px-8 text-sm font-semibold text-neutral-700 shadow-sm transition hover:bg-neutral-50">
             Sign In as Organiser
           </Link>
@@ -315,7 +330,7 @@ export default async function HomePage() {
 
       {/* Footer */}
       <footer className="border-t border-[var(--border)] bg-white py-6 text-center text-xs text-neutral-400">
-        © {new Date().getFullYear()} EventsBox. All rights reserved.
+        {settings.footerText ?? `© ${new Date().getFullYear()} ${settings.platformName}. All rights reserved.`}
       </footer>
     </div>
   );

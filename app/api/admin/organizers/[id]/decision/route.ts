@@ -9,6 +9,7 @@ import {
   sendOrganizerApprovedEmail,
   sendOrganizerRejectedEmail,
 } from "@/src/lib/services/notifications";
+import { getCommunicationSettings } from "@/src/lib/services/platform-settings";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -33,8 +34,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       where: { id: updated.userId },
       select: { email: true },
     });
+    const communicationSettings = await getCommunicationSettings();
 
-    if (organizerUser) {
+    if (
+      organizerUser &&
+      communicationSettings.emailNotificationsEnabled &&
+      communicationSettings.organizerApprovalEmailEnabled
+    ) {
       const organizerName = organizerUser.email;
       if (parsed.data.action === "APPROVED") {
         void sendOrganizerApprovedEmail({

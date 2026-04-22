@@ -39,8 +39,18 @@ export const eventCreateSchema = z.object({
   audience: z.string().max(50).optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
-  ticketClasses: z.array(z.any()).optional(),
-  layout: z.any().optional(),
+  seatingLayout: z.object({
+    id: z.string(),
+    mode: z.enum(["GA_ONLY", "ROWS", "TABLES", "MIXED"]),
+    sections: z.array(z.object({
+        key: z.string(),
+        name: z.string().min(1),
+        sectionType: z.enum(["ROWS", "TABLES", "SECTIONED_GA"]),
+        capacity: z.number().int().min(0),
+        price: z.number().min(0),
+        sortOrder: z.number().int(),
+    })),
+  }).optional(),
 });
 
 export const eventUpdateSchema = eventCreateSchema.partial().extend({

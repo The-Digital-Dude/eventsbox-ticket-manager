@@ -5,7 +5,6 @@ import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
 import { resolveLocationIds } from "@/src/lib/location-resolution";
 import { venueRequestSchema } from "@/src/lib/validators/organizer";
-import { computeSeatingSummary } from "@/src/lib/validators/venue-seating";
 
 export async function GET(req: NextRequest) {
   try {
@@ -40,19 +39,6 @@ export async function POST(req: NextRequest) {
       return fail(400, { code: "VALIDATION_ERROR", message: "Invalid venue data", details: parsed.error.flatten() });
     }
 
-    const computed = computeSeatingSummary(parsed.data.seatingConfig.sections);
-    const deletedCount = parsed.data.seatState
-      ? Object.values(parsed.data.seatState).filter((s: { deleted?: boolean }) => s.deleted).length
-      : 0;
-    const adjustedTotalSeats = computed.totalSeats - deletedCount;
-    if (adjustedTotalSeats !== parsed.data.summary.totalSeats || computed.totalTables !== parsed.data.summary.totalTables) {
-      return fail(400, {
-        code: "SEATING_SUMMARY_MISMATCH",
-        message: "Seating summary does not match seating configuration",
-        details: { computed, provided: parsed.data.summary },
-      });
-    }
-
     const { stateId, cityId } = await resolveLocationIds(parsed.data);
     if (!stateId || !cityId) {
       return fail(400, { code: "LOCATION_REQUIRED", message: "State and city are required" });
@@ -70,12 +56,6 @@ export async function POST(req: NextRequest) {
         categoryId: parsed.data.categoryId,
         lat: parsed.data.lat,
         lng: parsed.data.lng,
-        seatingConfig: parsed.data.seatingConfig as Prisma.InputJsonValue,
-        seatState: parsed.data.seatState ? (parsed.data.seatState as Prisma.InputJsonValue) : undefined,
-        seatingSchemaVersion: parsed.data.seatingConfig.schemaVersion,
-        seatingUpdatedAt: new Date(),
-        totalSeats: parsed.data.summary.totalSeats,
-        totalTables: parsed.data.summary.totalTables,
       },
     });
 

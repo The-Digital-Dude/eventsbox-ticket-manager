@@ -167,62 +167,82 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return fail(400, { code: "VALIDATION_ERROR", message: "Invalid update data", details: parsed.error.flatten() });
     }
 
-    const { startAt, endAt, heroImage, videoUrl, contactEmail, images, seriesId, stateName, cityName, ...rest } = parsed.data;
+    const { startAt, endAt, heroImage, videoUrl, contactEmail, images, seriesId, stateName, cityName, seatingLayout, ...rest } = parsed.data;
 
-    if (seriesId !== undefined && seriesId !== null) {
-      const ownedSeries = await prisma.eventSeries.findFirst({
-        where: { id: seriesId, organizerProfileId: profile.id },
-        select: { id: true },
-      });
-      if (!ownedSeries) {
-        return fail(404, { code: "SERIES_NOT_FOUND", message: "Series not found" });
+    const event = await prisma.$transaction(async (tx) => {
+      if (seriesId !== undefined && seriesId !== null) {
+        const ownedSeries = await tx.eventSeries.findFirst({
+          where: { id: seriesId, organizerProfileId: profile.id },
+          select: { id: true },
+        });
+        if (!ownedSeries) {
+          throw new Error("SERIES_NOT_FOUND");
+        }
       }
-    }
 
-    const resolvedLocation = await resolveLocationIds({
-      countryId: rest.countryId,
-      stateId: rest.stateId,
-      stateName,
-      cityId: rest.cityId,
-      cityName,
-    });
-
-    const oldStartAt = existing.startAt;
-
-    const event = await prisma.event.update({
-      where: { id },
-      data: {
-        ...rest,
-        ...resolvedLocation,
-        ...(heroImage !== undefined ? { heroImage: heroImage || null } : {}),
-        ...(videoUrl !== undefined ? { videoUrl: videoUrl || null } : {}),
-        ...(images !== undefined ? { images } : {}),
-        ...(contactEmail !== undefined ? { contactEmail: contactEmail || null } : {}),
-        ...(startAt ? { startAt: new Date(startAt) } : {}),
-        ...(endAt ? { endAt: new Date(endAt) } : {}),
-        ...(seriesId !== undefined ? { seriesId } : {}),
-      },
-      select: eventSelect,
-    });
-
-    if (oldStartAt.getTime() !== event.startAt.getTime()) {
-      const orders = await prisma.order.findMany({
-        where: { eventId: event.id, status: "PAID" },
-        select: { id: true, buyerEmail: true, buyerName: true },
+      const resolvedLocation = await resolveLocationIds({
+        countryId: rest.countryId,
+        stateId: rest.stateId,
+        stateName,
+        cityId: rest.cityId,
+        cityName,
       });
 
-      sendEventDateChangedEmail({
-        eventTitle: event.title,
-        oldStartAt,
-        newStartAt: event.startAt,
-        timezone: event.timezone,
-        venueName: event.venue?.name ?? null,
-        attendees: orders.map((o) => ({ email: o.buyerEmail, name: o.buyerName, orderId: o.id })),
-      }).catch((err) => console.error("[date-change-email]", err));
-    }
+      const oldStartAt = existing.startAt;
+
+      const updatedEvent = await tx.event.update({
+        where: { id },
+        data: {
+          ...rest,
+          ...resolvedLocation,
+          ...(heroImage !== undefined ? { heroImage: heroImage || null } : {}),
+          ...(videoUrl !== undefined ? { videoUrl: videoUrl || null } : {}),
+          ...(images !== undefined ? { images } : {}),
+          ...(contactEmail !== undefined ? { contactEmail: contactEmail || null } : {}),
+          ...(startAt ? { startAt: new Date(startAt) } : {}),
+          ...(endAt ? { endAt: new Date(endAt) } : {}),
+          ...(seriesId !== undefined ? { seriesId } : {}),
+        },
+        select: eventSelect,
+      });
+
+      if (seatingLayout) {
+        let plan = await tx.eventSeatingPlan.findUnique({ where: { eventId: id } });
+        if (!plan) {
+          plan = await tx.eventSeatingPlan.create({
+            data: {
+              eventId: id,
+              mode: seatingLayout.mode,
+              source: 'CUSTOM',
+            }
+          });
+        }
+        await syncSeatingPlanAndTickets(id, { ...seatingLayout, ...plan }, tx);
+      }
+
+      if (oldStartAt.getTime() !== updatedEvent.startAt.getTime()) {
+        const orders = await tx.order.findMany({
+          where: { eventId: updatedEvent.id, status: "PAID" },
+          select: { id: true, buyerEmail: true, buyerName: true },
+        });
+
+        sendEventDateChangedEmail({
+          eventTitle: updatedEvent.title,
+          oldStartAt,
+          newStartAt: updatedEvent.startAt,
+          timezone: updatedEvent.timezone,
+          venueName: updatedEvent.venue?.name ?? null,
+          attendees: orders.map((o) => ({ email: o.buyerEmail, name: o.buyerName, orderId: o.id })),
+        }).catch((err) => console.error("[date-change-email]", err));
+      }
+      return updatedEvent;
+    });
 
     return ok(event);
   } catch (error) {
+    if (error instanceof Error && error.message === "SERIES_NOT_FOUND") {
+      return fail(404, { code: "SERIES_NOT_FOUND", message: "Series not found" });
+    }
     if (error instanceof Error && error.message === "CITY_REQUIRES_STATE") {
       return fail(400, { code: "CITY_REQUIRES_STATE", message: "Enter or select a state before the city" });
     }

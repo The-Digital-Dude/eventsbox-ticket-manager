@@ -1,11 +1,17 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { ok } from "@/src/lib/http/response";
+import { getPlatformSettings } from "@/src/lib/services/platform-settings";
 
 const DURATION_SHORT_MS = 3 * 60 * 60 * 1000;
 const DURATION_HALF_MS = 6 * 60 * 60 * 1000;
 
 export async function GET(req: NextRequest) {
+  const settings = await getPlatformSettings();
+  if (!settings.publicSearchEnabled) {
+    return ok([]);
+  }
+
   const q = req.nextUrl.searchParams.get("q")?.trim() || undefined;
   const categoryId =
     req.nextUrl.searchParams.get("category") ||

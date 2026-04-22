@@ -5,8 +5,6 @@ import { LayoutBuilderShell } from "@/src/components/organizer/layout-builder-sh
 import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 import { toast } from 'sonner';
 
-import type { EventTicketClass } from "@/src/types/event-draft";
-
 export type LayoutSetupData = {
   seatingConfig: VenueSeatingConfig;
   seatState?: Record<string, SeatState>;
@@ -18,11 +16,10 @@ type LayoutSetupStepProps = {
   layoutType: 'seating' | 'table' | 'mixed';
   onNext: (data: LayoutSetupData) => void;
   onPrevious: () => void;
-  ticketClasses?: EventTicketClass[];
   venueId?: string;
 };
 
-export function LayoutSetupStep({ initialData, layoutType, onNext, onPrevious, ticketClasses, venueId }: LayoutSetupStepProps) {
+export function LayoutSetupStep({ initialData, layoutType, onNext, onPrevious, venueId, errors }: LayoutSetupStepProps) {
   const [fetchedVenueConfig, setFetchedVenueConfig] = useState<VenueSeatingConfig | null>(null);
   const [loadingVenueConfig, setLoadingVenueConfig] = useState(false);
   const [venueName, setVenueName] = useState<string | null>(null);
@@ -80,7 +77,7 @@ export function LayoutSetupStep({ initialData, layoutType, onNext, onPrevious, t
           backLabel="Previous Step"
           onBack={onPrevious}
           onSummaryChange={setSummary}
-          ticketClasses={ticketClasses ?? []}
+          errors={errors}
         />
       </div>
       <div className="md:col-span-1">
@@ -100,20 +97,6 @@ export function LayoutSetupStep({ initialData, layoutType, onNext, onPrevious, t
               <dd className="font-medium text-neutral-900">{summary.totalSeats}</dd>
             </div>
           </dl>
-        </section>
-        <section className="rounded-2xl border border-[var(--border)] bg-white p-4 shadow-sm sticky top-20 mt-4">
-          <h3 className="text-lg font-semibold text-neutral-900 mb-4">Tickets to Accommodate</h3>
-          {ticketClasses && ticketClasses.length > 0 ? (
-            <ul className="space-y-2">
-              {ticketClasses.map(tc => (
-                <li key={tc.id} className="text-sm text-neutral-700">
-                  <span className="font-medium">{tc.name}</span>: {tc.quantity} {tc.type !== 'general' ? `${tc.type} tickets` : 'tickets'}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-neutral-500">No layout-dependent tickets defined.</p>
-          )}
         </section>
       </div>
     </div>

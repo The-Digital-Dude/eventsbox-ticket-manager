@@ -1,23 +1,9 @@
 import { Resend } from "resend";
-import { PlatformConfig } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { env } from "@/src/lib/env";
+import { getCommunicationSettings } from "@/src/lib/services/platform-settings";
 
 let resendClient: Resend | null | undefined;
-let _config: PlatformConfig | null = null;
-
-async function getConfig() {
-  if (!_config) {
-    if (!prisma.platformConfig) return null;
-    try {
-      _config = await prisma.platformConfig.findUnique({ where: { id: "singleton" } });
-    } catch (error) {
-      console.warn("[notifications] Failed to fetch platform config", error);
-      return null;
-    }
-  }
-  return _config;
-}
 
 function getResendClient() {
   if (resendClient !== undefined) return resendClient;
@@ -35,6 +21,7 @@ type EmailPayload = {
 type EmailSendResult =
   | { sent: true; skipped: false }
   | { sent: false; skipped: true; reason: "MISSING_CONFIG" }
+  | { sent: false; skipped: true; reason: "EMAIL_DISABLED" }
   | { sent: false; skipped: true; reason: "OPT_OUT" }
   | { sent: false; skipped: false; reason: "PROVIDER_ERROR" };
 
@@ -54,10 +41,14 @@ async function getMarketingRecipient(email: string) {
 
 async function sendEmail(payload: EmailPayload): Promise<EmailSendResult> {
   const client = getResendClient();
-  const config = await getConfig();
+  const config = await getCommunicationSettings();
 
-  const fromName = config?.smtpFromName || "EventsBox";
-  const fromEmail = config?.smtpFromEmail || env.EMAIL_FROM || "noreply@eventsbox.com";
+  if (!config.emailNotificationsEnabled) {
+    return { sent: false, skipped: true as const, reason: "EMAIL_DISABLED" as const };
+  }
+
+  const fromName = config.smtpFromName || "EventsBox";
+  const fromEmail = config.smtpFromEmail || env.EMAIL_FROM || "noreply@eventsbox.com";
 
   if (!client) {
     console.warn("[email] skipped due to missing configuration", {

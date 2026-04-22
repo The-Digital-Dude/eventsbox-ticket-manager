@@ -1,4 +1,12 @@
-import { OrganizerApprovalStatus, PayoutMode, PayoutRequestStatus, VenueStatus } from "@prisma/client";
+import {
+  OrganizerApprovalStatus,
+  PlatformAutoPublishMode,
+  PlatformCommissionType,
+  PlatformFeeStrategy,
+  PayoutMode,
+  PayoutRequestStatus,
+  VenueStatus,
+} from "@prisma/client";
 import { z } from "zod";
 
 export const organizerDecisionSchema = z.object({
@@ -12,14 +20,47 @@ export const venueDecisionSchema = z.object({
 });
 
 export const configSchema = z.object({
-  platformName: z.string().min(1),
-  brandColor: z.string().startsWith("#"),
-  smtpFromName: z.string().min(1),
-  smtpFromEmail: z.string().email(),
-  defaultCommissionPct: z.number().min(0).max(100),
-  defaultGstPct: z.number().min(0).max(100),
+  platformName: z.string().trim().min(1).max(120),
+  supportEmail: z.string().trim().email(),
+  timezone: z.string().trim().min(1).max(80),
+  defaultCurrency: z.string().trim().length(3).transform((value) => value.toUpperCase()),
+  defaultLocale: z.string().trim().min(2).max(16),
+  logoUrl: z.string().trim().url().optional().nullable().or(z.literal("")),
+  faviconUrl: z.string().trim().url().optional().nullable().or(z.literal("")),
+  brandColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+  secondaryBrandColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+  footerText: z.string().trim().max(500).optional().nullable(),
+  defaultEventApprovalRequired: z.boolean(),
+  defaultOrganizerApprovalRequired: z.boolean(),
+  autoPublishMode: z.nativeEnum(PlatformAutoPublishMode),
+  defaultCancellationPolicy: z.string().trim().max(2000).optional().nullable(),
+  defaultCommissionType: z.nativeEnum(PlatformCommissionType),
+  defaultCommissionValue: z.coerce.number().min(0).max(100000),
+  defaultTaxRate: z.coerce.number().min(0).max(100),
+  defaultFeeStrategy: z.nativeEnum(PlatformFeeStrategy),
+  smtpFromName: z.string().trim().min(1).max(120),
+  smtpFromEmail: z.string().trim().email(),
+  emailNotificationsEnabled: z.boolean(),
+  adminAlertsEnabled: z.boolean(),
+  organizerApprovalEmailEnabled: z.boolean(),
+  eventApprovalEmailEnabled: z.boolean(),
+  defaultMetaTitle: z.string().trim().max(120).optional().nullable(),
+  defaultMetaDescription: z.string().trim().max(300).optional().nullable(),
+  featuredEventLimit: z.coerce.number().int().min(1).max(100),
+  publicSearchEnabled: z.boolean(),
+  searchIndexingEnabled: z.boolean(),
+  defaultCommissionPct: z.coerce.number().min(0).max(100),
+  defaultGstPct: z.coerce.number().min(0).max(100),
   payoutModeDefault: z.nativeEnum(PayoutMode),
-});
+}).transform((data) => ({
+  ...data,
+  logoUrl: data.logoUrl || null,
+  faviconUrl: data.faviconUrl || null,
+  footerText: data.footerText || null,
+  defaultCancellationPolicy: data.defaultCancellationPolicy || null,
+  defaultMetaTitle: data.defaultMetaTitle || null,
+  defaultMetaDescription: data.defaultMetaDescription || null,
+}));
 
 export const categorySchema = z.object({
   name: z.string().min(2),
