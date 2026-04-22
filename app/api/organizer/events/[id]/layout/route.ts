@@ -1,14 +1,21 @@
 import { NextRequest } from "next/server";
-import { EventSeatingSectionType, Prisma, Role } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { resolveEventSeating } from "@/src/lib/event-seating";
 import { fail, ok } from "@/src/lib/http/response";
 import { getEventLayoutDecision, syncEventLayoutMode } from "@/src/lib/services/ticket-class-layout";
+import { getEventSeatingSectionSummaries } from "@/src/lib/services/event-seating-sections";
+import { getTicketClassType } from "@/src/lib/ticket-classes";
 
 import { venueUpdateSchema } from "@/src/lib/validators/organizer";
 import { computeSeatingSummary } from "@/src/lib/validators/venue-seating";
-import type { SeatingSection } from "@/src/types/venue-seating";
+
+type PersistedLayoutSection = {
+  id: string;
+  sectionType: string;
+  capacity: number | null;
+};
 
 async function getOwnEventLayout(eventId: string, organizerUserId: string) {
   const profile = await prisma.organizerProfile.findUnique({ where: { userId: organizerUserId } });
@@ -46,6 +53,7 @@ async function getOwnEventLayout(eventId: string, organizerUserId: string) {
         select: {
           id: true,
           name: true,
+          classType: true,
           isActive: true,
           quantity: true,
           sold: true,
@@ -59,8 +67,11 @@ async function getOwnEventLayout(eventId: string, organizerUserId: string) {
   return { profile, event };
 }
 
-function getSectionType(section: SeatingSection): EventSeatingSectionType {
-  return section.mapType === "table" ? "TABLES" : "ROWS";
+function isCompatibleLayoutSection(classType: string, section: PersistedLayoutSection) {
+  if (classType === "mixed") return section.sectionType === "ROWS" || section.sectionType === "TABLES";
+  if (classType === "seating") return section.sectionType === "ROWS";
+  if (classType === "table") return section.sectionType === "TABLES";
+  return false;
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -90,11 +101,65 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     console.log("6. getEventLayoutDecision SUCCESS. Decision:", layoutDecision);
 
     console.log("7. Calling resolveEventSeating...");
-    resolveEventSeating(event);
+    const seating = resolveEventSeating(event);
     console.log("8. resolveEventSeating SUCCESS.");
 
+    const persistedSections = event.seatingPlan?.sections ?? [];
+    const displaySections = persistedSections.length > 0
+      ? persistedSections
+      : (seating.seatingConfig
+          ? getEventSeatingSectionSummaries(seating.seatingConfig).map((section) => ({
+              id: section.key,
+              key: section.key,
+              name: section.name,
+              sectionType: section.sectionType,
+              capacity: section.capacity,
+              sortOrder: section.sortOrder,
+            }))
+          : []);
+
+    const sections = displaySections.map((section) => {
+      const usedQuantity = event.ticketTypes
+        .filter((ticketClass) => ticketClass.eventSeatingSectionId === section.id)
+        .reduce((sum, ticketClass) => sum + ticketClass.quantity, 0);
+
+      return {
+        id: section.id,
+        key: section.key,
+        name: section.name,
+        sectionType: section.sectionType,
+        capacity: section.capacity,
+        usedQuantity,
+        remainingCapacity: section.capacity === null ? null : Math.max(0, section.capacity - usedQuantity),
+      };
+    });
+
     return ok({
-      // ... response data
+      event: {
+        id: event.id,
+        title: event.title,
+        status: event.status,
+        venue: event.venue
+          ? {
+              id: event.venue.id,
+              name: event.venue.name,
+              addressLine1: event.venue.addressLine1,
+              seatingConfig: event.venue.seatingConfig,
+            }
+          : null,
+        seatingMode: event.seatingMode,
+        ticketClasses: event.ticketTypes.map((ticketClass) => ({
+          ...ticketClass,
+          classType: getTicketClassType(ticketClass.classType),
+        })),
+      },
+      layoutDecision,
+      seating: {
+        source: seating.source,
+        seatingConfig: seating.seatingConfig,
+        seatState: seating.seatState,
+      },
+      sections,
     });
   } catch (error) {
     console.error("--- [GET /layout] CAUGHT ERROR ---", error);
@@ -186,17 +251,49 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
       if (parsed.data.seatingConfig.sections.length > 0) {
         await tx.eventSeatingSection.createMany({
-          data: parsed.data.seatingConfig.sections.map((section, index) => ({
+          data: getEventSeatingSectionSummaries(parsed.data.seatingConfig).map((section) => ({
             eventSeatingPlanId: plan.id,
-            key: section.id,
+            key: section.key,
             name: section.name,
-            sectionType: getSectionType(section),
-            capacity:
-              section.mapType === "table"
-                ? (section.tableConfig?.rows ?? 0) * (section.tableConfig?.columns ?? 0)
-                : (section.columns ?? []).reduce((sum, column) => sum + column.rows * column.seats, 0),
-            sortOrder: index,
+            sectionType: section.sectionType,
+            capacity: section.capacity,
+            sortOrder: section.sortOrder,
           })),
+        });
+      }
+
+      const sections = await tx.eventSeatingSection.findMany({
+        where: { eventSeatingPlanId: plan.id },
+        select: { id: true, sectionType: true, capacity: true },
+        orderBy: { sortOrder: "asc" },
+      });
+      const ticketTypes = await tx.ticketType.findMany({
+        where: { eventId: event.id, isActive: true },
+        select: { id: true, classType: true, quantity: true, eventSeatingSectionId: true },
+        orderBy: { sortOrder: "asc" },
+      });
+      const mappedSectionIds = new Set(ticketTypes.map((ticketType) => ticketType.eventSeatingSectionId).filter(Boolean));
+
+      for (const ticketType of ticketTypes) {
+        if (ticketType.eventSeatingSectionId) continue;
+
+        const classType = getTicketClassType(ticketType.classType);
+        if (classType === "general") continue;
+
+        const compatibleSections = sections.filter((section) => isCompatibleLayoutSection(classType, section));
+        const targetSection =
+          compatibleSections
+            .filter((section) => !mappedSectionIds.has(section.id))
+            .sort((a, b) => (a.capacity ?? Number.MAX_SAFE_INTEGER) - (b.capacity ?? Number.MAX_SAFE_INTEGER))
+            .find((section) => section.capacity === null || section.capacity >= ticketType.quantity) ??
+          compatibleSections.find((section) => !mappedSectionIds.has(section.id));
+
+        if (!targetSection) continue;
+
+        mappedSectionIds.add(targetSection.id);
+        await tx.ticketType.update({
+          where: { id: ticketType.id },
+          data: { eventSeatingSectionId: targetSection.id },
         });
       }
 

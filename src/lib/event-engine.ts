@@ -180,6 +180,52 @@ export function autoMap(ticketClasses: EventTicketClass[], layout: VenueSeatingC
   return mappings;
 }
 
+function makeValidationIssue(path: Array<string | number>, message: string): z.ZodIssue {
+  return {
+    code: "custom",
+    path,
+    message,
+  };
+}
+
+function isCompatibleMappingTarget(ticketClass: EventTicketClass, section: Pick<SeatingSection, "id" | "mapType">) {
+  return isCompatibleSection(ticketClass, section);
+}
+
+function hasText(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+export function isVenueSatisfied(draft: Pick<EventDraft, "details" | "venueId">): boolean {
+  if (hasText(draft.venueId)) return true;
+
+  const details = draft.details as Partial<EventDraft["details"]> & {
+    eventType?: "PHYSICAL" | "ONLINE";
+    location?: Record<string, unknown> & { type?: "PHYSICAL" | "ONLINE" };
+  };
+  const location = details.location;
+  const eventType = location?.type ?? details.eventType;
+
+  if (eventType === "PHYSICAL") {
+    return (
+      hasText(location?.venueName) &&
+      hasText(location?.address) &&
+      hasText(location?.city) &&
+      hasText(location?.country)
+    );
+  }
+
+  if (eventType === "ONLINE") {
+    return hasText(location?.accessLink);
+  }
+
+  return false;
+}
+
+function isLocationIssue(issue: z.ZodIssue) {
+  return issue.path[0] === "details" && issue.path[1] === "location";
+}
+
 
 // ---[ 2. Workflow Engine ] ---
 
@@ -202,12 +248,79 @@ export function deriveNextStep(draft: EventDraft): number {
  */
 export function validateEvent(draft: EventDraft): z.ZodIssue[] {
     const eventData = {
+        venueId: draft.venueId,
         details: draft.details,
         ticketClasses: draft.ticketClasses,
         layout: draft.seatingLayout,
+        mappings: draft.ticketMappings,
+        meta: draft.meta,
     };
     const result = publishableEventSchema.safeParse(eventData);
-    return result.success ? [] : result.error.issues;
+    const schemaIssues = result.success ? [] : result.error.issues;
+    const venueSatisfied = isVenueSatisfied(draft);
+    const issues = venueSatisfied ? schemaIssues.filter((issue) => !isLocationIssue(issue)) : [...schemaIssues];
+
+    if (!venueSatisfied && !issues.some(isLocationIssue)) {
+        issues.push(makeValidationIssue(
+            ["details", "location"],
+            "Add inline physical location details, online access details, or select a legacy venue.",
+        ));
+    }
+
+    const layoutDecision = deriveLayoutMode(draft.ticketClasses);
+    if (!layoutDecision.requiresLayout) {
+        return issues;
+    }
+
+    const sections = draft.seatingLayout.seatingConfig?.sections ?? [];
+    if (sections.length === 0) {
+        issues.push(makeValidationIssue(
+            ["layout"],
+            "Layout is required for seating or table ticket classes.",
+        ));
+        return issues;
+    }
+
+    const mappedTargetIds = new Set<string>();
+    for (const ticketClass of draft.ticketClasses) {
+        if (ticketClass.type === "general") continue;
+
+        const mapping = draft.ticketMappings.find((entry) => entry.ticketClassId === ticketClass.id);
+        if (!mapping) {
+            issues.push(makeValidationIssue(
+                ["mappings", ticketClass.id],
+                `Map the "${ticketClass.name}" ticket class to a layout target.`,
+            ));
+            continue;
+        }
+
+        const target = sections.find((section) => section.id === mapping.targetId);
+        if (!target) {
+            issues.push(makeValidationIssue(
+                ["mappings", ticketClass.id],
+                `The "${ticketClass.name}" ticket class is mapped to a missing layout target.`,
+            ));
+            continue;
+        }
+
+        if (mappedTargetIds.has(mapping.targetId)) {
+            issues.push(makeValidationIssue(
+                ["mappings", ticketClass.id],
+                `The "${ticketClass.name}" ticket class shares a layout target with another ticket class.`,
+            ));
+            continue;
+        }
+        mappedTargetIds.add(mapping.targetId);
+
+        if (!isCompatibleMappingTarget(ticketClass, target)) {
+            issues.push(makeValidationIssue(
+                ["mappings", ticketClass.id],
+                `The "${ticketClass.name}" ticket class is mapped to an incompatible layout target.`,
+            ));
+        }
+    }
+
+    return issues;
 }
 
 /**

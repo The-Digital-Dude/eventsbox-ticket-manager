@@ -17,6 +17,8 @@ const eventSelect = {
   publishedAt: true,
   heroImage: true,
   description: true,
+  eventLocationType: true,
+  location: true,
   startAt: true,
   endAt: true,
   timezone: true,

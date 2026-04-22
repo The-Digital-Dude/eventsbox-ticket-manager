@@ -17,8 +17,11 @@ This document outlines the full validation rules for the organizer event creatio
     -   Must be a valid ISO 8601 datetime string
     -   `endAt` must be after `startAt`
     -   `startAt` must not be in the past
--   `venueId`, `countryId`, `stateId`, `cityId`:
-    -   Required if a location is not entered manually
+-   Venue/location requirement:
+    -   Satisfied by a legacy `venueId`, if present
+    -   Satisfied for physical events by inline `location.venueName`, `location.address`, `location.city`, and `location.country`
+    -   Satisfied for online events by inline `location.accessLink`
+    -   Do not require a separate venue assignment when inline event location details are complete
 
 ## Ticket Classes (Step 2)
 
@@ -56,9 +59,9 @@ This document outlines the full validation rules for the organizer event creatio
 ## Submit for Approval (Step 5)
 
 -   All the above validation rules must pass.
--   The final payload sent to the backend must match the `eventCreateSchema`.
+-   The final payload sent to the backend must match the organizer-first event payload: inline `details.location`, ticket classes, optional event-owned layout, and optional legacy `venueId`.
 
 ## Backend API
 
--   The `POST /api/organizer/events` endpoint must use the `eventCreateSchema` to validate the request body.
+-   The `POST /api/organizer/events` endpoint must validate the organizer-first payload and must not require `venueId` when inline physical or online location details are complete.
 -   The backend must return specific and useful error messages if validation fails.

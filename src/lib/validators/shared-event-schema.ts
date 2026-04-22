@@ -206,16 +206,27 @@ const layoutSchema = z.object({
   summary: z.unknown().optional(),
 }).partial().optional();
 
+const ticketMappingSchema = z.object({
+  ticketClassId: z.string().min(1),
+  targetId: z.string().min(1),
+});
+
 export const baseEventSchema = z.object({
+  venueId: optionalTrimmedText,
   details: eventDetailsSchema.partial(),
   ticketClasses: z.array(ticketClassSchema).default([]),
   layout: layoutSchema,
+  mappings: z.array(ticketMappingSchema).default([]),
+  meta: z.unknown().optional(),
 });
 
 export const publishableEventSchema = z.object({
+  venueId: optionalTrimmedText,
   details: publishableDetailsSchema,
   ticketClasses: z.array(ticketClassSchema).min(1, "At least one ticket class is required"),
   layout: layoutSchema,
+  mappings: z.array(ticketMappingSchema).default([]),
+  meta: z.unknown().optional(),
 });
 
 export const sharedEventSchema = publishableEventSchema;

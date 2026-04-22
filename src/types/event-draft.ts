@@ -38,6 +38,7 @@ export type EventDraftMeta = {
 
 export type EventDraft = {
   details: Partial<EventDetailsFormData>;
+  venueId?: string | null;
   ticketClasses: EventTicketClass[];
   seatingLayout: Partial<EventSeatingLayout>;
   ticketMappings: TicketMapping[];

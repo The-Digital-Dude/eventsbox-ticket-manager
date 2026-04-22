@@ -225,22 +225,25 @@ export function EventCreationWorkflow() {
 
   const handlePublish = async () => {
     if (!draft) return;
-    const issues = validateEvent(draft);
+    const savedDraft = await persistDraft(draft, "Saved draft for submission");
+    if (!savedDraft) return;
+
+    const issues = validateEvent(savedDraft);
     if (issues.length > 0) {
         setValidationErrors(issues.map(issue => ({ step: 5, message: `${issue.path.join('.')} - ${issue.message}` })));
         toast.error("Please review and fix the errors on the final step before publishing.");
+        setDraft(savedDraft);
         setCurrentStep(5);
         return;
     }
     setValidationErrors([]);
     
     setIsSaving(true);
-    const finalPayload = { details: draft.details, ticketClasses: draft.ticketClasses, layout: draft.seatingLayout };
 
     const res = await fetchWithSessionRetry('/api/organizer/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(finalPayload),
+        body: JSON.stringify(savedDraft),
     });
 
     setIsSaving(false);

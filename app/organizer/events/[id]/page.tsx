@@ -43,6 +43,24 @@ type TicketClassView = {
   sortOrder: number;
 };
 
+type EventLocation =
+  | {
+      type: "PHYSICAL";
+      venueName?: string | null;
+      address?: string | null;
+      city?: string | null;
+      state?: string | null;
+      country?: string | null;
+      postalCode?: string | null;
+      locationNotes?: string | null;
+    }
+  | {
+      type: "ONLINE";
+      platform?: string | null;
+      accessLink?: string | null;
+      accessInstructions?: string | null;
+    };
+
 type EventDetail = {
   id: string;
   title: string;
@@ -51,6 +69,8 @@ type EventDetail = {
   publishedAt: string | null;
   heroImage: string | null;
   description: string | null;
+  eventLocationType: string;
+  location: EventLocation | null;
   startAt: string;
   endAt: string;
   timezone: string;
@@ -123,7 +143,41 @@ function formatAuditAction(action: string) {
   return action.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
-function formatLayoutRequirement(layoutMode: string) {
+function getInlineVenueName(location: EventLocation | null) {
+  if (location?.type !== "PHYSICAL") return null;
+  return location.venueName?.trim() || null;
+}
+
+function getInlineLocationAddress(location: EventLocation | null) {
+  if (location?.type !== "PHYSICAL") return null;
+  return [
+    location.address,
+    [location.city, location.state, location.postalCode].filter(Boolean).join(", "),
+    location.country,
+  ]
+    .filter((part): part is string => Boolean(part && part.trim()))
+    .join("\n");
+}
+
+function getOnlineLocationLabel(location: EventLocation | null) {
+  if (location?.type !== "ONLINE") return null;
+  return location.platform?.trim() || location.accessLink?.trim() || "Online event";
+}
+
+function formatLayoutStatus(layoutMode: string, isComplete: boolean) {
+  if (isComplete) {
+    switch (layoutMode) {
+      case "ROWS":
+        return "Seating layout complete";
+      case "TABLES":
+        return "Table layout complete";
+      case "MIXED":
+        return "Mixed layout complete";
+      default:
+        return "No layout required";
+    }
+  }
+
   switch (layoutMode) {
     case "ROWS":
       return "Seating layout required";
@@ -154,8 +208,8 @@ type LayoutData = {
     supportsTables: boolean;
   };
   seating: {
-    seatingConfig: VenueSeatingConfig;
-    seatState?: Record<string, SeatState>;
+    seatingConfig: VenueSeatingConfig | null;
+    seatState?: Record<string, SeatState> | null;
   };
   sections: Array<{
     id: string;
@@ -330,15 +384,47 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
   const canEdit = event?.status === "DRAFT" || event?.status === "REJECTED";
   const ticketClasses = event?.ticketClasses ?? event?.ticketTypes ?? [];
+  const activeTicketClasses = ticketClasses.filter((ticketClass) => ticketClass.isActive);
 
-  const derivedLayoutMode = layoutData?.layoutDecision.eventSeatingMode ?? "GA_ONLY";
+  const derivedLayoutMode =
+    layoutData?.layoutDecision?.eventSeatingMode ??
+    deriveEventLayoutModeFromTicketClasses(activeTicketClasses.map((ticketClass) => ticketClass.classType));
+  const requiresLayout = layoutData?.layoutDecision?.requiresLayout ?? derivedLayoutMode !== "GA_ONLY";
+  const layoutSections = layoutData?.sections ?? [];
+  const layoutTicketClasses = layoutData?.event?.ticketClasses ?? activeTicketClasses;
+  const layoutRequiredTicketClasses = layoutTicketClasses.filter((ticketClass) => ticketClass.isActive && ticketClass.classType !== "general");
+  const hasSavedLayoutSections = layoutSections.length > 0;
+  const hasMappedRequiredTicketClasses = layoutRequiredTicketClasses.every(
+    (ticketClass) => Boolean(ticketClass.eventSeatingSectionId || ticketClass.sectionId),
+  );
+  const isLayoutSetupComplete = !requiresLayout || (hasSavedLayoutSections && hasMappedRequiredTicketClasses);
 
   const canSubmit =
     canEdit &&
-    ticketClasses.filter((ticketClass) => ticketClass.isActive).length > 0 &&
+    activeTicketClasses.length > 0 &&
     (!layoutData ||
-      !layoutData.layoutDecision.requiresLayout ||
-      (layoutData.layoutDecision.requiresLayout && layoutData.sections.length > 0));
+      !requiresLayout ||
+      isLayoutSetupComplete);
+
+  function getLayoutStatusMessage() {
+    if (derivedLayoutMode === "GA_ONLY") {
+      return "All active ticket classes are general admission. You can continue reviewing the event without seating setup.";
+    }
+
+    if (isLayoutSetupComplete) {
+      return event?.venue?.id
+        ? "Layout is saved and ticket classes are mapped. You can edit the layout if seating or table setup changes."
+        : "Event-owned layout is saved and ticket classes are mapped. You can attach a venue later if needed.";
+    }
+
+    if (!hasSavedLayoutSections) {
+      return event?.venue?.id
+        ? "Ticket classes require layout setup. Continue into the event layout builder to create seating or table sections."
+        : "Ticket classes require layout setup. Continue into the event layout builder, then attach or create the venue as needed.";
+    }
+
+    return "Layout sections are saved, but one or more seating or table ticket classes still need a layout target.";
+  }
 
   function continueSetup() {
     if (derivedLayoutMode === "GA_ONLY") {
@@ -346,6 +432,18 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       return;
     }
     router.push(`/organizer/events/${id}/layout`);
+  }
+
+  function getTicketLayoutLabel(ticket: TicketClassView) {
+    if (ticket.eventSeatingSectionId) {
+      return layoutSections.find((section) => section.id === ticket.eventSeatingSectionId)?.name ?? "Mapped layout";
+    }
+
+    if (ticket.sectionId) {
+      return event?.venue?.seatingConfig?.sections.find((section) => section.id === ticket.sectionId)?.name ?? "Mapped venue";
+    }
+
+    return ticket.classType === "general" ? "GA" : "Unmapped";
   }
 
   if (loading) {
@@ -359,6 +457,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   if (!event) return null;
+
+  const inlineVenueName = getInlineVenueName(event.location);
+  const inlineAddress = getInlineLocationAddress(event.location);
+  const onlineLocationLabel = getOnlineLocationLabel(event.location);
+  const venueDisplayName = event.venue?.name ?? inlineVenueName ?? onlineLocationLabel ?? "—";
 
   return (
     <SidebarLayout role="organizer" title="Organizer" items={nav}>
@@ -442,45 +545,41 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         <div className="rounded-xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-[rgb(var(--theme-accent-rgb)/0.05)] px-4 py-3 text-sm text-neutral-700">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-medium text-neutral-900">{formatLayoutRequirement(derivedLayoutMode)}</p>
+              <p className="font-medium text-neutral-900">{formatLayoutStatus(derivedLayoutMode, isLayoutSetupComplete)}</p>
               <p className="mt-1">
-                {derivedLayoutMode === "GA_ONLY"
-                  ? "All active ticket classes are general admission. You can continue reviewing the event without seating setup."
-                  : event.venue?.id
-                    ? "Ticket classes require layout setup. Continue into the event layout builder to finish the flow."
-                    : "Ticket classes require layout setup. Continue into the event layout builder, then attach or create the venue as needed."}
+                {getLayoutStatusMessage()}
               </p>
             </div>
             {derivedLayoutMode !== "GA_ONLY" && (
               <Button size="sm" onClick={continueSetup}>
-                Continue Layout Setup
+                {isLayoutSetupComplete ? "Edit Layout" : "Continue Layout Setup"}
               </Button>
             )}
           </div>
         </div>
       )}
 
-      {layoutData && (layoutData.layoutDecision.requiresLayout || layoutData.seating.seatingConfig) && (
+      {layoutData && (layoutData.layoutDecision?.requiresLayout || layoutData.seating?.seatingConfig) && (
         <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold text-neutral-900">Layout Configuration</h2>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
             <div className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
               <p className="text-sm text-neutral-500">Total Seats</p>
-              <p className="text-lg font-semibold text-neutral-900">{layoutData.seating.seatingConfig?.summary?.totalSeats ?? 0}</p>
+              <p className="text-lg font-semibold text-neutral-900">{layoutData.seating?.seatingConfig?.summary?.totalSeats ?? 0}</p>
             </div>
             <div className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
               <p className="text-sm text-neutral-500">Total Tables</p>
-              <p className="text-lg font-semibold text-neutral-900">{layoutData.seating.seatingConfig?.summary?.totalTables ?? 0}</p>
+              <p className="text-lg font-semibold text-neutral-900">{layoutData.seating?.seatingConfig?.summary?.totalTables ?? 0}</p>
             </div>
             <div className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
               <p className="text-sm text-neutral-500">Number of Sections</p>
-              <p className="text-lg font-semibold text-neutral-900">{layoutData.seating.seatingConfig?.sections?.length ?? 0}</p>
+              <p className="text-lg font-semibold text-neutral-900">{layoutData.seating?.seatingConfig?.sections?.length ?? 0}</p>
             </div>
           </div>
 
           <h3 className="mb-4 text-base font-semibold text-neutral-900">Sections</h3>
-          {layoutData.sections.length === 0 ? (
+          {layoutSections.length === 0 ? (
             <p className="text-sm text-neutral-500">No sections defined.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -496,7 +595,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border)]">
-                  {layoutData.sections.map((section) => (
+                  {layoutSections.map((section) => (
                     <tr key={section.id}>
                       <td className="px-4 py-3 font-medium text-neutral-900">{section.name}</td>
                       <td className="px-4 py-3 text-neutral-700">
@@ -691,12 +790,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                         <Badge className="border-transparent bg-violet-100 text-violet-700">
                           {formatTicketClassTypeLabel(ticket.classType)}
                         </Badge>
-                        {ticket.sectionId ? (
+                        {ticket.eventSeatingSectionId || ticket.sectionId ? (
                           <Badge className="border-transparent bg-sky-100 text-sky-700">
-                            {event.venue?.seatingConfig?.sections.find((s) => s.id === ticket.sectionId)?.name ?? "Seated"}
+                            {getTicketLayoutLabel(ticket)}
                           </Badge>
-                        ) : (
+                        ) : ticket.classType === "general" ? (
                           <Badge className="border-transparent bg-neutral-100 text-neutral-500">GA</Badge>
+                        ) : (
+                          <Badge className="border-transparent bg-amber-100 text-amber-700">Unmapped</Badge>
                         )}
                         {!ticket.isActive && <Badge className="bg-neutral-100 text-neutral-500">Inactive</Badge>}
                       </div>
@@ -761,7 +862,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         <div className="grid gap-4 md:grid-cols-2">
           {[
             { label: "Category", value: event.category?.name ?? "—" },
-            { label: "Venue", value: event.venue?.name ?? "—" },
+            { label: event.location?.type === "ONLINE" ? "Online Location" : "Venue", value: venueDisplayName },
             { label: "Contact Email", value: event.contactEmail ?? "—" },
             { label: "Contact Phone", value: event.contactPhone ?? "—" },
             { label: "Commission", value: `${event.commissionPct}%` },
@@ -772,6 +873,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               <p className="text-sm font-medium text-neutral-900">{value}</p>
             </div>
           ))}
+          {inlineAddress && (
+            <div className="md:col-span-2">
+              <p className="text-sm text-neutral-500">Inline Location</p>
+              <p className="whitespace-pre-wrap text-sm text-neutral-900">{inlineAddress}</p>
+            </div>
+          )}
           {event.description && (
             <div className="md:col-span-2">
               <p className="text-sm text-neutral-500">Description</p>
