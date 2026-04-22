@@ -1,404 +1,523 @@
- "use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { useEffect, useMemo, useState } from "react";
+import type React from "react";
+import { Controller, type FieldErrors, type Resolver, useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { PlacesAutocomplete } from "@/src/components/ui/places-autocomplete";
-import { SearchableSelect } from "@/src/components/ui/searchable-select";
 import { Button } from "@/src/components/ui/button";
-
-import { EventDetailsFormData, matchLocation } from "@/src/types/event-form-data";
+import { Textarea } from "@/src/components/ui/textarea";
+import { SearchableSelect } from "@/src/components/ui/searchable-select";
 import { TIMEZONES } from "@/src/lib/timezones";
-import { CURRENCIES } from "@/src/lib/currency";
-import { validate } from "@/src/lib/validate";
-import { sharedEventSchema } from "@/src/lib/validators/shared-event-schema";
+import { combineDateTimeInTimezone, eventDetailsSchema } from "@/src/lib/validators/shared-event-schema";
+import type { EventDetailsFormData } from "@/src/types/event-draft";
 
-type CountryRow = { id: string; code: string; name: string };
-type StateRow = { id: string; name: string; countryId: string | null; cities: { id: string; name: string }[] };
-type CategoryRow = { id: string; name: string };
-type VenueRow = { id: string; name: string; status: string };
+type CategoryOption = { id: string; name: string };
+type SaveState = "idle" | "saving" | "saved";
 
-export function EventDetailsStep({
-  initialData,
-  onNext,
-}: {
+type EventDetailsStepProps = {
   initialData?: Partial<EventDetailsFormData>;
-  onNext: (data: EventDetailsFormData) => void;
-}) {
-  const [saving, setSaving] = useState(false);
-  const [countries, setCountries] = useState<CountryRow[]>([]);
-  const [states, setStates] = useState<StateRow[]>([]);
-  const [categories, setCategories] = useState<CategoryRow[]>([]);
-  const [venues, setVenues] = useState<VenueRow[]>([]);
+  onNext: (data: EventDetailsFormData) => void | Promise<void>;
+};
 
-  const [title, setTitle] = useState(initialData?.title ?? "");
-  const [description, setDescription] = useState(initialData?.description ?? "");
-  const [categoryId, setCategoryId] = useState(initialData?.categoryId ?? "");
-  const [venueId, setVenueId] = useState(initialData?.venueId ?? "");
-  const [countryId, setCountryId] = useState(initialData?.countryId ?? "");
-  const [stateId, setStateId] = useState(initialData?.stateId ?? "");
-  const [cityId, setCityId] = useState(initialData?.cityId ?? "");
-  const [stateName, setStateName] = useState(initialData?.stateName ?? "");
-  const [cityName, setCityName] = useState(initialData?.cityName ?? "");
-  const [startAt, setStartAt] = useState(initialData?.startAt ?? "");
-  const [endAt, setEndAt] = useState(initialData?.endAt ?? "");
-  const [timezone, setTimezone] = useState(initialData?.timezone ?? "UTC");
-  const [contactEmail, setContactEmail] = useState(initialData?.contactEmail ?? "");
-  const [contactPhone, setContactPhone] = useState(initialData?.contactPhone ?? "");
-  const [heroImage, setHeroImage] = useState(initialData?.heroImage ?? "");
-  const [videoUrl, setVideoUrl] = useState(initialData?.videoUrl ?? "");
-  const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
-  const [cancelPolicy, setCancelPolicy] = useState(initialData?.cancelPolicy ?? "");
-  const [refundPolicy, setRefundPolicy] = useState(initialData?.refundPolicy ?? "");
-  const [currency, setCurrency] = useState(initialData?.currency ?? "USD");
-  const [commissionPct, setCommissionPct] = useState(initialData?.commissionPct ?? "10");
-  const [gstPct, setGstPct] = useState(initialData?.gstPct ?? "15");
-  const [platformFeeFixed, setPlatformFeeFixed] = useState(initialData?.platformFeeFixed ?? "0");
-  const [tags, setTags] = useState<string[]>(initialData?.tags ?? []);
-  const [tagInput, setTagInput] = useState("");
-  const [audience, setAudience] = useState(initialData?.audience ?? "");
-  const [lat, setLat] = useState<number | undefined>(initialData?.lat);
-  const [lng, setLng] = useState<number | undefined>(initialData?.lng);
+const defaultTimezone = TIMEZONES.includes("UTC") ? "UTC" : TIMEZONES[0] ?? "UTC";
 
-  const filteredStates = states.filter((state) => !countryId || state.countryId === countryId);
-  const cities = filteredStates.find((state) => state.id === stateId)?.cities ?? [];
+const defaultDetails: EventDetailsFormData = {
+  title: "",
+  tagline: "",
+  description: "",
+  category: "",
+  tags: [],
+  location: {
+    type: "PHYSICAL",
+    venueName: "",
+    address: "",
+    city: "",
+    state: "",
+    country: "",
+    postalCode: "",
+    mapLink: "",
+    locationNotes: "",
+  },
+  schedule: {
+    startDate: "",
+    startTime: "",
+    endDate: "",
+    endTime: "",
+    startsAt: "",
+    endsAt: "",
+    timezone: defaultTimezone,
+    isRecurring: false,
+  },
+  organizer: {
+    organizerName: "",
+    organizerEmail: "",
+    organizerPhone: "",
+    organizerWebsite: "",
+  },
+  media: {
+    coverImage: "",
+    gallery: [],
+    promoVideoUrl: "",
+  },
+  policies: {
+    refundPolicy: "",
+    cancellationPolicy: "",
+    transferAllowed: true,
+    specialInstructions: "",
+  },
+  visibility: {
+    visibility: "PUBLIC",
+    slug: "",
+  },
+};
 
-  function toIsoDatetime(value: string) {
-    return new Date(value).toISOString();
+function slugifyDraftTitle(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function mergeDetails(initialData?: Partial<EventDetailsFormData>): EventDetailsFormData {
+  return {
+    ...defaultDetails,
+    ...initialData,
+    tags: initialData?.tags ?? defaultDetails.tags,
+    location: {
+      ...defaultDetails.location,
+      ...(initialData?.location ?? {}),
+    } as EventDetailsFormData["location"],
+    schedule: {
+      ...defaultDetails.schedule,
+      ...(initialData?.schedule ?? {}),
+      timezone: initialData?.schedule?.timezone || defaultDetails.schedule.timezone,
+    },
+    organizer: {
+      ...defaultDetails.organizer,
+      ...(initialData?.organizer ?? {}),
+    },
+    media: {
+      ...defaultDetails.media,
+      ...(initialData?.media ?? {}),
+      gallery: initialData?.media?.gallery ?? defaultDetails.media.gallery,
+    },
+    policies: {
+      ...defaultDetails.policies,
+      ...(initialData?.policies ?? {}),
+    },
+    visibility: {
+      ...defaultDetails.visibility,
+      ...(initialData?.visibility ?? {}),
+    },
+  };
+}
+
+function getErrorMessage(errors: FieldErrors<EventDetailsFormData>, path: string[]) {
+  let current: unknown = errors;
+  for (const segment of path) {
+    if (!current || typeof current !== "object" || !(segment in current)) return undefined;
+    current = (current as Record<string, unknown>)[segment];
   }
+  if (current && typeof current === "object" && "message" in current) {
+    const message = (current as { message?: unknown }).message;
+    return typeof message === "string" ? message : undefined;
+  }
+  return undefined;
+}
 
-  function addTag(value: string) {
-    const trimmed = value.trim().replace(/,+$/, "").trim();
-    if (!trimmed) return;
-    if (trimmed.length > 30) return toast.error("Tag must be 30 characters or fewer");
-    if (tags.length >= 10) return toast.error("Maximum 10 tags allowed");
-    if (tags.includes(trimmed)) return;
-    setTags((prev) => [...prev, trimmed]);
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+      <div className="mb-5">
+        <h2 className="text-lg font-semibold text-neutral-900">{title}</h2>
+        <p className="mt-1 text-sm text-neutral-600">{description}</p>
+      </div>
+      <div className="grid gap-5">{children}</div>
+    </section>
+  );
+}
+
+function Field({
+  label,
+  helper,
+  error,
+  children,
+}: {
+  label: string;
+  helper?: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-2">
+      <Label className="text-sm font-medium text-neutral-800">{label}</Label>
+      {children}
+      {helper ? <p className="text-xs text-neutral-500">{helper}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+    </div>
+  );
+}
+
+export function EventDetailsStep({ initialData, onNext }: EventDetailsStepProps) {
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [galleryInput, setGalleryInput] = useState("");
+  const [slugEdited, setSlugEdited] = useState(Boolean(initialData?.visibility?.slug));
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const timezoneOptions = useMemo(
+    () => Array.from(new Set(["UTC", ...TIMEZONES])).map((timezone) => ({ value: timezone, label: timezone.replace(/_/g, " ") })),
+    [],
+  );
+
+  const {
+    control,
+    formState: { errors, isSubmitting },
+    handleSubmit,
+    register,
+    setError,
+    setValue,
+  } = useForm<EventDetailsFormData>({
+    resolver: zodResolver(eventDetailsSchema) as Resolver<EventDetailsFormData>,
+    defaultValues: mergeDetails(initialData),
+    mode: "onBlur",
+  });
+
+  const title = useWatch({ control, name: "title" }) ?? "";
+  const tags = useWatch({ control, name: "tags" }) ?? [];
+  const gallery = useWatch({ control, name: "media.gallery" }) ?? [];
+  const locationType = useWatch({ control, name: "location.type" });
+  const currentSlug = useWatch({ control, name: "visibility.slug" });
+
+  useEffect(() => {
+    fetch("/api/public/categories")
+      .then((response) => response.json())
+      .then((payload) => setCategories(payload?.data ?? []))
+      .catch(() => setCategories([]));
+  }, []);
+
+  useEffect(() => {
+    if (!slugEdited) {
+      setValue("visibility.slug", slugifyDraftTitle(title), { shouldDirty: true });
+    }
+  }, [slugEdited, setValue, title]);
+
+  function addTag() {
+    const nextTag = tagInput.trim().replace(/,+$/, "").trim();
+    if (!nextTag || tags.includes(nextTag) || tags.length >= 10) return;
+    setValue("tags", [...tags, nextTag], { shouldDirty: true, shouldValidate: true });
+    setTagInput("");
   }
 
   function removeTag(tag: string) {
-    setTags((prev) => prev.filter((t) => t !== tag));
+    setValue("tags", tags.filter((item) => item !== tag), { shouldDirty: true, shouldValidate: true });
   }
 
-  useEffect(() => {
-    Promise.all([
-      fetch("/api/public/locations").then((r) => r.json()),
-      fetch("/api/public/categories").then((r) => r.json()),
-      fetch("/api/organizer/venues").then((r) => r.json()),
-    ]).then(([l, c, v]) => {
-      setCountries(l?.data?.countries ?? []);
-      setStates(l?.data?.states ?? []);
-      setCategories(c?.data ?? []);
-      setVenues((v?.data ?? []).filter((venue: { status: string }) => venue.status === "APPROVED"));
-    });
-  }, []);
+  function addGalleryImage() {
+    const nextImage = galleryInput.trim();
+    if (!nextImage || gallery.includes(nextImage)) return;
+    setValue("media.gallery", [...gallery, nextImage], { shouldDirty: true, shouldValidate: true });
+    setGalleryInput("");
+  }
 
+  function removeGalleryImage(image: string) {
+    setValue("media.gallery", gallery.filter((item) => item !== image), { shouldDirty: true, shouldValidate: true });
+  }
 
+  async function submitDetails(data: EventDetailsFormData) {
+    const startsAt = combineDateTimeInTimezone(data.schedule.startDate, data.schedule.startTime, data.schedule.timezone);
+    const endsAt = combineDateTimeInTimezone(data.schedule.endDate, data.schedule.endTime, data.schedule.timezone);
 
-// ...
-
-  async function handleSubmit() {
-    const formData: EventDetailsFormData = {
-      title, description, categoryId, venueId, countryId,
-      stateId, cityName, startAt: toIsoDatetime(startAt), endAt: toIsoDatetime(endAt), timezone, contactEmail,
-      contactPhone, heroImage, videoUrl, cancelPolicy, refundPolicy,
-      currency, commissionPct, gstPct, platformFeeFixed, tags, audience,
-      lat, lng, stateName, cityId
-    };
-
-    const { isValid, errors } = validate(sharedEventSchema.pick({ title: true, startAt: true, endAt: true }), formData);
-    if (!isValid) {
-      const errorMessages = Object.values(errors).flat().join("\n");
-      toast.error("Invalid event details:", { description: errorMessages });
+    if (!startsAt || !endsAt) {
+      setError("schedule.endTime", { message: "Choose a valid date, time, and timezone" });
       return;
     }
 
-    setSaving(true);
-    onNext(formData);
-    setSaving(false);
-  }
+    if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
+      setError("schedule.endTime", { message: "End time must be after the start time" });
+      return;
+    }
 
-  async function uploadHero(file: File) {
-    setUploadingHeroImage(true);
-    const fd = new FormData();
-    fd.append("file", file);
-
-    const res = await fetch("/api/organizer/uploads/event-image", {
-      method: "POST",
-      body: fd,
+    setSaveState("saving");
+    await onNext({
+      ...data,
+      schedule: {
+        ...data.schedule,
+        startsAt,
+        endsAt,
+      },
+      visibility: {
+        ...data.visibility,
+        slug: data.visibility.slug || slugifyDraftTitle(data.title),
+      },
     });
-    const payload = await res.json();
-    setUploadingHeroImage(false);
-    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to upload image");
-    setHeroImage(payload.data.url);
-    toast.success("Hero image uploaded");
+    setSaveState("saved");
   }
 
   return (
-    <div className="space-y-6">
-      {/* Basic Info */}
-      <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-neutral-900">Basic Information</h2>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Event Title <span className="text-red-500">*</span></Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Summer Music Festival 2026" />
+    <form onSubmit={handleSubmit(submitDetails)} className="space-y-6">
+      <section className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.22)] bg-[rgb(var(--theme-accent-rgb)/0.06)] p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[var(--theme-accent)]">Step 1 · Event Details</p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">Build the public event profile</h1>
+            <p className="mt-2 max-w-3xl text-sm text-neutral-700">
+              Add the details attendees need before ticket setup. Date, time, location, and visibility are validated before continuing.
+            </p>
           </div>
-          <div className="space-y-2">
-            <Label>Description</Label>
-            <textarea
-              className="h-32 w-full resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--theme-accent-rgb)/0.25)]"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe your event..."
-              maxLength={5000}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Hero Image</Label>
-            <Input
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                void uploadHero(file);
-              }}
-            />
-            <Input
-              value={heroImage}
-              onChange={(e) => setHeroImage(e.target.value)}
-              placeholder="Or paste image URL"
-            />
-            {uploadingHeroImage && <p className="text-xs text-neutral-500">Uploading image...</p>}
-            {heroImage && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={heroImage} alt="Event hero preview" className="h-40 w-full rounded-xl object-cover" />
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label>Promo Video (optional)</Label>
-            <Input
-              type="url"
-              value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=... or https://vimeo.com/..."
-            />
-            <p className="text-xs text-neutral-500">Paste a YouTube or Vimeo link to show a video on your event page</p>
-          </div>
-          <div className="space-y-2">
-            <Label>Search Location</Label>
-            <PlacesAutocomplete
-              placeholder="Start typing a location to search..."
-              onSelect={(place) => {
-                if (place.lat !== undefined) setLat(place.lat);
-                if (place.lng !== undefined) setLng(place.lng);
-                const { countryId: cId, stateId: sId, cityId: ciId } = matchLocation(place, { countries, states });
-                if (cId) setCountryId(cId);
-                if (sId) setStateId(sId); else setStateId("");
-                if (ciId) setCityId(ciId); else setCityId("");
-                setStateName("");
-                setCityName("");
-                toast.success("Location auto-filled from Google Maps");
-              }}
-            />
-            <p className="text-xs text-neutral-500">Use autocomplete when available, or choose country, state, and city manually below.</p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Category</Label>
-              <select className="app-select" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-                <option value="">Select category (optional)</option>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label>Venue</Label>
-              <select className="app-select" value={venueId} onChange={(e) => setVenueId(e.target.value)}>
-                <option value="">Select venue (optional)</option>
-                {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label>Country</Label>
-              <SearchableSelect
-                options={[{ value: "", label: "Select country (optional)" }, ...countries.map((c) => ({ value: c.id, label: c.name }))]}
-                value={countryId}
-                onChange={(v) => { setCountryId(v); setStateId(""); setCityId(""); }}
-                placeholder="Select country (optional)"
-                searchPlaceholder="Search countries..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>State</Label>
-              <SearchableSelect
-                options={[{ value: "", label: "Select state (optional)" }, ...filteredStates.map((s) => ({ value: s.id, label: s.name }))]}
-                value={stateId}
-                onChange={(v) => { setStateId(v); setCityId(""); if (v) setStateName(""); }}
-                placeholder="Select state (optional)"
-                searchPlaceholder="Search states..."
-                disabled={!countryId}
-              />
-              <Input
-                value={stateName}
-                onChange={(e) => { setStateName(e.target.value); if (e.target.value.trim()) setStateId(""); }}
-                placeholder="Or type state manually"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>City</Label>
-              <SearchableSelect
-                options={[{ value: "", label: "Select city (optional)" }, ...cities.map((c) => ({ value: c.id, label: c.name }))]}
-                value={cityId}
-                onChange={(v) => { setCityId(v); if (v) setCityName(""); }}
-                placeholder="Select city (optional)"
-                searchPlaceholder="Search cities..."
-                disabled={!stateId}
-              />
-              <Input
-                value={cityName}
-                onChange={(e) => { setCityName(e.target.value); if (e.target.value.trim()) setCityId(""); }}
-                placeholder="Or type city manually"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Audience</Label>
-              <select className="app-select" value={audience} onChange={(e) => setAudience(e.target.value)}>
-                <option value="">All Ages (default)</option>
-                <option value="Families">Families</option>
-                <option value="Kids (Under 12)">Kids (Under 12)</option>
-                <option value="Teens (13-17)">Teens (13-17)</option>
-                <option value="18+">18+</option>
-                <option value="21+">21+
-                </option>
-                <option value="Professionals">Professionals</option>
-                <option value="Seniors">Seniors</option>
-              </select>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Tags</Label>
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {tags.map((tag) => (
-                  <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[rgb(var(--theme-accent-rgb)/0.1)] px-3 py-1 text-sm text-[var(--theme-accent)]">
-                    {tag}
-                    <button type="button" onClick={() => removeTag(tag)} className="hover:opacity-70">×</button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <input
-              type="text"
-              value={tagInput}
-              placeholder="Add a tag..."
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === ",") {
-                  e.preventDefault();
-                  addTag(tagInput);
-                  setTagInput("");
-                }
-              }}
-              className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--theme-accent-rgb)/0.25)]"
-            />
-            <p className="text-xs text-neutral-500">Press Enter or comma to add a tag. Max 10 tags, 30 chars each.</p>
+          <div className="rounded-full border border-[var(--border)] bg-white px-3 py-1 text-sm text-neutral-600">
+            {saveState === "saving" || isSubmitting ? "Saving..." : saveState === "saved" ? "Saved" : "Draft"}
           </div>
         </div>
       </section>
 
-      {/* Schedule */}
-      <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-neutral-900">Schedule</h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Start Date & Time <span className="text-red-500">*</span></Label>
-            <Input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>End Date & Time <span className="text-red-500">*</span></Label>
-            <Input type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Timezone</Label>
-            <SearchableSelect
-              options={TIMEZONES.map((tz) => ({ value: tz, label: tz.replace(/_/g, ' ') }))}
-              value={timezone}
-              onChange={setTimezone}
-              placeholder="Select timezone"
-              searchPlaceholder="Search timezones..."
-            />
-          </div>
+      <Section title="Event Basics" description="Name the event, classify it, and add searchable tags.">
+        <div className="grid gap-5 md:grid-cols-2">
+          <Field label="Title" error={errors.title?.message}>
+            <Input {...register("title")} placeholder="Summer Music Festival 2026" />
+          </Field>
+          <Field label="Tagline" helper="Optional short line shown near the title." error={errors.tagline?.message}>
+            <Input {...register("tagline")} placeholder="One night. Three stages. Local food." />
+          </Field>
         </div>
-      </section>
-
-      {/* Contact & Policies */}
-      <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-neutral-900">Contact & Policies</h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Contact Email</Label>
-            <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="tickets@example.com" />
-          </div>
-          <div className="space-y-2">
-            <Label>Contact Phone</Label>
-            <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="+64 9 123 4567" />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label>Cancellation Policy</Label>
-            <textarea
-              className="h-20 w-full resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--theme-accent-rgb)/0.25)]"
-              value={cancelPolicy}
-              onChange={(e) => setCancelPolicy(e.target.value)}
-              placeholder="Describe your cancellation policy..."
-            />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label>Refund Policy</Label>
-            <textarea
-              className="h-20 w-full resize-none rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--theme-accent-rgb)/0.25)]"
-              value={refundPolicy}
-              onChange={(e) => setRefundPolicy(e.target.value)}
-              placeholder="Describe your refund policy..."
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Fees */}
-      <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-neutral-900">Fee Configuration</h2>
-        <p className="mb-4 text-sm text-neutral-600">These defaults come from platform config. Override per-event if needed.</p>
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="space-y-2">
-            <Label>Currency</Label>
-            <select className="app-select" value={currency} onChange={(e) => setCurrency(e.target.value)}>
-              {CURRENCIES.map((c) => (
-                <option key={c.code} value={c.code}>{c.code} — {c.name} ({c.symbol})</option>
+        <Field label="Description" error={errors.description?.message}>
+          <Textarea {...register("description")} className="min-h-36" placeholder="Describe the event, lineup, schedule highlights, accessibility details, and what attendees should expect." />
+        </Field>
+        <div className="grid gap-5 md:grid-cols-2">
+          <Field label="Category" error={errors.category?.message}>
+            <select className="app-select" {...register("category")}>
+              <option value="">Select category</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
               ))}
             </select>
-          </div>
-          <div className="space-y-2">
-            <Label>Platform Commission (%)</Label>
-            <Input type="number" min="0" max="100" step="0.5" value={commissionPct} onChange={(e) => setCommissionPct(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>GST (%)</Label>
-            <Input type="number" min="0" max="100" step="0.5" value={gstPct} onChange={(e) => setGstPct(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Fixed Platform Fee</Label>
-            <Input type="number" min="0" step="0.01" value={platformFeeFixed} onChange={(e) => setPlatformFeeFixed(e.target.value)} />
-          </div>
+          </Field>
+          <Field label="Tags" helper="Press Enter or comma to add up to 10 tags.">
+            <div className="space-y-3">
+              {tags.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-2 rounded-full bg-[rgb(var(--theme-accent-rgb)/0.1)] px-3 py-1 text-sm text-[var(--theme-accent)]">
+                      {tag}
+                      <button type="button" onClick={() => removeTag(tag)} className="text-xs hover:opacity-70">x</button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <Input
+                value={tagInput}
+                onChange={(event) => setTagInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === ",") {
+                    event.preventDefault();
+                    addTag();
+                  }
+                }}
+                placeholder="Add a tag"
+              />
+            </div>
+          </Field>
         </div>
-      </section>
+      </Section>
 
-      <div className="flex justify-end gap-3">
-        <Button onClick={handleSubmit} disabled={saving}>
-          {saving ? "Saving..." : "Next: Tickets"}
+      <Section title="Event Type & Location" description="Capture the correct location fields based on whether the event is physical or online.">
+        <Field label="Event Type" error={getErrorMessage(errors, ["location", "type"])}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(["PHYSICAL", "ONLINE"] as const).map((type) => (
+              <label key={type} className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-sm text-neutral-800">
+                <input type="radio" value={type} {...register("location.type")} />
+                <span>{type === "PHYSICAL" ? "Physical venue" : "Online event"}</span>
+              </label>
+            ))}
+          </div>
+        </Field>
+
+        {locationType === "PHYSICAL" ? (
+          <div className="grid gap-5 md:grid-cols-2">
+            <Field label="Venue Name" error={getErrorMessage(errors, ["location", "venueName"])}>
+              <Input {...register("location.venueName")} placeholder="Town Hall Auditorium" />
+            </Field>
+            <Field label="Address" error={getErrorMessage(errors, ["location", "address"])}>
+              <Input {...register("location.address")} placeholder="123 Main Street" />
+            </Field>
+            <Field label="City" error={getErrorMessage(errors, ["location", "city"])}>
+              <Input {...register("location.city")} placeholder="New York" />
+            </Field>
+            <Field label="State / Region" error={getErrorMessage(errors, ["location", "state"])}>
+              <Input {...register("location.state")} placeholder="NY" />
+            </Field>
+            <Field label="Country" error={getErrorMessage(errors, ["location", "country"])}>
+              <Input {...register("location.country")} placeholder="United States" />
+            </Field>
+            <Field label="Postal Code" error={getErrorMessage(errors, ["location", "postalCode"])}>
+              <Input {...register("location.postalCode")} placeholder="10001" />
+            </Field>
+            <Field label="Map Link" error={getErrorMessage(errors, ["location", "mapLink"])}>
+              <Input {...register("location.mapLink")} placeholder="https://maps.google.com/..." />
+            </Field>
+            <Field label="Location Notes" error={getErrorMessage(errors, ["location", "locationNotes"])}>
+              <Textarea {...register("location.locationNotes")} placeholder="Parking, entry gate, accessibility, or arrival notes." />
+            </Field>
+          </div>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2">
+            <Field label="Platform" error={getErrorMessage(errors, ["location", "platform"])}>
+              <Input {...register("location.platform")} placeholder="Zoom, Google Meet, Hopin..." />
+            </Field>
+            <Field label="Access Link" error={getErrorMessage(errors, ["location", "accessLink"])}>
+              <Input {...register("location.accessLink")} placeholder="https://..." />
+            </Field>
+            <div className="md:col-span-2">
+              <Field label="Access Instructions" error={getErrorMessage(errors, ["location", "accessInstructions"])}>
+                <Textarea {...register("location.accessInstructions")} placeholder="Tell attendees when and how the online link will be available." />
+              </Field>
+            </div>
+          </div>
+        )}
+      </Section>
+
+      <Section title="Date & Time" description="Choose date, time, and timezone together. We store safe ISO timestamps in the draft.">
+        <div className="grid gap-5 md:grid-cols-2">
+          <Field label="Start Date" error={getErrorMessage(errors, ["schedule", "startDate"])}>
+            <Input type="date" {...register("schedule.startDate")} />
+          </Field>
+          <Field label="Start Time" error={getErrorMessage(errors, ["schedule", "startTime"])}>
+            <Input type="time" {...register("schedule.startTime")} />
+          </Field>
+          <Field label="End Date" error={getErrorMessage(errors, ["schedule", "endDate"])}>
+            <Input type="date" {...register("schedule.endDate")} />
+          </Field>
+          <Field label="End Time" error={getErrorMessage(errors, ["schedule", "endTime"])}>
+            <Input type="time" {...register("schedule.endTime")} />
+          </Field>
+          <Field label="Timezone" error={getErrorMessage(errors, ["schedule", "timezone"])}>
+            <Controller
+              name="schedule.timezone"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect
+                  options={timezoneOptions}
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Select timezone"
+                  searchPlaceholder="Search timezones..."
+                />
+              )}
+            />
+          </Field>
+          <label className="flex items-center gap-3 rounded-xl border border-[var(--border)] px-4 py-3 text-sm text-neutral-700">
+            <input type="checkbox" {...register("schedule.isRecurring")} />
+            <span>This is a recurring event</span>
+          </label>
+        </div>
+      </Section>
+
+      <Section title="Organizer Info" description="Show attendees who is running the event and how to contact them.">
+        <div className="grid gap-5 md:grid-cols-2">
+          <Field label="Organizer Name" error={getErrorMessage(errors, ["organizer", "organizerName"])}>
+            <Input {...register("organizer.organizerName")} placeholder="Eventsbox Productions" />
+          </Field>
+          <Field label="Organizer Email" error={getErrorMessage(errors, ["organizer", "organizerEmail"])}>
+            <Input type="email" {...register("organizer.organizerEmail")} placeholder="hello@example.com" />
+          </Field>
+          <Field label="Organizer Phone" error={getErrorMessage(errors, ["organizer", "organizerPhone"])}>
+            <Input {...register("organizer.organizerPhone")} placeholder="+1 555 123 4567" />
+          </Field>
+          <Field label="Organizer Website" error={getErrorMessage(errors, ["organizer", "organizerWebsite"])}>
+            <Input {...register("organizer.organizerWebsite")} placeholder="https://example.com" />
+          </Field>
+        </div>
+      </Section>
+
+      <Section title="Event Media" description="Add the visuals attendees will see on the event page.">
+        <div className="grid gap-5 md:grid-cols-2">
+          <Field label="Cover Image" error={getErrorMessage(errors, ["media", "coverImage"])}>
+            <Input {...register("media.coverImage")} placeholder="https://..." />
+          </Field>
+          <Field label="Promo Video URL" error={getErrorMessage(errors, ["media", "promoVideoUrl"])}>
+            <Input {...register("media.promoVideoUrl")} placeholder="https://youtube.com/watch?v=..." />
+          </Field>
+        </div>
+        <Field label="Gallery" helper="Add image URLs for the event gallery.">
+          <div className="space-y-3">
+            {gallery.length > 0 ? (
+              <div className="grid gap-2">
+                {gallery.map((image) => (
+                  <div key={image} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] px-3 py-2 text-sm">
+                    <span className="truncate">{image}</span>
+                    <button type="button" onClick={() => removeGalleryImage(image)} className="text-red-600 hover:text-red-700">Remove</button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div className="flex gap-2">
+              <Input value={galleryInput} onChange={(event) => setGalleryInput(event.target.value)} placeholder="https://..." />
+              <Button type="button" variant="outline" onClick={addGalleryImage}>Add</Button>
+            </div>
+            {getErrorMessage(errors, ["media", "gallery"]) ? <p className="text-sm text-red-600">{getErrorMessage(errors, ["media", "gallery"])}</p> : null}
+          </div>
+        </Field>
+      </Section>
+
+      <Section title="Policies" description="Set expectations for refunds, cancellations, transfers, and attendee instructions.">
+        <div className="grid gap-5 md:grid-cols-2">
+          <Field label="Refund Policy" error={getErrorMessage(errors, ["policies", "refundPolicy"])}>
+            <Textarea {...register("policies.refundPolicy")} placeholder="Describe refund eligibility and timing." />
+          </Field>
+          <Field label="Cancellation Policy" error={getErrorMessage(errors, ["policies", "cancellationPolicy"])}>
+            <Textarea {...register("policies.cancellationPolicy")} placeholder="Explain what happens if the event is cancelled." />
+          </Field>
+          <label className="flex items-center gap-3 rounded-xl border border-[var(--border)] px-4 py-3 text-sm text-neutral-700">
+            <input type="checkbox" {...register("policies.transferAllowed")} />
+            <span>Allow ticket transfers</span>
+          </label>
+          <Field label="Special Instructions" error={getErrorMessage(errors, ["policies", "specialInstructions"])}>
+            <Textarea {...register("policies.specialInstructions")} placeholder="Age restrictions, entry requirements, prohibited items, or accessibility notes." />
+          </Field>
+        </div>
+      </Section>
+
+      <Section title="Visibility" description="Control how attendees can find the event.">
+        <div className="grid gap-5 md:grid-cols-2">
+          <Field label="Visibility" error={getErrorMessage(errors, ["visibility", "visibility"])}>
+            <select className="app-select" {...register("visibility.visibility")}>
+              <option value="PUBLIC">Public</option>
+              <option value="PRIVATE">Private</option>
+              <option value="UNLISTED">Unlisted</option>
+            </select>
+          </Field>
+          <Field label="Slug" helper="Auto-generated from the title, but editable." error={getErrorMessage(errors, ["visibility", "slug"])}>
+            <Input
+              value={currentSlug ?? ""}
+              onChange={(event) => {
+                setSlugEdited(true);
+                setValue("visibility.slug", slugifyDraftTitle(event.target.value), { shouldDirty: true, shouldValidate: true });
+              }}
+              placeholder="event-url-slug"
+            />
+          </Field>
+        </div>
+      </Section>
+
+      <div className="flex items-center justify-end gap-3 border-t border-neutral-200 pt-5">
+        <span className="text-sm text-neutral-500">
+          {saveState === "saving" || isSubmitting ? "Saving..." : saveState === "saved" ? "Saved" : null}
+        </span>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Saving..." : "Next: Tickets"}
         </Button>
       </div>
-    </div>
+    </form>
   );
 }

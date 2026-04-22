@@ -2,6 +2,7 @@
 
 import { SeatMapBuilder } from "@/src/components/shared/seat-map-builder";
 import { Button } from "@/src/components/ui/button";
+import type { EventTicketClass } from "@/src/types/event-draft";
 import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
 type SavePayload = {
@@ -9,8 +10,6 @@ type SavePayload = {
   seatState?: Record<string, SeatState>;
   summary: { totalSeats: number; totalTables: number; sectionCount: number };
 };
-
-import { TicketClass } from "../organizer/ticket-classes-step";
 
 export function LayoutBuilderShell({
   title,
@@ -33,7 +32,7 @@ export function LayoutBuilderShell({
   backLabel?: string;
   onBack?: () => void;
   onSummaryChange?: (summary: { totalSeats: number; totalTables: number; sectionCount: number }) => void;
-  ticketClasses: TicketClass[];
+  ticketClasses: EventTicketClass[];
 }) {
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">

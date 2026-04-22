@@ -420,6 +420,7 @@ export default function OrganizerVenuesPage() {
               }
               backLabel="Back to Details"
               onBack={() => setStep("details")}
+              ticketClasses={[]}
             />
           </div>
         )}

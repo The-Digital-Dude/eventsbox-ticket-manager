@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { getServerSession } from "@/src/lib/auth/server-auth";
 import { fail, ok } from "@/src/lib/http/response";
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
       await prisma.organizerProfile.update({
         where: { userId: session.user.id },
         data: {
-          draftEvent: null,
+          draftEvent: Prisma.DbNull,
         },
       });
       return ok({ message: "Draft cleared successfully" });
@@ -52,35 +53,44 @@ export async function POST(req: NextRequest) {
     }
   }
   
-  const { changeSummary, ...formData } = body;
+  const { changeSummary, ...draftData } = body;
 
   try {
-    const profile = await prisma.organizerProfile.findUnique({ where: { userId: session.user.id } });
+    const profile = await prisma.organizerProfile.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true },
+    });
     if (!profile) {
       return fail(404, { code: "NOT_FOUND", message: "Organizer profile not found" });
     }
 
-    const lastVersion = await prisma.draftHistory.findFirst({
-      where: { organizerId: profile.id },
-      orderBy: { version: 'desc' },
-    });
-
-    const nextVersion = (lastVersion?.version ?? 0) + 1;
-
     await prisma.organizerProfile.update({
       where: { userId: session.user.id },
       data: {
-        draftEvent: formData,
-        draftHistory: {
-          create: {
-            version: nextVersion,
-            stepName: `Step ${formData.lastCompletedStep ?? 1}`,
-            changeSummary: changeSummary ?? "Draft saved",
-            formData: formData,
-          },
-        },
+        draftEvent: draftData as Prisma.InputJsonValue,
       },
     });
+
+    try {
+      const lastHistory = await prisma.draftHistory.findFirst({
+        where: { organizerId: profile.id },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+
+      await prisma.draftHistory.create({
+        data: {
+          organizerId: profile.id,
+          version: (lastHistory?.version ?? 0) + 1,
+          stepName: `Step ${draftData.meta?.lastCompletedStep ?? 1}`,
+          changeSummary: changeSummary ?? "Draft saved",
+          formData: draftData as Prisma.InputJsonValue,
+        },
+      });
+    } catch (historyError) {
+      console.warn("[POST /api/organizer/events/draft] Draft saved without history", historyError);
+    }
+
     return ok({ message: "Draft saved successfully" });
   } catch (error) {
     console.error("[POST /api/organizer/events/draft]", error);

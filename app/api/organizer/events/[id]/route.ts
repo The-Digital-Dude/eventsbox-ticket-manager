@@ -9,17 +9,58 @@ import { serializeTicketClasses } from "@/src/lib/ticket-classes";
 import { getReviewAttendeeName } from "@/src/lib/services/event-reviews";
 import { sendEventDateChangedEmail } from "@/src/lib/services/notifications";
 
-const eventInclude = {
+const eventSelect = {
+  id: true,
+  title: true,
+  slug: true,
+  status: true,
+  publishedAt: true,
+  heroImage: true,
+  description: true,
+  startAt: true,
+  endAt: true,
+  timezone: true,
+  contactEmail: true,
+  contactPhone: true,
+  cancelPolicy: true,
+  refundPolicy: true,
+  customConfirmationMessage: true,
+  commissionPct: true,
+  gstPct: true,
+  platformFeeFixed: true,
+  rejectionReason: true,
   category: { select: { id: true, name: true } },
   venue: { select: { id: true, name: true, addressLine1: true, seatingConfig: true } },
   state: { select: { id: true, name: true } },
   city: { select: { id: true, name: true } },
   series: { select: { id: true, title: true } },
-  ticketTypes: { orderBy: { sortOrder: "asc" as const } },
+  ticketTypes: {
+    orderBy: { sortOrder: "asc" as const },
+    select: {
+      id: true,
+      eventId: true,
+      sectionId: true,
+      eventSeatingSectionId: true,
+      name: true,
+      description: true,
+      kind: true,
+      classType: true,
+      price: true,
+      quantity: true,
+      sold: true,
+      reservedQty: true,
+      compIssued: true,
+      maxPerOrder: true,
+      isActive: true,
+      sortOrder: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
   _count: { select: { orders: true, waitlist: true } },
   orders: {
     where: { status: "PAID" as const },
-      select: { total: true, platformFee: true, gst: true },
+    select: { total: true, platformFee: true, gst: true },
   },
   reviews: {
     orderBy: { createdAt: "desc" as const },
@@ -44,7 +85,21 @@ const eventInclude = {
 };
 
 async function getOwnEvent(id: string, organizerProfileId: string) {
-  return prisma.event.findFirst({ where: { id, organizerProfileId }, include: eventInclude });
+  return prisma.event.findFirst({ where: { id, organizerProfileId }, select: eventSelect });
+}
+
+function eventRouteError(error: unknown, fallbackMessage: string) {
+  if (error instanceof Error) {
+    if (error.message === "UNAUTHENTICATED") {
+      return fail(401, { code: "UNAUTHENTICATED", message: "Sign in required" });
+    }
+    if (error.message === "FORBIDDEN") {
+      return fail(403, { code: "FORBIDDEN", message: "Organizer only" });
+    }
+  }
+
+  console.error("[app/api/organizer/events/[id]/route.ts]", error);
+  return fail(500, { code: "INTERNAL_ERROR", message: fallbackMessage });
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -87,8 +142,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       auditLogs,
     });
   } catch (error) {
-    console.error("[app/api/organizer/events/[id]/route.ts]", error);
-    return fail(403, { code: "FORBIDDEN", message: "Organizer only" });
+    return eventRouteError(error, "Failed to load event");
   }
 }
 
@@ -146,7 +200,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(endAt ? { endAt: new Date(endAt) } : {}),
         ...(seriesId !== undefined ? { seriesId } : {}),
       },
-      include: eventInclude,
+      select: eventSelect,
     });
 
     if (oldStartAt.getTime() !== event.startAt.getTime()) {

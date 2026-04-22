@@ -17,7 +17,7 @@ const eventLayoutInclude = {
     select: {
       id: true,
       isActive: true,
-      inventoryMode: true,
+      classType: true,
       quantity: true,
       eventSeatingSectionId: true,
       sold: true,
@@ -48,7 +48,7 @@ export async function getEventLayoutDecision(eventId: string): Promise<DerivedEv
       ticketTypes: {
         select: {
           isActive: true,
-          inventoryMode: true,
+          classType: true,
         },
       },
     },
@@ -56,7 +56,7 @@ export async function getEventLayoutDecision(eventId: string): Promise<DerivedEv
 
   const activeClassTypes = (event?.ticketTypes ?? [])
     .filter((ticketClass) => ticketClass.isActive)
-    .map((ticketClass) => getTicketClassType(ticketClass.inventoryMode));
+    .map((ticketClass) => getTicketClassType(ticketClass.classType));
 
   return deriveEventLayoutDecision(activeClassTypes);
 }
@@ -171,7 +171,7 @@ export async function validateTicketClassAssignments(input: {
           name: true,
           quantity: true,
           sold: true,
-          inventoryMode: true,
+          classType: true,
           eventSeatingSectionId: true,
         },
       },
@@ -204,7 +204,7 @@ export async function validateTicketClassAssignments(input: {
       throw new Error("MAPPING_LOCKED_AFTER_SALES");
     }
 
-    const classType = getTicketClassType(ticketType.inventoryMode);
+    const classType = getTicketClassType(ticketType.classType);
     if (!sectionId) {
       if (classType === "general") continue;
       continue;
@@ -232,7 +232,7 @@ export async function validateTicketClassAssignments(input: {
     if (!sectionId) continue;
     const ticketType = ticketById.get(ticketTypeId);
     if (!ticketType) continue;
-    usedBySection.set(sectionId, (usedBySection.get(sectionId) ?? 0) + ticketType.quantity);
+    usedBySection.set(sectionId, (usedBySection.get(sectionId) ?? 0) + (ticketType.quantity ?? 0));
   }
 
   for (const section of event.seatingPlan?.sections ?? []) {

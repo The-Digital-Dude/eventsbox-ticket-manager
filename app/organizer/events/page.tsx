@@ -60,7 +60,12 @@ export default function OrganizerEventsPage() {
       const params = new URLSearchParams();
       if (status) params.set("status", status);
       const res = await fetch(`/api/organizer/events?${params}`);
-      const payload = await res.json();
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(payload?.error?.message ?? "Failed to load events");
+        setEvents([]);
+        return;
+      }
       setEvents(payload?.data ?? []);
     } finally {
       setLoading(false);

@@ -4,21 +4,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Step, StepHeader } from './step-header';
 import { EventDetailsStep } from './event-details-step';
-import { TicketClassesStep, type TicketClass } from './ticket-classes-step';
-import { LayoutSetupStep, type LayoutSetupData } from './layout-setup-step';
+import { TicketClassesStep } from './ticket-classes-step';
+import { LayoutSetupStep } from './layout-setup-step';
 import { ReviewStep } from './review-step';
 import { TicketAssignmentStep } from './ticket-assignment-step';
 import { toast } from 'sonner';
 import { DraftHistoryModal, type DraftHistoryEntry } from './draft-history-modal';
-import { deriveLayoutFromTicketClasses, type LayoutDecision } from '@/src/lib/layout-detector';
-import { sharedEventSchema } from '@/src/lib/validators/shared-event-schema';
-import type { EventDetailsFormData } from '@/src/types/event-form-data';
-import {
-  generateInitialLayoutFromTicketClasses,
-  generateLayoutAssignments,
-  getSectionCapacity,
-  type LayoutAssignmentData,
-} from '@/src/lib/layout-auto-generator';
+import { deriveLayoutMode, deriveNextStep, generateLayout, autoMap, validateEvent, validateStep, LayoutDecision } from '@/src/lib/event-engine';
+import { EventDetailsFormData, EventDraft, EventSeatingLayout, EventTicketClass, TicketMapping } from '@/src/types/event-draft';
+import { getSectionCapacity } from '@/src/lib/event-engine';
 
 const steps: Step[] = [
   { num: 1, name: '1. The Event' },
@@ -28,341 +22,222 @@ const steps: Step[] = [
   { num: 5, name: '5. Review & Publish' },
 ];
 
-type EventFormData = {
-    step1?: EventDetailsFormData;
-    step2?: TicketClass[];
-    step3?: LayoutSetupData;
-    step4?: LayoutAssignmentData;
-    lastCompletedStep?: number;
-}
-
-type ExistingEventTicketClass = {
-  id: string;
-  name: string;
-  price: number | string;
-  quantity: number;
-  classType: TicketClass["classType"];
-};
-
-type ExistingEventData = EventDetailsFormData & {
-  category?: { id: string } | null;
-  venue?: { id: string } | null;
-  commissionPct: number | string;
-  gstPct: number | string;
-  platformFeeFixed: number | string;
-  ticketClasses: ExistingEventTicketClass[];
-};
-
-type DraftStepData = EventDetailsFormData | TicketClass[] | LayoutSetupData | LayoutAssignmentData;
-
-type PublishPayload = EventDetailsFormData & {
-  ticketClasses: Array<TicketClass & { eventSeatingSectionId: string | null }>;
-  layout?: LayoutSetupData;
-};
-
 type ValidationError = {
-    step: number;
-    message: string;
+  step: number;
+  message: string;
+};
+
+const initialDraftState: EventDraft = {
+  details: {},
+  ticketClasses: [],
+  seatingLayout: {},
+  ticketMappings: [],
+  meta: {
+    lastCompletedStep: 0,
+    version: 0,
+    lastSaved: new Date().toISOString(),
+    isPublished: false,
+  },
+};
+
+async function fetchWithSessionRetry(input: RequestInfo | URL, init?: RequestInit) {
+  const response = await fetch(input, { ...init, credentials: "same-origin" });
+  if (response.status !== 401) {
+    return response;
+  }
+
+  const refreshResponse = await fetch("/api/auth/refresh", {
+    method: "POST",
+    credentials: "same-origin",
+  });
+
+  if (!refreshResponse.ok) {
+    return response;
+  }
+
+  return fetch(input, { ...init, credentials: "same-origin" });
 }
 
-function normalizeDraftHistory(payload: unknown): DraftHistoryEntry[] {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-  if (payload && typeof payload === "object" && "data" in payload) {
-    const nestedData = (payload as { data: unknown }).data;
-    return Array.isArray(nestedData) ? nestedData : [];
-  }
-  return [];
-}
-
-function buildPublishPayload(formData: EventFormData | null): PublishPayload | null {
-  if (!formData?.step1 || !formData.step2) {
-    return null;
-  }
-
-  return {
-    ...formData.step1,
-    ticketClasses: formData.step2.map((ticketClass) => ({
-      ...ticketClass,
-      eventSeatingSectionId: formData.step4?.assignments?.[ticketClass.id] ?? null,
-    })),
-    layout: formData.step3,
-  };
-}
 
 export function EventCreationWorkflow() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fromEventId = searchParams.get('fromEventId');
 
-  const [currentStep, setCurrentStep] = useState(1);
-  const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
-  const [formData, setFormData] = useState<EventFormData | null>(null);
-  const [loadingDraft, setLoadingDraft] = useState(true);
-  const [layoutDecision, setLayoutDecision] = useState<LayoutDecision>({ layoutType: 'none', requiresLayout: false });
+  const [draft, setDraft] = useState<EventDraft | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [draftHistory, setDraftHistory] = useState<DraftHistoryEntry[]>([]);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+
+  const completedSteps = useMemo(() => {
+    const completed: Record<number, boolean> = {};
+    if (!draft) return completed;
+    for (let i = 1; i <= draft.meta.lastCompletedStep; i++) {
+      completed[i] = true;
+    }
+    return completed;
+  }, [draft]);
+
+  const layoutDecision = useMemo((): LayoutDecision => {
+    if (!draft) return { mode: 'none', requiresLayout: false };
+    return deriveLayoutMode(draft.ticketClasses);
+  }, [draft]);
 
   useEffect(() => {
-    async function loadData() {
-      let initialFormData: EventFormData | null = null;
-
-      if (fromEventId) {
-        // Load existing event data
-        const [eventRes, layoutRes, historyRes] = await Promise.all([
-          fetch(`/api/organizer/events/${fromEventId}`),
-          fetch(`/api/organizer/events/${fromEventId}/layout`),
-          fetch('/api/organizer/events/draft/history'),
-        ]);
-
-        const eventPayload = await eventRes.json();
-        const layoutPayload = await layoutRes.json();
-        const historyPayload = await historyRes.json();
-
-        if (historyRes.ok && historyPayload.data) {
-          setDraftHistory(normalizeDraftHistory(historyPayload.data));
-        }
-
-        if (eventRes.ok && eventPayload.data) {
-          const eventData = eventPayload.data as ExistingEventData;
-          const layoutData = layoutRes.ok ? layoutPayload.data : null;
-
-          // Transform existing event data to EventFormData structure
-          const transformedFormData: EventFormData = {
-            step1: {
-              title: eventData.title,
-              description: eventData.description,
-              categoryId: eventData.category?.id ?? "",
-              venueId: eventData.venue?.id ?? "",
-              countryId: eventData.countryId, // Assuming eventData has countryId
-              stateId: eventData.stateId,   // Assuming eventData has stateId
-              cityName: eventData.cityName, // Assuming eventData has cityName
-              startAt: eventData.startAt,
-              endAt: eventData.endAt,
-              timezone: eventData.timezone,
-              contactEmail: eventData.contactEmail,
-              contactPhone: eventData.contactPhone,
-              heroImage: eventData.heroImage,
-              videoUrl: eventData.videoUrl,
-              cancelPolicy: eventData.cancelPolicy,
-              refundPolicy: eventData.refundPolicy,
-              currency: eventData.currency,
-              commissionPct: eventData.commissionPct.toString(),
-              gstPct: eventData.gstPct.toString(),
-              platformFeeFixed: eventData.platformFeeFixed.toString(),
-              tags: eventData.tags,
-              audience: eventData.audience,
-              lat: eventData.lat,
-              lng: eventData.lng,
-              stateName: eventData.stateName, // Assuming eventData has stateName
-              cityId: eventData.cityId,     // Assuming eventData has cityId
-            },
-            step2: eventData.ticketClasses.map((tc) => ({
-              id: tc.id,
-              name: tc.name,
-              price: Number(tc.price),
-              quantity: tc.quantity,
-              classType: tc.classType,
-            })),
-            step3: layoutData ? { 
-                seatingConfig: layoutData.seating.seatingConfig,
-                seatState: layoutData.seating.seatState,
-                summary: layoutData.seating.seatingConfig.summary
-            } : undefined,
-            lastCompletedStep: layoutData ? 3 : 2, // If layout exists, step 3 is completed, else step 2
+    const loadDraft = async () => {
+      setLoading(true);
+      const response = await fetchWithSessionRetry('/api/organizer/events/draft');
+      if (response.ok) {
+        const payload = await response.json();
+        if (payload.data) {
+          const loadedDraft = payload.data as Partial<EventDraft>;
+          const mergedDraft: EventDraft = {
+            ...initialDraftState,
+            ...loadedDraft,
+            details: { ...initialDraftState.details, ...(loadedDraft.details ?? {}) },
+            ticketClasses: loadedDraft.ticketClasses ?? initialDraftState.ticketClasses,
+            seatingLayout: loadedDraft.seatingLayout ?? initialDraftState.seatingLayout,
+            ticketMappings: loadedDraft.ticketMappings ?? initialDraftState.ticketMappings,
+            meta: { ...initialDraftState.meta, ...(loadedDraft.meta ?? {}) },
           };
-          initialFormData = transformedFormData;
-          toast.success("Loaded existing event for advanced setup.");
+          setDraft(mergedDraft);
+          setCurrentStep(deriveNextStep(mergedDraft));
         } else {
-          toast.error("Failed to load existing event data.");
+          setDraft(initialDraftState);
+          setCurrentStep(1);
         }
       } else {
-        // Load existing draft data
-        const [draftRes, historyRes] = await Promise.all([
-          fetch('/api/organizer/events/draft'),
-          fetch('/api/organizer/events/draft/history'),
-        ]);
-        const draftPayload = await draftRes.json();
-        const historyPayload = await historyRes.json();
-
-        if (draftRes.ok && draftPayload.data) {
-          initialFormData = draftPayload.data;
-        }
-
-        if (historyRes.ok && historyPayload.data) {
-          setDraftHistory(normalizeDraftHistory(historyPayload.data));
-        }
+        setDraft(initialDraftState);
+        setCurrentStep(1);
+        toast.error("Failed to load draft.");
       }
+      setLoading(false);
+    };
 
-      if (initialFormData) {
-        setFormData(initialFormData);
-        const decision = deriveLayoutFromTicketClasses(initialFormData.step2 ?? []);
-        setLayoutDecision(decision);
-        
-        const lastCompleted = initialFormData.lastCompletedStep ?? 0;
-        const newCompletedSteps: Record<number, boolean> = {};
-        for (let i = 1; i <= lastCompleted; i++) {
-            newCompletedSteps[i] = true;
-        }
-        setCompletedSteps(newCompletedSteps);
-
-        let nextStepToResume = lastCompleted + 1;
-
-        // Special handling for conditional steps on resume
-        if (nextStepToResume === 3 && !decision.requiresLayout) {
-            nextStepToResume = 5; // Skip layout if not required
-        } else if (nextStepToResume === 4 && !decision.requiresLayout) {
-            nextStepToResume = 5; // Also skip assignment if layout was skipped
-        }
-
-        setCurrentStep(nextStepToResume > steps.length ? steps.length : nextStepToResume);
+    const loadHistory = async () => {
+      const response = await fetchWithSessionRetry('/api/organizer/events/draft/history');
+      if(response.ok) {
+        const payload = await response.json();
+        setDraftHistory(payload.data ?? []);
       }
-      setLoadingDraft(false);
     }
-    loadData();
-  }, [fromEventId]); // Re-run if fromEventId changes
 
-  const saveDraft = async (data: DraftStepData, stepNum: number, changeSummary?: string) => {
-    const newFormData = { ...formData, [`step${stepNum}`]: data, lastCompletedStep: Math.max(formData?.lastCompletedStep ?? 0, stepNum) };
-    const saved = await persistDraft(newFormData, changeSummary);
-    return saved ? newFormData : null;
-  };
+    loadDraft();
+    loadHistory();
+  }, [fromEventId]);
 
-  const persistDraft = async (nextFormData: EventFormData, changeSummary?: string) => {
+  const persistDraft = async (updatedDraft: EventDraft, changeSummary: string) => {
     setIsSaving(true);
-    setFormData(nextFormData);
-    const res = await fetch('/api/organizer/events/draft', {
+    const payload = {
+      ...updatedDraft,
+      meta: { ...updatedDraft.meta, version: updatedDraft.meta.version + 1, lastSaved: new Date().toISOString() },
+      changeSummary,
+    };
+
+    const res = await fetchWithSessionRetry('/api/organizer/events/draft', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...nextFormData, changeSummary }),
+      body: JSON.stringify(payload),
     });
+
     setIsSaving(false);
     if (!res.ok) {
-      toast.error('Failed to save draft');
-      return false;
-    }
-    setLastSaved(new Date());
-    return true;
-  };
-
-  const handleEventDetailsNext = async (data: EventDetailsFormData) => {
-    const success = await saveDraft(data, 1);
-    if (success) {
-      setCompletedSteps(c => ({...c, 1: true}));
-      setCurrentStep(2);
-    }
-  };
-
-  const handleTicketClassesNext = async (data: TicketClass[]) => {
-    const savedFormData = await saveDraft(data, 2);
-    if (savedFormData) {
-      setCompletedSteps(c => ({...c, 2: true}));
-      const decision = deriveLayoutFromTicketClasses(data);
-      setLayoutDecision(decision);
-      if (decision.requiresLayout) {
-        const generatedLayout = generateInitialLayoutFromTicketClasses(data);
-        if (generatedLayout) {
-          const generatedLayoutData: LayoutSetupData = {
-            seatingConfig: generatedLayout,
-            seatState: generatedLayout.seatState,
-            summary: generatedLayout.summary,
-          };
-          const generatedAssignments = generateLayoutAssignments({
-            ticketClasses: data,
-            sections: generatedLayout.sections,
-          });
-          const nextFormData = {
-            ...savedFormData,
-            step3: generatedLayoutData,
-            step4: generatedAssignments,
-            lastCompletedStep: 2,
-          };
-          await persistDraft(nextFormData, "Generated initial layout and ticket assignments from ticket quantities");
-        }
-        setCompletedSteps(c => ({...c, 3: false, 4: false}));
-        setCurrentStep(3);
-      } else {
-        setCompletedSteps(c => ({...c, 3: false, 4: false})); // Invalidate layout steps
-        setCurrentStep(5);
+      if (res.status === 401) {
+        toast.error('Your session expired. Please sign in again.');
+        router.push('/auth/login');
+        return null;
       }
+      const errorPayload = await res.json().catch(() => null);
+      toast.error(errorPayload?.error?.message ?? 'Failed to save draft');
+      return null;
     }
+    
+    toast.success(changeSummary);
+    return payload;
   };
 
-  const handleLayoutSetupNext = async (data: LayoutSetupData) => {
-    if (!formData) {
-      toast.error("Event draft is not available");
-      return;
-    }
-    const nextAssignments = generateLayoutAssignments({
-      ticketClasses: formData.step2 ?? [],
-      sections: data.seatingConfig.sections,
-      existingAssignments: formData.step4?.assignments,
-      previousAutoAssignedTicketClassIds: formData.step4?.autoAssignedTicketClassIds,
-    });
-    const nextFormData = {
-      ...formData,
-      step3: data,
-      step4: nextAssignments,
-      lastCompletedStep: Math.max(formData?.lastCompletedStep ?? 0, 3),
+  const handleStepCompletion = async (
+    stepNumber: number,
+    data: EventDetailsFormData | EventTicketClass[] | EventSeatingLayout | TicketMapping[],
+    summary: string,
+  ) => {
+    if (!draft) return;
+    const tempDraft: EventDraft = {
+      ...draft,
+      details: stepNumber === 1 ? data as EventDetailsFormData : draft.details,
+      ticketClasses: stepNumber === 2 ? data as EventTicketClass[] : draft.ticketClasses,
+      seatingLayout: stepNumber === 3 ? data as EventSeatingLayout : draft.seatingLayout,
+      ticketMappings: stepNumber === 4 ? data as TicketMapping[] : draft.ticketMappings,
     };
-    const success = await persistDraft(nextFormData, "Saved customized layout and refreshed compatible ticket assignments");
-    if (success) {
-      setCompletedSteps(c => ({...c, 3: true}));
-      setCurrentStep(4);
-    }
-  };
-
-  const handleTicketAssignmentNext = async (assignmentData: LayoutAssignmentData) => {
-    const success = await saveDraft(assignmentData, 4);
-    if (success) {
-      setCompletedSteps(c => ({...c, 4: true}));
-      setCurrentStep(5);
-    }
-  };
-
-  const canPublish = useMemo(() => {
-      if (!completedSteps[1] || !completedSteps[2]) {
-          return false;
-      }
-      if (layoutDecision.requiresLayout && (!completedSteps[3] || !completedSteps[4])) {
-        return false;
-      }
-      return true;
-  }, [completedSteps, layoutDecision.requiresLayout]);
-
-  const validateForPublish = (): ValidationError[] => {
-    const payload = buildPublishPayload(formData);
-    const result = sharedEventSchema.safeParse(payload);
-    if (result.success) {
-      return [];
-    }
-    const validationErrors: ValidationError[] = [];
-    const errors = result.error.flatten().fieldErrors;
-    for (const [field, fieldErrors] of Object.entries(errors)) {
-      const step = field === "ticketClasses" ? 2 : field === "layout" ? 3 : 1;
-      validationErrors.push({ step, message: `${field}: ${(fieldErrors ?? []).join(", ")}` });
-    }
-    return validationErrors;
-  }
-
-  const handlePublish = async () => {
-    const errors = validateForPublish();
-    setValidationErrors(errors);
-
-    if (errors.length > 0) {
-        toast.error("Please fix the issues before publishing.");
+    const issues = validateStep(tempDraft, stepNumber);
+    
+    if (issues.length > 0) {
+        setValidationErrors(issues.map(issue => ({ step: stepNumber, message: `${issue.path.join('.')} - ${issue.message}` })));
+        toast.error("Please fix the highlighted errors before continuing.");
         return;
     }
-    const finalPayload = buildPublishPayload(formData);
-    if (!canPublish || !finalPayload) return; // Should be caught by the above check
+    setValidationErrors([]);
+
+    const updatedDraft: EventDraft = { ...draft };
+
+    switch (stepNumber) {
+      case 1:
+        updatedDraft.details = data as EventDetailsFormData;
+        break;
+      case 2:
+        updatedDraft.ticketClasses = data as EventTicketClass[];
+        const decision = deriveLayoutMode(updatedDraft.ticketClasses);
+        if (decision.requiresLayout) {
+            const generatedLayout = generateLayout(updatedDraft.ticketClasses);
+            if (generatedLayout) {
+                updatedDraft.seatingLayout = {
+                  seatingConfig: generatedLayout,
+                  seatState: generatedLayout.seatState,
+                  summary: generatedLayout.summary,
+                };
+                updatedDraft.ticketMappings = autoMap(updatedDraft.ticketClasses, generatedLayout);
+            }
+        }
+        break;
+      case 3:
+        {
+          const seatingLayout = data as EventSeatingLayout;
+          updatedDraft.seatingLayout = seatingLayout;
+          updatedDraft.ticketMappings = autoMap(updatedDraft.ticketClasses, seatingLayout.seatingConfig, draft.ticketMappings);
+        }
+        break;
+      case 4:
+        updatedDraft.ticketMappings = data as TicketMapping[];
+        break;
+    }
+
+    updatedDraft.meta.lastCompletedStep = Math.max(draft.meta.lastCompletedStep, stepNumber);
+    
+    const savedDraft = await persistDraft(updatedDraft, summary);
+    if (savedDraft) {
+      setDraft(savedDraft);
+      setCurrentStep(deriveNextStep(savedDraft));
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!draft) return;
+    const issues = validateEvent(draft);
+    if (issues.length > 0) {
+        setValidationErrors(issues.map(issue => ({ step: 5, message: `${issue.path.join('.')} - ${issue.message}` })));
+        toast.error("Please review and fix the errors on the final step before publishing.");
+        setCurrentStep(5);
+        return;
+    }
+    setValidationErrors([]);
     
     setIsSaving(true);
+    const finalPayload = { details: draft.details, ticketClasses: draft.ticketClasses, layout: draft.seatingLayout };
 
-    const res = await fetch('/api/organizer/events', {
+    const res = await fetchWithSessionRetry('/api/organizer/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(finalPayload),
@@ -371,7 +246,8 @@ export function EventCreationWorkflow() {
     setIsSaving(false);
     if (res.ok) {
         toast.success('Event submitted for approval!');
-        await fetch('/api/organizer/events/draft', { 
+        setDraft(initialDraftState);
+        await fetchWithSessionRetry('/api/organizer/events/draft', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' }, 
             body: JSON.stringify(null) 
@@ -379,78 +255,61 @@ export function EventCreationWorkflow() {
         router.push('/organizer/events');
     } else {
         const errorPayload = await res.json();
-        if (errorPayload.error.code === "VALIDATION_ERROR") {
-          const fieldErrors = errorPayload.error.details.fieldErrors;
-          const messages = Object.entries(fieldErrors).map(([field, errors]) => `${field}: ${(errors as string[]).join(", ")}`)
-          toast.error("Invalid event data:", { description: messages.join("\n") });
-        } else {
-          toast.error(errorPayload?.error?.message ?? 'Failed to submit event');
-        }
+        toast.error("Failed to submit event:", { description: errorPayload?.error?.message ?? "An unknown error occurred." });
     }
   };
 
   const handlePrevious = () => {
     if (currentStep === 5 && !layoutDecision.requiresLayout) {
-        setCurrentStep(2);
+      setCurrentStep(2);
     } else {
-        setCurrentStep(s => Math.max(1, s - 1));
+      setCurrentStep(s => Math.max(1, s - 1));
     }
-  }
+  };
 
-  const goToStep = (stepNum: number) => {
-      if (completedSteps[stepNum] || stepNum === currentStep) {
-          setCurrentStep(stepNum);
-      }
-  }
-
-  const handleRestoreDraft = (restoredFormData: unknown) => {
-    if (!restoredFormData || typeof restoredFormData !== "object") {
-      toast.error("Unable to restore draft");
-      return;
+  const handleRestore = async (data: unknown) => {
+    if (!data || typeof data !== 'object') {
+        toast.error("Invalid draft data to restore.");
+        return;
     }
-    const typedFormData = restoredFormData as EventFormData;
-    setFormData(typedFormData);
-    const decision = deriveLayoutFromTicketClasses(typedFormData.step2 ?? []);
-    setLayoutDecision(decision);
+    const restoredDraft = data as EventDraft;
+    const summary = `Restored from version ${restoredDraft.meta.version}`;
     
-    const lastCompleted = typedFormData.lastCompletedStep ?? 0;
-    const newCompletedSteps: Record<number, boolean> = {};
-    for (let i = 1; i <= lastCompleted; i++) {
-        newCompletedSteps[i] = true;
+    const savedDraft = await persistDraft(restoredDraft, summary);
+    if (savedDraft) {
+      setDraft(savedDraft);
+      setCurrentStep(deriveNextStep(savedDraft));
+      toast.success(summary);
     }
-    setCompletedSteps(newCompletedSteps);
-
-    let nextStepToResume = lastCompleted + 1;
-
-    if (nextStepToResume === 3 && !decision.requiresLayout) {
-        nextStepToResume = 5; 
-    } else if (nextStepToResume === 4 && !decision.requiresLayout) {
-        nextStepToResume = 5;
-    }
-
-    setCurrentStep(nextStepToResume > steps.length ? steps.length : nextStepToResume);
     setIsHistoryModalOpen(false);
-    toast.success("Draft restored successfully");
   }
 
-  if (loadingDraft) {
-    return <div className="p-6">Loading draft...</div>;
+  const goToStep = (step: number) => {
+    if (completedSteps[step] || step === currentStep) {
+      setCurrentStep(step);
+    }
   }
+
+  if (loading || !draft) {
+    return <div className="p-6">Loading...</div>;
+  }
+
+  const savedSeatingLayout = draft.seatingLayout.seatingConfig ? draft.seatingLayout as EventSeatingLayout : undefined;
 
   return (
     <div>
-      <DraftHistoryModal
+       <DraftHistoryModal
         open={isHistoryModalOpen}
         onOpenChange={setIsHistoryModalOpen}
         history={draftHistory}
-        onRestore={handleRestoreDraft}
+        onRestore={handleRestore}
       />
       <StepHeader 
         steps={steps} 
         currentStep={currentStep} 
         completedSteps={completedSteps} 
         isSaving={isSaving}
-        lastSaved={lastSaved}
+        lastSaved={new Date(draft.meta.lastSaved)}
         onStepClick={goToStep}
         onViewHistory={() => setIsHistoryModalOpen(true)}
         errors={validationErrors.map(e => e.step)}
@@ -458,50 +317,50 @@ export function EventCreationWorkflow() {
       <div className="p-6">
         {currentStep === 1 && (
           <EventDetailsStep
-            initialData={formData?.step1}
-            onNext={handleEventDetailsNext}
+            initialData={draft.details}
+            onNext={(data) => handleStepCompletion(1, data, "Saved event details")}
           />
         )}
 
         {currentStep === 2 && (
             <TicketClassesStep 
-                initialData={formData?.step2}
-                onNext={handleTicketClassesNext} 
+                initialData={draft.ticketClasses}
+                onNext={(data) => handleStepCompletion(2, data, "Saved ticket classes")}
                 onPrevious={handlePrevious}
             />
         )}
 
         {currentStep === 3 && layoutDecision.requiresLayout && (
             <LayoutSetupStep 
-                initialData={formData?.step3}
-                layoutType={layoutDecision.layoutType === "none" ? "seating" : layoutDecision.layoutType}
-                onNext={handleLayoutSetupNext}
+                initialData={savedSeatingLayout}
+                layoutType={layoutDecision.mode === "none" ? "seating" : layoutDecision.mode}
+                onNext={(data) => handleStepCompletion(3, data, "Saved seating layout")}
                 onPrevious={handlePrevious}
-                ticketClasses={formData?.step2}
-                venueId={formData?.step1?.venueId}
+                ticketClasses={draft.ticketClasses}
             />
         )}
 
         {currentStep === 4 && layoutDecision.requiresLayout && (
             <TicketAssignmentStep
-                ticketClasses={formData?.step2 ?? []}
-                sections={(formData?.step3?.seatingConfig?.sections ?? []).map((section) => ({
+                ticketClasses={draft.ticketClasses}
+                sections={(draft.seatingLayout.seatingConfig?.sections ?? []).map((section) => ({
                     id: section.id,
                     name: section.name,
                     mapType: section.mapType,
                     capacity: getSectionCapacity(section),
                 }))}
-                assignmentData={formData?.step4}
-                onNext={handleTicketAssignmentNext}
+                assignmentData={draft.ticketMappings}
+                onNext={(data) => handleStepCompletion(4, data, "Saved ticket assignments")}
                 onPrevious={handlePrevious}
             />
         )}
+
         {currentStep === 5 && (
             <ReviewStep 
-                formData={formData ?? {}}
+                formData={draft}
                 onPublish={handlePublish}
                 onPrevious={handlePrevious}
-                canPublish={canPublish}
+                canPublish={draft.meta.lastCompletedStep >= (layoutDecision.requiresLayout ? 4 : 2)}
                 errors={validationErrors}
                 goToStep={goToStep}
             />

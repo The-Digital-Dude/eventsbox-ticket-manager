@@ -3,7 +3,7 @@ import { Role } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
-import { getTicketClassType, serializeTicketClass } from "@/src/lib/ticket-classes";
+import { getTicketClassType, getTicketInventoryMode, serializeTicketClass } from "@/src/lib/ticket-classes";
 import { syncEventLayoutMode, validateTicketClassLayoutMapping } from "@/src/lib/services/ticket-class-layout";
 import { ticketTypeUpdateSchema } from "@/src/lib/validators/event";
 
@@ -40,9 +40,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       });
     }
 
-    const { saleStartAt, saleEndAt, classType, ...rest } = parsed.data;
-    const currentClassType = getTicketClassType(ticket.inventoryMode);
-    const nextClassType = classType ?? getTicketClassType(rest.inventoryMode ?? ticket.inventoryMode);
+    const { saleStartAt, saleEndAt, classType, inventoryMode, ...rest } = parsed.data;
+    const currentClassType = getTicketClassType(ticket.classType);
+    const nextClassType = classType ?? getTicketClassType(inventoryMode ?? ticket.classType);
     const nextSectionId = rest.sectionId !== undefined ? rest.sectionId : ticket.sectionId;
     const nextEventSeatingSectionId =
       rest.eventSeatingSectionId !== undefined ? rest.eventSeatingSectionId : ticket.eventSeatingSectionId;
@@ -92,6 +92,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       where: { id: ticketId },
       data: {
         ...rest,
+        ...(classType !== undefined ? { classType: getTicketInventoryMode(classType) } : {}),
         ...(saleStartAt !== undefined ? { saleStartAt: saleStartAt ? new Date(saleStartAt) : null } : {}),
         ...(saleEndAt !== undefined ? { saleEndAt: saleEndAt ? new Date(saleEndAt) : null } : {}),
       },

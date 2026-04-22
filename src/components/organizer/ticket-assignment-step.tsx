@@ -1,13 +1,10 @@
-
 'use client';
 
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/src/components/ui/button';
+import type { EventTicketClass, TicketMapping } from '@/src/types/event-draft';
 import { Badge } from '@/src/components/ui/badge';
-import type { TicketClass } from './ticket-classes-step';
-import { TicketClassType } from '@prisma/client';
-import type { LayoutAssignmentData } from '@/src/lib/layout-auto-generator';
 
 type Section = {
   id: string;
@@ -17,39 +14,64 @@ type Section = {
 };
 
 type Props = {
-  ticketClasses: TicketClass[];
+  ticketClasses: EventTicketClass[];
   sections: Section[];
-  assignmentData?: LayoutAssignmentData;
-  onNext: (assignmentData: LayoutAssignmentData) => void;
+  assignmentData: TicketMapping[];
+  onNext: (mappings: TicketMapping[]) => void;
   onPrevious: () => void;
 };
 
 export function TicketAssignmentStep({ ticketClasses, sections, assignmentData, onNext, onPrevious }: Props) {
-  const [assignments, setAssignments] = useState<Record<string, string>>(assignmentData?.assignments ?? {});
-  const [autoAssignedTicketClassIds, setAutoAssignedTicketClassIds] = useState<string[]>(
-    assignmentData?.autoAssignedTicketClassIds ?? [],
-  );
+  const [mappings, setMappings] = useState<TicketMapping[]>(assignmentData);
+
+  const handleMappingChange = (ticketClassId: string, targetId: string) => {
+    setMappings(current => {
+      const otherMappings = current.filter(m => m.ticketClassId !== ticketClassId);
+      if (targetId) {
+        return [...otherMappings, { ticketClassId, targetId }];
+      } else {
+        return otherMappings;
+      }
+    });
+  };
 
   const handleSave = () => {
+    // Basic validation: ensure all tickets that need mapping are mapped.
+    const unmappedTicket = ticketClasses.find(tc => tc.type !== 'general' && !mappings.some(m => m.ticketClassId === tc.id));
+    if (unmappedTicket) {
+        toast.error(`Please assign the "${unmappedTicket.name}" ticket class to a section.`);
+        return;
+    }
     toast.success('Ticket assignments saved.');
-    onNext({ assignments, autoAssignedTicketClassIds });
+    onNext(mappings);
   };
+
+  const relevantTicketClasses = ticketClasses.filter(tc => tc.type !== 'general');
 
   return (
     <div className="space-y-6">
+        <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-neutral-900">Assign Tickets to Sections</h2>
+            <p className="mt-1 text-sm text-neutral-600">Match each ticket class to a section in your venue layout. We&apos;ve made some initial assignments for you.</p>
+        </section>
 
+        {relevantTicketClasses.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-neutral-300 bg-white p-8 text-center shadow-sm">
+                <h3 className="text-base font-medium text-neutral-800">No Tickets to Assign</h3>
+                <p className="mt-2 text-sm text-neutral-600">All of your current ticket classes are General Admission and don&apos;t require assignment to a specific section.</p>
+            </div>
+        )}
 
       <div className="space-y-4">
-        {ticketClasses.map(ticketClass => {
+        {relevantTicketClasses.map(ticketClass => {
           const compatibleSections = sections.filter(section => {
-            if (ticketClass.classType === TicketClassType.GENERAL_ADMISSION) return false;
-            if (ticketClass.classType === TicketClassType.ASSIGNED_SEAT) return section.mapType === 'seats';
-            if (ticketClass.classType === TicketClassType.TABLE) return section.mapType === 'table';
+            if (ticketClass.type === 'assigned_seat') return section.mapType === 'seats';
+            if (ticketClass.type === 'table') return section.mapType === 'table';
             return false;
           });
 
-          const assignedSection = sections.find(s => s.id === assignments[ticketClass.id]);
-          const isAutoAssigned = autoAssignedTicketClassIds.includes(ticketClass.id) && Boolean(assignedSection);
+          const currentMapping = mappings.find(m => m.ticketClassId === ticketClass.id);
+          const assignedSection = sections.find(s => s.id === currentMapping?.targetId);
 
           return (
             <div key={ticketClass.id} className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
@@ -57,59 +79,39 @@ export function TicketAssignmentStep({ ticketClasses, sections, assignmentData, 
                 <div>
                   <p className="font-medium text-neutral-900">{ticketClass.name}</p>
                   <p className="mt-1 text-sm text-neutral-600">
-                    Type: {ticketClass.classType} · Quantity: {ticketClass.quantity ?? 0}
+                    Type: {ticketClass.type} · Quantity: {ticketClass.quantity ?? 0}
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {isAutoAssigned ? (
-                    <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">Auto-assigned</Badge>
-                  ) : null}
-                  <Badge>{ticketClass.classType}</Badge>
-                </div>
+                <Badge>{ticketClass.type}</Badge>
               </div>
 
-              {ticketClass.classType === TicketClassType.GENERAL_ADMISSION ? (
-                <p className="mt-3 text-sm text-neutral-500">
-                  General admission classes do not require a seating or table mapping.
-                </p>
-              ) : (
-                <div className="mt-3 space-y-2">
-                  <label className="text-sm font-medium text-neutral-700">Assigned To</label>
+                <div className="mt-4 space-y-2 border-t border-neutral-100 pt-4">
+                  <label className="text-sm font-medium text-neutral-700">Assigned To Section</label>
                   {compatibleSections.length === 0 ? (
-                    <p className="text-sm text-neutral-500">
-                      No compatible sections available. Go back to the layout step to create them.
-                    </p>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                        <p className="text-sm font-medium text-amber-800">No Compatible Sections</p>
+                        <p className="text-sm text-amber-700 mt-1">Please go back to the &apos;Seating&apos; step to create a section that can accommodate &apos;{ticketClass.type}&apos; tickets.</p>
+                    </div>
                   ) : (
                     <select
-                      className="app-select"
-                      value={assignments[ticketClass.id] ?? ''}
-                      onChange={event => {
-                        setAssignments(current => ({
-                          ...current,
-                          [ticketClass.id]: event.target.value,
-                        }));
-                        setAutoAssignedTicketClassIds(current => current.filter(id => id !== ticketClass.id));
-                      }}
+                      className="block w-full rounded-xl border-neutral-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                      value={currentMapping?.targetId ?? ''}
+                      onChange={e => handleMappingChange(ticketClass.id, e.target.value)}
                     >
-                      <option value="">Unassigned</option>
+                      <option value="">Not Assigned</option>
                       {compatibleSections.map(section => (
                         <option key={section.id} value={section.id}>
-                          {section.name} ({section.mapType}) - Capacity: {section.capacity ?? 'Unbounded'}
+                          {section.name} ({section.mapType}) - Capacity: {section.capacity ?? '-'}
                         </option>
                       ))}
                     </select>
                   )}
-                  {assignedSection ? (
+                  {assignedSection && (
                     <p className="text-xs text-neutral-500">
-                      Assigned to {assignedSection.name} with a capacity of {assignedSection.capacity ?? 'unbounded'}.
-                    </p>
-                  ) : (
-                     <p className="text-xs text-neutral-500">
-                        Not yet assigned to a section.
+                      Assigned to <strong>{assignedSection.name}</strong>.
                     </p>
                   )}
                 </div>
-              )}
             </div>
           );
         })}

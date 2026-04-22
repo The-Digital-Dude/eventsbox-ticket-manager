@@ -32,6 +32,7 @@ type TicketClassView = {
   inventoryMode?: string | null;
   classType: TicketClassType;
   sectionId: string | null;
+  eventSeatingSectionId: string | null;
   price: number | string;
   quantity: number;
   sold: number;

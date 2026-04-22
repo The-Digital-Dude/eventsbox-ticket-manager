@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useEffect, useMemo, useState } from "react";
 import { Armchair, MoveHorizontal } from "lucide-react";
@@ -10,8 +10,7 @@ import { Label } from "@/src/components/ui/label";
 import { Badge } from "@/src/components/ui/badge";
 import type { SeatState, SeatingColumn, SeatingMapType, SeatingSection, VenueSeatingConfig } from "@/src/types/venue-seating";
 import { computeSeatingSummary } from "@/src/lib/validators/venue-seating";
-import { TicketClass } from "../organizer/ticket-classes-step";
-import { getLayoutCapacityByType, getLayoutCapacityDemand } from "@/src/lib/layout-auto-generator";
+import { EventTicketClass } from "@/src/types/event-draft";
 
 function rowLabel(index: number) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -59,7 +58,7 @@ export function SeatMapBuilder({
   onSave: (payload: SavePayload) => void | Promise<void>;
   saveLabel: string;
   onSummaryChange?: (summary: { totalSeats: number; totalTables: number; sectionCount: number }) => void;
-  ticketClasses: TicketClass[];
+  ticketClasses: EventTicketClass[];
 }) {
   const [selectedTicketClassId, setSelectedTicketClassId] = useState<string | null>(null);
   const [mapType, setMapType] = useState<SeatingMapType>("seats");
@@ -84,13 +83,6 @@ export function SeatMapBuilder({
     const deletedCount = Object.values(seatState).filter((s) => s.deleted).length;
     return { ...base, totalSeats: base.totalSeats - deletedCount };
   }, [sections, seatState]);
-  const demand = useMemo(() => getLayoutCapacityDemand(ticketClasses), [ticketClasses]);
-  const capacityByType = useMemo(() => getLayoutCapacityByType(sections), [sections]);
-  const deletedCount = useMemo(() => Object.values(seatState).filter((s) => s.deleted).length, [seatState]);
-  const isAssignedSeatCapacityShort = capacityByType.assignedSeatCapacity < demand.assignedSeatDemand;
-  const isTableCapacityShort = capacityByType.tableSeatCapacity < demand.tableSeatDemand;
-  const isTotalCapacityShort = summary.totalSeats < demand.totalLayoutDemand;
-  const hasCapacityIssue = isAssignedSeatCapacityShort || isTableCapacityShort || isTotalCapacityShort;
 
   useEffect(() => {
     if (onSummaryChange) {
@@ -228,12 +220,6 @@ export function SeatMapBuilder({
   async function handleSave() {
     if (sections.length === 0) {
       toast.error("Please add at least one seating section");
-      return;
-    }
-    if (hasCapacityIssue) {
-      toast.error("Layout capacity is below ticket demand", {
-        description: "Add seats or tables before saving this layout.",
-      });
       return;
     }
 
@@ -597,7 +583,7 @@ export function SeatMapBuilder({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.16)] bg-gradient-to-br from-white via-white to-[rgb(var(--theme-accent-rgb)/0.04)] p-6 shadow-sm">
+      <div className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-gradient-to-br from-white via-white to-[rgb(var(--theme-accent-rgb)/0.06)] p-6 shadow-sm">
         <div className="mb-5 grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Ticket Class</Label>
@@ -702,19 +688,10 @@ export function SeatMapBuilder({
 
       <div className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.18)] bg-gradient-to-br from-white via-white to-[rgb(var(--theme-accent-rgb)/0.06)] p-6 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <Badge>Required Seats: {demand.totalLayoutDemand}</Badge>
           <Badge>Sections: {summary.sectionCount}</Badge>
           <Badge>Total Seats: {summary.totalSeats}</Badge>
           <Badge>Total Tables: {summary.totalTables}</Badge>
         </div>
-        {hasCapacityIssue ? (
-          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Layout capacity is below ticket demand. Required: {demand.totalLayoutDemand} seats
-            {demand.tableSeatDemand > 0 ? `, including ${demand.tableSeatDemand} table seats` : ""}
-            {demand.assignedSeatDemand > 0 ? `, including ${demand.assignedSeatDemand} assigned seats` : ""}.
-            Current capacity is {summary.totalSeats} seats{deletedCount > 0 ? ` after ${deletedCount} deleted seats` : ""}.
-          </div>
-        ) : null}
 
         {sections.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[rgb(var(--theme-accent-rgb)/0.28)] bg-white/80 px-4 py-8 text-center">

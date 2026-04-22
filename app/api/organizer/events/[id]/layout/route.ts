@@ -5,7 +5,7 @@ import { requireRole } from "@/src/lib/auth/guards";
 import { resolveEventSeating } from "@/src/lib/event-seating";
 import { fail, ok } from "@/src/lib/http/response";
 import { getEventLayoutDecision, syncEventLayoutMode } from "@/src/lib/services/ticket-class-layout";
-import { serializeTicketClasses } from "@/src/lib/ticket-classes";
+
 import { venueUpdateSchema } from "@/src/lib/validators/organizer";
 import { computeSeatingSummary } from "@/src/lib/validators/venue-seating";
 import type { SeatingSection } from "@/src/types/venue-seating";
@@ -47,7 +47,6 @@ async function getOwnEventLayout(eventId: string, organizerUserId: string) {
           id: true,
           name: true,
           isActive: true,
-          inventoryMode: true,
           quantity: true,
           sold: true,
           sectionId: true,
@@ -65,46 +64,41 @@ function getSectionType(section: SeatingSection): EventSeatingSectionType {
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  console.log("--- [GET /layout] START ---");
   try {
+    console.log("1. Calling requireRole...");
     const auth = await requireRole(req, Role.ORGANIZER);
-    const { id } = await params;
-    const { profile, event } = await getOwnEventLayout(id, auth.sub);
-    if (!profile) return fail(404, { code: "PROFILE_NOT_FOUND", message: "Profile not found" });
-    if (!event) return fail(404, { code: "NOT_FOUND", message: "Event not found" });
+    console.log("2. requireRole SUCCESS. Auth:", auth);
 
+    const { id } = await params;
+    console.log(`3. Event ID: ${id}`);
+
+    const { profile, event } = await getOwnEventLayout(id, auth.sub);
+    console.log("4. Fetched event:", event ? `ID: ${event.id}` : "NULL");
+
+    if (!profile) {
+        console.error("PROFILE NOT FOUND");
+        return fail(404, { code: "PROFILE_NOT_FOUND", message: "Profile not found" });
+    }
+    if (!event) {
+        console.error("EVENT NOT FOUND OR NOT OWNED BY USER");
+        return fail(404, { code: "NOT_FOUND", message: "Event not found" });
+    }
+
+    console.log("5. Calling getEventLayoutDecision...");
     const layoutDecision = await getEventLayoutDecision(event.id);
-    const resolvedSeating = resolveEventSeating(event);
+    console.log("6. getEventLayoutDecision SUCCESS. Decision:", layoutDecision);
+
+    console.log("7. Calling resolveEventSeating...");
+    resolveEventSeating(event);
+    console.log("8. resolveEventSeating SUCCESS.");
 
     return ok({
-      event: {
-        id: event.id,
-        title: event.title,
-        status: event.status,
-        venue: event.venue,
-        seatingMode: event.seatingMode,
-        ticketClasses: serializeTicketClasses(event.ticketTypes),
-      },
-      layoutDecision,
-      seating: resolvedSeating,
-      sections: (event.seatingPlan?.sections ?? []).map((section) => {
-        const usedQuantity = event.ticketTypes
-          .filter((ticketType) => ticketType.eventSeatingSectionId === section.id)
-          .reduce((sum, ticketType) => sum + ticketType.quantity, 0);
-
-        return {
-          id: section.id,
-          key: section.key,
-          name: section.name,
-          sectionType: section.sectionType,
-          capacity: section.capacity,
-          usedQuantity,
-          remainingCapacity: section.capacity === null ? null : Math.max(0, section.capacity - usedQuantity),
-        };
-      }),
+      // ... response data
     });
   } catch (error) {
-    console.error("[app/api/organizer/events/[id]/layout/route.ts][GET]", error);
-    return fail(403, { code: "FORBIDDEN", message: "Organizer only" });
+    console.error("--- [GET /layout] CAUGHT ERROR ---", error);
+    return fail(403, { code: "FORBIDDEN", message: "An unexpected error occurred." });
   }
 }
 

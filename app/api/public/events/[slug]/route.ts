@@ -80,7 +80,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
           name: true,
           description: true,
           kind: true,
-          inventoryMode: true,
+          classType: true,
           sectionId: true,
           price: true,
           quantity: true,

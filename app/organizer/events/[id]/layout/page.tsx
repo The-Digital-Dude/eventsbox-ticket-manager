@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import { nav } from "@/app/organizer/nav";
@@ -70,7 +70,7 @@ export default function OrganizerEventLayoutPage({ params }: { params: Promise<{
   const [savingMappings, setSavingMappings] = useState(false);
   const [assignments, setAssignments] = useState<Record<string, string>>({});
 
-  async function load() {
+  const load = useCallback(async () => {
     const res = await fetch(`/api/organizer/events/${id}/layout`);
     const payload = await res.json();
     if (!res.ok) {
@@ -88,12 +88,12 @@ export default function OrganizerEventLayoutPage({ params }: { params: Promise<{
       ),
     );
     setLoading(false);
-  }
+  }, [id]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
-  }, [id]);
+  }, [id, load]);
 
   async function saveLayout(payload: {
     seatingConfig: VenueSeatingConfig;
@@ -207,6 +207,7 @@ export default function OrganizerEventLayoutPage({ params }: { params: Promise<{
           onBack={() => {
             window.location.href = `/organizer/events/${id}`;
           }}
+          ticketClasses={[]}
         />
 
         <div className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">

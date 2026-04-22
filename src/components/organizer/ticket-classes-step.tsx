@@ -5,46 +5,36 @@ import { toast } from 'sonner';
 import { Button } from "@/src/components/ui/button";
 import { TicketCard } from './ticket-card';
 import { PlusCircle, ArrowUp, ArrowDown } from 'lucide-react';
-
-import { TicketClassType } from '@prisma/client';
-import { validate } from "@/src/lib/validate";
-import { sharedEventSchema } from "@/src/lib/validators/shared-event-schema";
-
-// This type is now defined here as the single source of truth for this step
-export type TicketClass = {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  classType: TicketClassType;
-};
+import { EventTicketClass } from "@/src/types/event-draft";
+import { validateStep } from '@/src/lib/event-engine';
+import type { EventDraft } from "@/src/types/event-draft";
 
 type TicketClassesStepProps = {
-  initialData?: TicketClass[];
-  onNext: (data: TicketClass[]) => void;
+  initialData?: EventTicketClass[];
+  onNext: (data: EventTicketClass[]) => void;
   onPrevious: () => void;
 };
 
 export function TicketClassesStep({ initialData = [], onNext, onPrevious }: TicketClassesStepProps) {
-  const [ticketClasses, setTicketClasses] = useState<TicketClass[]>(initialData);
+  const [ticketClasses, setTicketClasses] = useState<EventTicketClass[]>(initialData);
 
   const addTicketClass = () => {
-    const newTicketClass: TicketClass = {
+    const newTicketClass: EventTicketClass = {
       id: new Date().toISOString(), // Temporary ID
       name: 'New Ticket',
       price: 0,
       quantity: 100,
-      classType: TicketClassType.GENERAL_ADMISSION,
+      type: "general",
     };
     setTicketClasses([...ticketClasses, newTicketClass]);
   };
 
-  const updateTicketClass = (updatedTicket: TicketClass) => {
+  const updateTicketClass = (updatedTicket: EventTicketClass) => {
     setTicketClasses(ticketClasses.map(tc => tc.id === updatedTicket.id ? updatedTicket : tc));
   };
 
-  const duplicateTicketClass = (ticketToDuplicate: TicketClass) => {
-    const newTicketClass: TicketClass = {
+  const duplicateTicketClass = (ticketToDuplicate: EventTicketClass) => {
+    const newTicketClass: EventTicketClass = {
       ...ticketToDuplicate,
       id: new Date().toISOString(),
       name: `${ticketToDuplicate.name} (Copy)`,
@@ -70,13 +60,22 @@ export function TicketClassesStep({ initialData = [], onNext, onPrevious }: Tick
     setTicketClasses(newTicketClasses);
   };
 
-// ...
-
   const handleSubmit = () => {
-    const { isValid, errors } = validate(sharedEventSchema.pick({ ticketClasses: true }), { ticketClasses });
-    if (!isValid) {
-      const errorMessages = Object.values(errors).flat().join("\n");
-      toast.error("Invalid ticket classes:", { description: errorMessages });
+    const draftForValidation: EventDraft = {
+      details: {},
+      ticketClasses,
+      seatingLayout: {},
+      ticketMappings: [],
+      meta: {
+        lastCompletedStep: 1,
+        version: 0,
+        lastSaved: new Date().toISOString(),
+        isPublished: false,
+      },
+    };
+    const issues = validateStep(draftForValidation, 2);
+    if (issues.length > 0) {
+      toast.error("Invalid ticket classes:", { description: issues.map(i => i.message).join("\n") });
       return;
     }
     onNext(ticketClasses);
@@ -98,10 +97,10 @@ export function TicketClassesStep({ initialData = [], onNext, onPrevious }: Tick
                       onRemove={removeTicketClass}
                     />
                     <div className="flex flex-col gap-1">
-                        <Button size="icon" variant="ghost" onClick={() => moveTicketClass(index, 'up')} disabled={index === 0} title="Move Up">
+                        <Button size="sm" variant="ghost" className="h-9 w-9 p-0" onClick={() => moveTicketClass(index, 'up')} disabled={index === 0} title="Move Up">
                             <ArrowUp className="h-4 w-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" onClick={() => moveTicketClass(index, 'down')} disabled={index === ticketClasses.length - 1} title="Move Down">
+                        <Button size="sm" variant="ghost" className="h-9 w-9 p-0" onClick={() => moveTicketClass(index, 'down')} disabled={index === ticketClasses.length - 1} title="Move Down">
                             <ArrowDown className="h-4 w-4" />
                         </Button>
                     </div>

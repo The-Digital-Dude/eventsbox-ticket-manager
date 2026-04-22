@@ -3,10 +3,9 @@
 import { useEffect, useState } from 'react';
 import { LayoutBuilderShell } from "@/src/components/organizer/layout-builder-shell";
 import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
-import type { TicketClass } from './ticket-classes-step';
 import { toast } from 'sonner';
-import { getLayoutCapacityDemand } from "@/src/lib/layout-auto-generator";
-import { TicketClassType } from "@prisma/client";
+
+import type { EventTicketClass } from "@/src/types/event-draft";
 
 export type LayoutSetupData = {
   seatingConfig: VenueSeatingConfig;
@@ -19,7 +18,7 @@ type LayoutSetupStepProps = {
   layoutType: 'seating' | 'table' | 'mixed';
   onNext: (data: LayoutSetupData) => void;
   onPrevious: () => void;
-  ticketClasses?: TicketClass[];
+  ticketClasses?: EventTicketClass[];
   venueId?: string;
 };
 
@@ -28,7 +27,6 @@ export function LayoutSetupStep({ initialData, layoutType, onNext, onPrevious, t
   const [loadingVenueConfig, setLoadingVenueConfig] = useState(false);
   const [venueName, setVenueName] = useState<string | null>(null);
   const [summary, setSummary] = useState(initialData?.summary ?? { totalSeats: 0, totalTables: 0, sectionCount: 0 });
-  const demand = getLayoutCapacityDemand(ticketClasses ?? []);
 
   useEffect(() => {
     async function fetchVenueSeating() {
@@ -90,18 +88,6 @@ export function LayoutSetupStep({ initialData, layoutType, onNext, onPrevious, t
           <h3 className="text-lg font-semibold text-neutral-900 mb-4">Live Summary</h3>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <dt className="text-neutral-600">Required Seats</dt>
-              <dd className="font-medium text-neutral-900">{demand.totalLayoutDemand}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-neutral-600">Required Table Seats</dt>
-              <dd className="font-medium text-neutral-900">{demand.tableSeatDemand}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-neutral-600">Required Assigned Seats</dt>
-              <dd className="font-medium text-neutral-900">{demand.assignedSeatDemand}</dd>
-            </div>
-            <div className="flex justify-between">
               <dt className="text-neutral-600">Sections</dt>
               <dd className="font-medium text-neutral-900">{summary.sectionCount}</dd>
             </div>
@@ -121,7 +107,7 @@ export function LayoutSetupStep({ initialData, layoutType, onNext, onPrevious, t
             <ul className="space-y-2">
               {ticketClasses.map(tc => (
                 <li key={tc.id} className="text-sm text-neutral-700">
-                  <span className="font-medium">{tc.name}</span>: {tc.quantity} {tc.classType !== TicketClassType.GENERAL_ADMISSION ? `${tc.classType} tickets` : 'tickets'}
+                  <span className="font-medium">{tc.name}</span>: {tc.quantity} {tc.type !== 'general' ? `${tc.type} tickets` : 'tickets'}
                 </li>
               ))}
             </ul>

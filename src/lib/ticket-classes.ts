@@ -118,14 +118,14 @@ export function deriveEventLayoutModeFromTicketClasses(classTypes: Array<TicketC
   return deriveEventLayoutDecision(classTypes).eventSeatingMode;
 }
 
-export function serializeTicketClass<T extends { inventoryMode?: string | null }>(ticket: T) {
-  const classType = getTicketClassType(ticket.inventoryMode);
+export function serializeTicketClass<T extends { inventoryMode?: string | null; classType?: string | null }>(ticket: T) {
+  const classType = getTicketClassType(ticket.inventoryMode ?? ticket.classType);
   return {
     ...ticket,
     classType,
   };
 }
 
-export function serializeTicketClasses<T extends { inventoryMode?: string | null }>(tickets: T[]) {
+export function serializeTicketClasses<T extends { inventoryMode?: string | null; classType?: string | null }>(tickets: T[]) {
   return tickets.map((ticket) => serializeTicketClass(ticket));
 }
