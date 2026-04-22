@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { Role } from "@prisma/client";
+import { OrganizerApprovalStatus, Role } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
@@ -27,6 +27,17 @@ const organizerPatchSchema = z
     socialMediaLink: z.string().max(500).optional(),
   })
   .strict();
+
+const organizerApprovalSchema = z.object({
+  approvalStatus: z.nativeEnum(OrganizerApprovalStatus).refine(val => val !== OrganizerApprovalStatus.DRAFT, { message: "Cannot set status to DRAFT" }),
+  rejectionReason: z.string().max(1000).optional().nullable(),
+}).strict().refine(data => {
+  if (data.approvalStatus === OrganizerApprovalStatus.REJECTED && !data.rejectionReason) {
+    return false;
+  }
+  return true;
+}, { message: "Rejection reason is required when status is REJECTED", path: ["rejectionReason"] });
+
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -59,18 +70,65 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await requireRole(req, Role.SUPER_ADMIN);
     const { id } = await params;
 
-    const parsed = organizerPatchSchema.safeParse(await req.json());
-    if (!parsed.success) {
-      return fail(400, { code: "VALIDATION_ERROR", message: "Invalid organizer patch payload", details: parsed.error.flatten() });
+    const body = await req.json();
+
+    // Try parsing as approval action first
+    const approvalParsed = organizerApprovalSchema.safeParse(body);
+
+    if (approvalParsed.success) {
+      const { approvalStatus, rejectionReason } = approvalParsed.data;
+      const updateData: { approvalStatus: OrganizerApprovalStatus, rejectionReason?: string | null, approvedAt?: Date | null } = {
+        approvalStatus,
+        rejectionReason: rejectionReason ?? null,
+      };
+
+      if (approvalStatus === OrganizerApprovalStatus.APPROVED) {
+        updateData.approvedAt = new Date();
+      } else if (approvalStatus === OrganizerApprovalStatus.PENDING_APPROVAL || approvalStatus === OrganizerApprovalStatus.REJECTED || approvalStatus === OrganizerApprovalStatus.SUSPENDED) {
+        updateData.approvedAt = null; // Clear approvedAt if status is not APPROVED
+      }
+
+      const updatedProfile = await prisma.organizerProfile.update({
+        where: { id },
+        data: updateData,
+        include: organizerDetailInclude,
+      });
+
+      // Also update the associated User role if approved
+      if (approvalStatus === OrganizerApprovalStatus.APPROVED) {
+        await prisma.user.update({
+          where: { id: updatedProfile.userId },
+          data: { role: Role.ORGANIZER },
+        });
+      } else if (approvalStatus === OrganizerApprovalStatus.SUSPENDED) {
+        // Optionally downgrade user role if suspended
+        await prisma.user.update({
+          where: { id: updatedProfile.userId },
+          data: { role: Role.ATTENDEE }, // Downgrade to ATTENDEE
+        });
+      }
+
+      const [state, city] = await Promise.all([
+        updatedProfile.stateId ? prisma.state.findUnique({ where: { id: updatedProfile.stateId }, select: { id: true, name: true } }) : Promise.resolve(null),
+        updatedProfile.cityId ? prisma.city.findUnique({ where: { id: updatedProfile.cityId }, select: { id: true, name: true } }) : Promise.resolve(null),
+      ]);
+
+      return ok({ ...updatedProfile, state, city });
     }
 
-    if (Object.keys(parsed.data).length === 0) {
+    // If not an approval action, try parsing as a general profile update
+    const profileParsed = organizerPatchSchema.safeParse(body);
+    if (!profileParsed.success) {
+      return fail(400, { code: "VALIDATION_ERROR", message: "Invalid organizer patch payload", details: profileParsed.error.flatten() });
+    }
+
+    if (Object.keys(profileParsed.data).length === 0) {
       return fail(400, { code: "EMPTY_PATCH", message: "No editable fields provided" });
     }
 
     const row = await prisma.organizerProfile.update({
       where: { id },
-      data: parsed.data,
+      data: profileParsed.data,
       include: organizerDetailInclude,
     });
 
