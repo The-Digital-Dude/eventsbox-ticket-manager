@@ -1,14 +1,52 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
-type SeatBookingClient = Pick<PrismaClient, "eventSeatBooking"> | Pick<Prisma.TransactionClient, "eventSeatBooking">;
+type SeatBookingClient =
+  | Pick<PrismaClient, "eventSeatBooking" | "seatInventory">
+  | Pick<Prisma.TransactionClient, "eventSeatBooking" | "seatInventory">;
 
 export async function releaseSeatBookingsForOrder(client: SeatBookingClient, orderId: string) {
   await client.eventSeatBooking.deleteMany({
     where: { orderId },
   });
+  if ("seatInventory" in client) {
+    await client.seatInventory.updateMany({
+      where: { orderId },
+      data: {
+        status: "AVAILABLE",
+        orderId: null,
+        expiresAt: null,
+      },
+    });
+  }
 }
 
 export async function markSeatBookingsBooked(client: SeatBookingClient, orderId: string) {
+  const inventorySeats = "seatInventory" in client
+    ? await client.seatInventory.findMany({
+        where: { orderId },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          seatLabel: true,
+        },
+      })
+    : [];
+
+  if (inventorySeats.length > 0) {
+    await client.seatInventory.updateMany({
+      where: { orderId },
+      data: {
+        status: "SOLD",
+        expiresAt: null,
+      },
+    });
+
+    return inventorySeats.map((seat) => ({
+      seatId: seat.id,
+      seatLabel: seat.seatLabel,
+    }));
+  }
+
   const seatBookings = await client.eventSeatBooking.findMany({
     where: { orderId },
     orderBy: { createdAt: "asc" },

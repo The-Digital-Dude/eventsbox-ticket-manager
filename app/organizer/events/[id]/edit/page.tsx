@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
@@ -35,6 +35,8 @@ const nav = [
 export default function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const stepParam = searchParams.get("step");
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [countries, setCountries] = useState<CountryRow[]>([]);
@@ -67,6 +69,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [audience, setAudience] = useState("");
+  const [draftStep, setDraftStep] = useState(0);
 
   const cities = states.find((s) => s.id === stateId)?.cities ?? [];
 
@@ -135,10 +138,13 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setPlatformFeeFixed(String(ev.platformFeeFixed ?? 0));
       setTags(Array.isArray(ev.tags) ? ev.tags : []);
       setAudience(ev.audience ?? "");
+      const queryStep = Number(stepParam);
+      const savedStep = Number.isFinite(queryStep) ? queryStep : ev.draftStep ?? 0;
+      setDraftStep(Math.min(Math.max(savedStep, 0), 4));
       setReady(true);
     }
     load();
-  }, [id, router]);
+  }, [id, router, stepParam]);
 
   async function save() {
     if (!title.trim()) return toast.error("Event title is required");
@@ -165,6 +171,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         platformFeeFixed: Number(platformFeeFixed),
         tags,
         audience: audience || undefined,
+        draftStep,
       }),
     });
     const payload = await res.json();
@@ -212,6 +219,28 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Edit Event</h1>
         <p className="mt-1 text-sm text-neutral-500">Changes apply to DRAFT or REJECTED events only.</p>
       </div>
+
+      <section className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.25)] bg-[rgb(var(--theme-accent-rgb)/0.06)] p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-medium text-neutral-900">Draft recovery step</p>
+            <p className="mt-1 text-sm text-neutral-600">
+              Resume point saved as Step {draftStep + 1} of 5.
+            </p>
+          </div>
+          <select
+            className="app-select md:w-56"
+            value={draftStep}
+            onChange={(event) => setDraftStep(Number(event.target.value))}
+          >
+            <option value={0}>Step 1 - Mode Selection</option>
+            <option value={1}>Step 2 - Event Details</option>
+            <option value={2}>Step 3 - Location & Date</option>
+            <option value={3}>Step 4 - Media</option>
+            <option value={4}>Step 5 - Review & Create</option>
+          </select>
+        </div>
+      </section>
 
       <div className="space-y-6">
         <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">

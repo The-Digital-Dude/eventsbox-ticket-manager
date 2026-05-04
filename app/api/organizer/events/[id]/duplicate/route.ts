@@ -14,47 +14,50 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const source = await prisma.event.findFirst({
       where: { id, organizerProfileId: profile.id },
-      include: { ticketTypes: { orderBy: { sortOrder: "asc" } } },
     });
     if (!source) return fail(404, { code: "NOT_FOUND", message: "Event not found" });
 
-    const newTitle = `${source.title} (Copy)`;
+    const newTitle = `Copy of ${source.title}`;
     const newEvent = await prisma.event.create({
       data: {
         organizerProfileId: profile.id,
+        seriesId: source.seriesId,
         title: newTitle,
         slug: slugify(newTitle),
+        tagline: source.tagline,
         description: source.description,
         heroImage: source.heroImage,
+        images: source.images,
+        eventType: source.eventType,
+        onlineAccessLink: source.onlineAccessLink,
+        visibility: source.visibility,
+        mode: source.mode,
         categoryId: source.categoryId,
         venueId: source.venueId,
+        countryId: source.countryId,
         stateId: source.stateId,
         cityId: source.cityId,
+        lat: source.lat,
+        lng: source.lng,
         contactEmail: source.contactEmail,
         contactPhone: source.contactPhone,
         cancelPolicy: source.cancelPolicy,
         refundPolicy: source.refundPolicy,
+        cancellationDeadlineHours: source.cancellationDeadlineHours,
+        refundPercent: source.refundPercent,
+        customConfirmationMessage: source.customConfirmationMessage,
         startAt: source.startAt,
         endAt: source.endAt,
         timezone: source.timezone,
+        currency: source.currency,
         commissionPct: source.commissionPct,
         gstPct: source.gstPct,
         platformFeeFixed: source.platformFeeFixed,
+        tags: source.tags,
+        audience: source.audience,
+        videoUrl: source.videoUrl,
         status: "DRAFT",
-        ticketTypes: {
-          create: source.ticketTypes.map((tt) => ({
-            name: tt.name,
-            description: tt.description,
-            kind: tt.kind,
-            price: tt.price,
-            quantity: tt.quantity,
-            maxPerOrder: tt.maxPerOrder,
-            isActive: tt.isActive,
-            sortOrder: tt.sortOrder,
-            saleStartAt: tt.saleStartAt,
-            saleEndAt: tt.saleEndAt,
-          })),
-        },
+        draftStep: 0,
       },
       select: { id: true, title: true, slug: true, status: true },
     });

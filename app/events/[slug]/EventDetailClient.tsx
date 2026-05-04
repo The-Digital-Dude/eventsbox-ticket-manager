@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Building2, CalendarDays, Mail, MapPin, Phone, Share2 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  PublicSeatMap,
+  type PublicSeatMapSection,
+  type PublicSeatMapSeat,
+} from "@/src/components/shared/public-seat-map";
 import { SeatMapLive } from "@/src/components/shared/seat-map-live";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -39,6 +44,7 @@ type EventDetail = {
   id: string;
   title: string;
   slug: string;
+  mode: "SIMPLE" | "RESERVED_SEATING";
   heroImage: string | null;
   images: string[];
   videoUrl: string | null;
@@ -109,6 +115,14 @@ type SeatAvailabilityPayload = {
   updatedAt: string;
 };
 
+type PublicSeatInventoryPayload = {
+  seatingEnabled: boolean;
+  sections: PublicSeatMapSection[];
+  seats: PublicSeatMapSeat[];
+  refreshIntervalMs: number;
+  updatedAt: string;
+};
+
 type CheckoutSessionState =
   | "loading"
   | null
@@ -173,6 +187,12 @@ export function EventDetailClient({ slug }: { slug: string }) {
   const [waitlistErrorByTicket, setWaitlistErrorByTicket] = useState<Record<string, string>>({});
   const [selectedSeatIds, setSelectedSeatIds] = useState<string[]>([]);
   const [seatAvailability, setSeatAvailability] = useState<Record<string, PublicSeatBookingState>>({});
+  const [publicSeatSections, setPublicSeatSections] = useState<PublicSeatMapSection[]>([]);
+  const [reservationToken, setReservationToken] = useState<string | null>(null);
+  const [reservationExpiresAt, setReservationExpiresAt] = useState<string | null>(null);
+  const [reservationSecondsLeft, setReservationSecondsLeft] = useState(0);
+  const [reservationStatus, setReservationStatus] = useState<"idle" | "reserved" | "expired">("idle");
+  const [reservingSeats, setReservingSeats] = useState(false);
   const [expandedSectionId, setExpandedSectionId] = useState<string | null>(null);
   const [seatPollIntervalMs, setSeatPollIntervalMs] = useState(10_000);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -298,7 +318,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
   }, [event?.id, session]);
 
   useEffect(() => {
-    if (!event?.venue?.seatingConfig) {
+    if (!event?.venue?.seatingConfig || event.mode === "RESERVED_SEATING") {
       setSeatAvailability({});
       return;
     }
@@ -343,7 +363,74 @@ export function EventDetailClient({ slug }: { slug: string }) {
       active = false;
       window.clearInterval(interval);
     };
-  }, [event?.venue?.seatingConfig, seatPollIntervalMs, slug]);
+  }, [event?.mode, event?.venue?.seatingConfig, seatPollIntervalMs, slug]);
+
+  useEffect(() => {
+    if (event?.mode !== "RESERVED_SEATING") {
+      setPublicSeatSections([]);
+      return;
+    }
+
+    let active = true;
+
+    async function loadPublicSeats() {
+      try {
+        const response = await fetch(`/api/public/events/${slug}/seats`, {
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as { data?: PublicSeatInventoryPayload };
+        if (!active || !payload.data) return;
+
+        setPublicSeatSections(payload.data.sections ?? []);
+        setSeatPollIntervalMs(payload.data.refreshIntervalMs ?? 10_000);
+      } catch {
+        if (active) {
+          setPublicSeatSections([]);
+        }
+      }
+    }
+
+    void loadPublicSeats();
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "hidden" || reservationStatus === "reserved") {
+        return;
+      }
+      void loadPublicSeats();
+    }, seatPollIntervalMs);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [event?.mode, reservationStatus, seatPollIntervalMs, slug]);
+
+  useEffect(() => {
+    if (!reservationExpiresAt) {
+      setReservationSecondsLeft(0);
+      return;
+    }
+
+    const expiresAt = reservationExpiresAt;
+    function tick() {
+      const secondsLeft = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000));
+      setReservationSecondsLeft(secondsLeft);
+      if (secondsLeft === 0) {
+        setReservationStatus("expired");
+        setReservationToken(null);
+        setReservationExpiresAt(null);
+        setSelectedSeatIds([]);
+        setCart({});
+        toast.error("Your seats have been released");
+      }
+    }
+
+    tick();
+    const interval = window.setInterval(tick, 1000);
+    return () => window.clearInterval(interval);
+  }, [reservationExpiresAt]);
 
   useEffect(() => {
     if (!selectedImage) {
@@ -385,8 +472,19 @@ export function EventDetailClient({ slug }: { slug: string }) {
     });
   }
 
+  const isReservedSeating = event?.mode === "RESERVED_SEATING";
+  const publicSeats = publicSeatSections.flatMap((section) => section.rows.flatMap((row) => row.seats));
+  const selectedPublicSeats = publicSeats.filter((seat) => selectedSeatIds.includes(seat.id));
   const cartItems = Object.entries(cart).filter(([, qty]) => qty > 0);
-  const ticketSubtotal = cartItems.reduce((sum, [ticketTypeId, qty]) => {
+  const reservedCartItems = Array.from(
+    selectedPublicSeats.reduce((map, seat) => {
+      if (!seat.ticketTypeId) return map;
+      map.set(seat.ticketTypeId, (map.get(seat.ticketTypeId) ?? 0) + 1);
+      return map;
+    }, new Map<string, number>()),
+  );
+  const checkoutCartItems = isReservedSeating ? reservedCartItems : cartItems;
+  const ticketSubtotal = isReservedSeating ? selectedPublicSeats.reduce((sum, seat) => sum + Number(seat.price ?? 0), 0) : cartItems.reduce((sum, [ticketTypeId, qty]) => {
     const ticketType = event?.ticketTypes.find((item) => item.id === ticketTypeId);
     return sum + Number(ticketType?.price ?? 0) * qty;
   }, 0);
@@ -430,14 +528,16 @@ export function EventDetailClient({ slug }: { slug: string }) {
   }, 0);
 
   useEffect(() => {
+    if (event?.mode === "RESERVED_SEATING") return;
     setSelectedSeatIds((prev) => prev.slice(0, totalSeatedTickets));
-  }, [totalSeatedTickets]);
+  }, [event?.mode, totalSeatedTickets]);
 
   useEffect(() => {
+    if (event?.mode === "RESERVED_SEATING") return;
     setSelectedSeatIds((prev) =>
       prev.filter((seatId) => (seatAvailability[seatId]?.status ?? "AVAILABLE") === "AVAILABLE"),
     );
-  }, [seatAvailability]);
+  }, [event?.mode, seatAvailability]);
 
   function toggleSeatSelection(seatId: string) {
     if (!requiresSeatSelection) return;
@@ -563,9 +663,52 @@ export function EventDetailClient({ slug }: { slug: string }) {
     setWaitlistErrorByTicket((prev) => ({ ...prev, [ticketTypeId]: "" }));
   }
 
+  async function reserveSelectedSeats() {
+    if (!event || !isReservedSeating) return;
+    if (selectedSeatIds.length === 0) return toast.error("Select at least one seat");
+    if (selectedPublicSeats.some((seat) => !seat.ticketTypeId)) {
+      return toast.error("Selected seats are not linked to a ticket type yet");
+    }
+
+    setReservingSeats(true);
+    const res = await fetch(`/api/public/events/${slug}/reserve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seatIds: selectedSeatIds }),
+    });
+    const payload = await res.json();
+    setReservingSeats(false);
+
+    if (!res.ok) {
+      setReservationToken(null);
+      setReservationExpiresAt(null);
+      setReservationStatus("idle");
+      return toast.error(payload?.error?.message ?? "Unable to reserve seats");
+    }
+
+    setReservationToken(payload.data.reservationToken);
+    setReservationExpiresAt(payload.data.expiresAt);
+    setReservationStatus("reserved");
+    setPublicSeatSections((sections) =>
+      sections.map((section) => ({
+        ...section,
+        rows: section.rows.map((row) => ({
+          ...row,
+          seats: row.seats.map((seat) =>
+            selectedSeatIds.includes(seat.id) ? { ...seat, status: "RESERVED" } : seat,
+          ),
+        })),
+      })),
+    );
+    toast.success("Seats reserved for 10 minutes");
+  }
+
   async function checkout() {
     if (!event) return;
-    if (cartItems.length === 0) return toast.error("Select at least one ticket");
+    if (!isReservedSeating && cartItems.length === 0) return toast.error("Select at least one ticket");
+    if (isReservedSeating && selectedSeatIds.length === 0) return toast.error("Select at least one seat");
+    if (isReservedSeating && !reservationToken) return toast.error("Reserve your selected seats first");
+    if (isReservedSeating && reservedCartItems.length === 0) return toast.error("Selected seats are not linked to a ticket type yet");
     if (session === "loading") return toast.error("Checking your session");
     if (!session) return toast.error("Sign in to purchase tickets");
     if (!buyerName.trim()) return toast.error("Enter your name");
@@ -582,7 +725,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
         eventId: event.id,
         buyerName: buyerName.trim(),
         buyerEmail: buyerEmail.trim(),
-        items: cartItems.map(([ticketTypeId, quantity]) => ({ ticketTypeId, quantity })),
+        items: checkoutCartItems.map(([ticketTypeId, quantity]) => ({ ticketTypeId, quantity })),
         ...(Object.keys(cartAddOns).length > 0
           ? {
               addOns: Object.entries(cartAddOns)
@@ -590,7 +733,8 @@ export function EventDetailClient({ slug }: { slug: string }) {
                 .map(([addOnId, quantity]) => ({ addOnId, quantity })),
             }
           : {}),
-        ...(requiresSeatSelection ? { selectedSeatIds } : {}),
+        ...(requiresSeatSelection || isReservedSeating ? { selectedSeatIds } : {}),
+        ...(reservationToken ? { reservationToken } : {}),
         ...(appliedPromo ? { promoCodeId: appliedPromo.promoCodeId } : {}),
         ...(affiliateCode ? { affiliateCode } : {}),
       }),
@@ -1114,9 +1258,50 @@ export function EventDetailClient({ slug }: { slug: string }) {
 
           <div className="space-y-4">
             <section className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.3)] bg-white p-6 shadow-sm">
-              <h2 className="mb-4 text-lg font-semibold text-neutral-900">Select Tickets</h2>
+              <h2 className="mb-4 text-lg font-semibold text-neutral-900">
+                {isReservedSeating ? "Select Seats" : "Select Tickets"}
+              </h2>
 
-              {event.ticketTypes.length === 0 ? (
+              {isReservedSeating ? (
+                <div className="space-y-4">
+                  <PublicSeatMap
+                    sections={publicSeatSections}
+                    selectedSeatIds={selectedSeatIds}
+                    onSelectionChange={(seatIds) => {
+                      setSelectedSeatIds(seatIds);
+                      setReservationToken(null);
+                      setReservationExpiresAt(null);
+                      setReservationStatus("idle");
+                    }}
+                    currency={currency}
+                    disabled={reservationStatus === "reserved"}
+                  />
+                  {reservationStatus === "expired" ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      Your seats have been released. Please select seats again.
+                    </div>
+                  ) : null}
+                  {reservationStatus === "reserved" && reservationExpiresAt ? (
+                    <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                      Reserved for{" "}
+                      <span className="font-semibold">
+                        {String(Math.floor(reservationSecondsLeft / 60)).padStart(2, "0")}:
+                        {String(reservationSecondsLeft % 60).padStart(2, "0")}
+                      </span>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      className="w-full"
+                      variant="outline"
+                      onClick={() => void reserveSelectedSeats()}
+                      disabled={reservingSeats || selectedSeatIds.length === 0}
+                    >
+                      {reservingSeats ? "Reserving..." : "Reserve Selected Seats"}
+                    </Button>
+                  )}
+                </div>
+              ) : event.ticketTypes.length === 0 ? (
                 <p className="text-sm text-neutral-500">No tickets available at this time.</p>
               ) : (
                 <div className="space-y-3">
@@ -1331,7 +1516,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
               </section>
             )}
 
-            {cartItems.length > 0 && (
+            {checkoutCartItems.length > 0 && (
               <section className="rounded-2xl border border-[var(--border)] bg-white p-5 text-sm shadow-sm">
                 <h3 className="mb-3 font-semibold text-neutral-900">Promo Code</h3>
                 <div className="flex gap-2">
@@ -1355,10 +1540,17 @@ export function EventDetailClient({ slug }: { slug: string }) {
               </section>
             )}
 
-            {cartItems.length > 0 && (
+            {checkoutCartItems.length > 0 && (
               <section className="rounded-2xl border border-[var(--border)] bg-white p-5 text-sm shadow-sm">
                 <h3 className="mb-3 font-semibold text-neutral-900">Order Summary</h3>
-                {cartItems.map(([ticketTypeId, qty]) => {
+                {isReservedSeating ? (
+                  selectedPublicSeats.map((seat) => (
+                    <div key={seat.id} className="flex justify-between py-1 text-neutral-700">
+                      <span>{seat.seatLabel}</span>
+                      <span>{formatCurrency(Number(seat.price), currency)}</span>
+                    </div>
+                  ))
+                ) : cartItems.map(([ticketTypeId, qty]) => {
                   const ticketType = event.ticketTypes.find((item) => item.id === ticketTypeId);
                   if (!ticketType) return null;
 
@@ -1419,7 +1611,7 @@ export function EventDetailClient({ slug }: { slug: string }) {
               </section>
             )}
 
-            {cartItems.length > 0 && (
+            {checkoutCartItems.length > 0 && (
               <section className="space-y-3 rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.3)] bg-white p-5 shadow-sm">
                 {session === "loading" ? (
                   <>

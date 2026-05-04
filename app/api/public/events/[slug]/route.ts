@@ -14,6 +14,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
       id: true,
       title: true,
       slug: true,
+      mode: true,
       heroImage: true,
       images: true,
       videoUrl: true,

@@ -29,6 +29,8 @@ type TicketType = {
   sold: number;
   reservedQty: number;
   compIssued: number;
+  manuallySoldOut: boolean;
+  manualSoldOutPreviousQuantity: number | null;
   maxPerOrder: number;
   isActive: boolean;
   sortOrder: number;
@@ -244,12 +246,32 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   async function duplicateEvent() {
-    if (!confirm("Duplicate this event? A new DRAFT copy will be created with all ticket types.")) return;
+    if (!confirm("Duplicate this event? A new DRAFT copy will be created without tickets or orders.")) return;
     const res = await fetch(`/api/organizer/events/${id}/duplicate`, { method: "POST" });
     const payload = await res.json();
     if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to duplicate event");
     toast.success("Event duplicated! Redirecting to copy...");
     router.push(`/organizer/events/${payload.data.id}`);
+  }
+
+  async function duplicateTicket(ticketId: string) {
+    const res = await fetch(`/api/organizer/events/${id}/ticket-types/${ticketId}/duplicate`, { method: "POST" });
+    const payload = await res.json();
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to duplicate ticket");
+    toast.success("Ticket type duplicated");
+    await load();
+  }
+
+  async function toggleSoldOut(ticket: TicketType, soldOut: boolean) {
+    const res = await fetch(`/api/organizer/events/${id}/ticket-types/${ticket.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ soldOut }),
+    });
+    const payload = await res.json();
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to update ticket availability");
+    toast.success(soldOut ? "Ticket marked sold out" : "Ticket marked available");
+    await load();
   }
 
   async function togglePublish() {
@@ -687,8 +709,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         ) : (
           <div className="space-y-3">
             {event.ticketTypes.map((ticket) => {
-              const available = ticket.quantity - ticket.sold - ticket.reservedQty;
-              const soldPct = Math.round((ticket.sold / ticket.quantity) * 100);
+              const available = Math.max(0, ticket.quantity - ticket.sold - ticket.reservedQty);
+              const soldPct = ticket.quantity > 0 ? Math.round((ticket.sold / ticket.quantity) * 100) : 0;
+              const isSoldOut = ticket.manuallySoldOut || available <= 0;
               return (
                 <div key={ticket.id} className="rounded-xl border border-[var(--border)] p-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
@@ -706,6 +729,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                           <Badge className="border-transparent bg-neutral-100 text-neutral-500">GA</Badge>
                         )}
                         {!ticket.isActive && <Badge className="bg-neutral-100 text-neutral-500">Inactive</Badge>}
+                        {isSoldOut && <Badge className="border-transparent bg-red-100 text-red-700">Sold Out</Badge>}
                       </div>
                       {ticket.description && <p className="mt-1 text-sm text-neutral-500">{ticket.description}</p>}
                     </div>
@@ -738,6 +762,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     <div className="mt-3 flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => toggleTicket(ticket.id, ticket.isActive)}>
                         {ticket.isActive ? "Deactivate" : "Activate"}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => duplicateTicket(ticket.id)}>
+                        Duplicate
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => toggleSoldOut(ticket, !isSoldOut)}>
+                        {isSoldOut ? "Mark Available" : "Mark Sold Out"}
                       </Button>
                       {ticket.sold === 0 && (
                         <Button

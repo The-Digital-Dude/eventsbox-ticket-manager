@@ -250,6 +250,7 @@ export default function NewEventPage() {
         audience: audience || undefined,
         lat: eventType === "PHYSICAL" ? lat : undefined,
         lng: eventType === "PHYSICAL" ? lng : undefined,
+        draftStep: steps.length - 1,
       }),
     });
     const payload = await res.json();

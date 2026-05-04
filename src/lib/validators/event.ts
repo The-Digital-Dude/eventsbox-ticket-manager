@@ -36,6 +36,7 @@ export const eventCreateSchema = z.object({
   audience: z.string().max(50).optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
+  draftStep: z.coerce.number().int().min(0).max(4).default(0).optional(),
 });
 
 export const eventUpdateSchema = eventCreateSchema.partial().extend({
@@ -66,6 +67,9 @@ export const ticketTypeCreateSchema = z.object({
 });
 
 export const ticketTypeUpdateSchema = ticketTypeCreateSchema.partial();
+export const ticketTypePatchSchema = ticketTypeUpdateSchema.extend({
+  soldOut: z.boolean().optional(),
+});
 
 const colorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a valid hex color");
 
@@ -136,6 +140,7 @@ export const checkoutIntentSchema = z.object({
   buyerEmail: z.string().email(),
   promoCodeId: z.string().cuid().optional(),
   affiliateCode: z.string().optional(),
+  reservationToken: z.string().min(1).max(2000).optional(),
   selectedSeatIds: z.array(z.string().min(1).max(140)).max(50).optional(),
   items: z.array(z.object({
     ticketTypeId: z.string().min(1),
@@ -147,6 +152,10 @@ export const checkoutIntentSchema = z.object({
   })).optional().default([]),
   isWalkIn: z.boolean().optional().default(false),
   scannerId: z.string().optional(),
+});
+
+export const publicSeatReservationSchema = z.object({
+  seatIds: z.array(z.string().min(1).max(140)).min(1).max(50),
 });
 
 export const eventDecisionSchema = z.object({

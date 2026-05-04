@@ -37,7 +37,10 @@ export default async function OrganizerDashboardPage() {
       events: {
         select: {
           id: true,
+          title: true,
           status: true,
+          updatedAt: true,
+          draftStep: true,
           _count: { select: { orders: true } },
           ticketTypes: { select: { sold: true } },
           orders: {
@@ -69,6 +72,11 @@ export default async function OrganizerDashboardPage() {
   const publishedEvents = profile.events.filter((e) => e.status === "PUBLISHED").length;
   const rejectedEvents = profile.events.filter((e) => e.status === "REJECTED").length;
   const pendingApprovalEvents = profile.events.filter((e) => e.status === "PENDING_APPROVAL").length;
+  const mostRecentDraft = [...profile.events]
+    .filter((event) => event.status === "DRAFT")
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
+  const draftSteps = ["Mode Selection", "Event Details", "Location & Date", "Media", "Review & Create"];
+  const draftStepIndex = Math.min(Math.max(mostRecentDraft?.draftStep ?? 0, 0), draftSteps.length - 1);
   const totalTicketsSold = profile.events.reduce((sum, e) => sum + e.ticketTypes.reduce((s, t) => s + t.sold, 0), 0);
   const totalRevenue = profile.events.reduce(
     (sum, e) => sum + e.orders.reduce((s, o) => s + Number(o.total), 0),
@@ -210,9 +218,44 @@ export default async function OrganizerDashboardPage() {
             <Link href="/organizer/events" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full justify-center text-xs")}>
               My Events
             </Link>
+            {mostRecentDraft && (
+              <Link
+                href={`/organizer/events/${mostRecentDraft.id}/edit?step=${draftStepIndex}`}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full justify-center text-xs")}
+              >
+                Resume Draft
+              </Link>
+            )}
           </div>
         </article>
       </section>
+
+      {mostRecentDraft && (
+        <section className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.25)] bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-medium text-neutral-600">Resume Draft</p>
+              <h2 className="mt-1 text-xl font-semibold tracking-tight text-neutral-900">{mostRecentDraft.title}</h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                Current step: {draftSteps[draftStepIndex]} ·{" "}
+                Last saved {mostRecentDraft.updatedAt.toLocaleString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+            <Link
+              href={`/organizer/events/${mostRecentDraft.id}/edit?step=${draftStepIndex}`}
+              className={cn(buttonVariants({ variant: "default" }), "justify-center")}
+            >
+              Continue Editing
+            </Link>
+          </div>
+        </section>
+      )}
 
       <section className="grid gap-4 lg:grid-cols-3">
         <article className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">

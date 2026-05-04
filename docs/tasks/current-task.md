@@ -1,6 +1,42 @@
 # Current Task
 
 ## Active Task
+**Phase F — Quick Wins**
+
+**Status:** DONE — duplicate/resume/ticket availability quick wins are implemented and prior TBDs are closed
+
+**Latest Handoff (2026-05-04):**
+- F1 Duplicate Event is complete. `POST /api/organizer/events/[id]/duplicate` now creates a `DRAFT` event titled `Copy of ...`, copies event fields only, and intentionally does not copy ticket types, orders, or other transactional records. `/organizer/events/[id]` has the Duplicate button wired to the endpoint.
+- F2 Draft Recovery Widget is complete. `/organizer/dashboard` now surfaces the organizer's most recently updated `DRAFT` event with title, saved draft step, last saved time, and a Continue Editing button. `Event.draftStep` persists the resume point, and the edit page restores it from the dashboard link.
+- F3 Duplicate Ticket Type is complete. Ticket rows on `/organizer/events/[id]` now include Duplicate, backed by `POST /api/organizer/events/[id]/ticket-types/[ticketTypeId]/duplicate`, which creates a copy named `... (Copy)` with clean sales/comp counters.
+- F4 Manual Sold-Out Toggle is complete. Ticket rows now show a Sold Out badge plus Mark Sold Out / Mark Available actions. `PATCH /api/organizer/events/[id]/ticket-types/[id]` accepts `soldOut`; marking sold out sets `TicketType.quantity = TicketType.sold` and stores the previous capacity in `TicketType.manualSoldOutPreviousQuantity` so Mark Available restores the exact prior quantity.
+- Added migration `prisma/migrations/20260504165000_add_phase_f_recovery_state/migration.sql` for `Event.draftStep`, `TicketType.manuallySoldOut`, and `TicketType.manualSoldOutPreviousQuantity`.
+- Added focused integration coverage in `src/tests/integration/organizer-phase-f-quick-wins.test.ts`.
+- Validation on this handoff: `npm run db:generate`, `npx vitest run src/tests/integration/organizer-phase-f-quick-wins.test.ts`, `npm run lint`, and `npm run typecheck` passed.
+- Known risks/TBDs: None for the prior Phase F handoff items.
+
+---
+
+## Previous Task
+**Phase E — Public Seat Picker + Reservation Timer**
+
+**Status:** DONE — public reserved seating selection and 10-minute reservation holds are implemented
+
+**Latest Handoff (2026-05-04):**
+- Added a reserved-seating branch to `/events/[slug]` while preserving the existing simple-event ticket quantity selector.
+- Created `src/components/shared/public-seat-map.tsx` for the public seat picker. It renders Phase C `SeatInventory` grouped by section/row, supports multi-seat selection, shows `AVAILABLE`, `RESERVED`, `SOLD`, and `BLOCKED` states, and displays selected seat labels plus seat total.
+- Reworked `GET /api/public/events/[slug]/seats` to serve public `SeatInventory` data for `RESERVED_SEATING` events, including section/row labels, ticket price metadata, and expired `RESERVED` seats as `AVAILABLE` in the response.
+- Added `POST /api/public/events/[slug]/reserve`, which accepts `{ seatIds: string[] }`, verifies a published reserved-seating event, confirms all seats belong to the event and are currently available, reserves them for 10 minutes, and returns a signed reservation token plus expiry.
+- The public event page now shows a `MM:SS` reservation countdown after reservation. When it expires, the UI clears selected seats and shows a released/expired state. No cron or background release job was added.
+- Extended checkout to accept `reservationToken` plus selected reserved seat IDs, verify the hold is still valid and unexpired, link reserved `SeatInventory` rows to the pending order, and preserve the existing simple/legacy seating checkout path.
+- Extended payment seat handling so successful Stripe payment marks linked `SeatInventory` seats as `SOLD` and creates QR tickets with seat labels; failed/refunded orders release linked `SeatInventory` rows back to `AVAILABLE`.
+- Added targeted integration coverage in `src/tests/integration/public-seat-reservations.test.ts`.
+- Validation on this handoff: `npm run lint`, `npm run typecheck`, and `npx vitest run src/tests/integration/public-seat-reservations.test.ts` passed.
+- Known risks/TBDs: No cron/background release was added, as requested for Phase E. Expired public `SeatInventory` holds are now released when the public seats API is read or when a new reservation is attempted. `SeatingSection` still has no price field in the current schema, so public seat prices come only from active `TicketType.sectionId` links; seats without a section-linked active ticket type are shown as unavailable instead of using a fallback price.
+
+---
+
+## Previous Task
 **Phase D — Auto Ticket Generation Preview**
 
 **Status:** DONE — reserved seating table zones can preview and sync generated ticket types

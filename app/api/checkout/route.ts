@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { EventMode, Prisma, SeatInventoryStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
@@ -6,6 +6,7 @@ import { getStripeClient } from "@/src/lib/stripe/client";
 import { checkoutIntentSchema } from "@/src/lib/validators/event";
 import { getServerSession } from "@/src/lib/auth/server-auth";
 import { validatePromoCodeById } from "@/src/lib/services/promo-code";
+import { verifyReservationToken } from "@/src/lib/reservations";
 import { getSeatDescriptorMap } from "@/src/lib/venue-seating";
 import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
 
@@ -22,7 +23,19 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { eventId, buyerName, buyerEmail, items, promoCodeId, affiliateCode, selectedSeatIds = [], addOns = [], isWalkIn, scannerId } = parsed.data;
+    const {
+      eventId,
+      buyerName,
+      buyerEmail,
+      items,
+      promoCodeId,
+      affiliateCode,
+      reservationToken,
+      selectedSeatIds = [],
+      addOns = [],
+      isWalkIn,
+      scannerId,
+    } = parsed.data;
 
     if (isWalkIn) {
       if (!scannerId) return fail(400, { code: "SCANNER_ID_REQUIRED", message: "Scanner ID is required for walk-in orders" });
@@ -34,6 +47,19 @@ export async function POST(req: NextRequest) {
       where: { id: eventId, status: "PUBLISHED" },
       include: {
         ticketTypes: true,
+        seatInventory: {
+          where: { id: { in: Array.from(new Set(selectedSeatIds)) } },
+          select: {
+            id: true,
+            eventId: true,
+            sectionId: true,
+            rowId: true,
+            seatLabel: true,
+            status: true,
+            orderId: true,
+            expiresAt: true,
+          },
+        },
         venue: {
           select: {
             seatingConfig: true,
@@ -63,6 +89,7 @@ export async function POST(req: NextRequest) {
         : null;
 
     const uniqueSelectedSeatIds = Array.from(new Set(selectedSeatIds));
+    const isReservedSeatingEvent = event.mode === EventMode.RESERVED_SEATING;
     const seatingConfig = (event.venue?.seatingConfig as VenueSeatingConfig | null) ?? null;
     const seatState = (event.venue?.seatState as Record<string, SeatState> | null) ?? null;
     const seatDescriptorMap = seatingConfig ? getSeatDescriptorMap(seatingConfig, seatState) : {};
@@ -74,7 +101,89 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (seatingConfig) {
+    if (isReservedSeatingEvent) {
+      if (uniqueSelectedSeatIds.length === 0) {
+        return fail(400, {
+          code: "SEAT_SELECTION_REQUIRED",
+          message: "Select at least one seat before checkout",
+        });
+      }
+
+      if (!reservationToken) {
+        return fail(400, {
+          code: "RESERVATION_REQUIRED",
+          message: "Reserve your selected seats before checkout",
+        });
+      }
+
+      const reservation = verifyReservationToken(reservationToken);
+      const sortedSelectedSeatIds = [...uniqueSelectedSeatIds].sort();
+      if (
+        !reservation ||
+        reservation.eventId !== event.id ||
+        reservation.expiresAt <= new Date().toISOString() ||
+        reservation.seatIds.length !== sortedSelectedSeatIds.length ||
+        reservation.seatIds.some((seatId, index) => seatId !== sortedSelectedSeatIds[index])
+      ) {
+        return fail(409, {
+          code: "INVALID_RESERVATION",
+          message: "Your seat reservation has expired. Please reserve seats again.",
+        });
+      }
+
+      if (event.seatInventory.length !== uniqueSelectedSeatIds.length) {
+        return fail(400, {
+          code: "INVALID_SEATS",
+          message: "One or more selected seats are not part of this event",
+        });
+      }
+
+      const unavailableSeat = event.seatInventory.find((seat) =>
+        seat.status !== SeatInventoryStatus.RESERVED ||
+        !seat.expiresAt ||
+        seat.expiresAt <= new Date() ||
+        (seat.orderId !== null && seat.orderId !== undefined),
+      );
+      if (unavailableSeat) {
+        return fail(409, {
+          code: "SEAT_RESERVATION_EXPIRED",
+          message: `${unavailableSeat.seatLabel} is no longer reserved. Please choose again.`,
+        });
+      }
+
+      const ticketCounts = new Map(items.map((item) => [item.ticketTypeId, item.quantity]));
+      const seatTicketCounts = new Map<string, number>();
+      const fallbackTicket = event.ticketTypes.find((ticket) => ticket.isActive) ?? null;
+      for (const seat of event.seatInventory) {
+        const ticket =
+          event.ticketTypes.find((candidate) => candidate.isActive && candidate.sectionId === seat.sectionId) ??
+          fallbackTicket;
+        if (!ticket || !ticketCounts.has(ticket.id)) {
+          return fail(400, {
+            code: "SEAT_TICKET_MISMATCH",
+            message: "Selected seats do not match the checkout ticket types",
+          });
+        }
+        seatTicketCounts.set(ticket.id, (seatTicketCounts.get(ticket.id) ?? 0) + 1);
+      }
+
+      for (const [ticketTypeId, quantity] of ticketCounts) {
+        if ((seatTicketCounts.get(ticketTypeId) ?? 0) !== quantity) {
+          return fail(400, {
+            code: "SEAT_TICKET_MISMATCH",
+            message: "Selected seats do not match the checkout ticket quantities",
+          });
+        }
+      }
+
+      const totalTickets = items.reduce((sum, item) => sum + item.quantity, 0);
+      if (totalTickets !== uniqueSelectedSeatIds.length) {
+        return fail(400, {
+          code: "SEAT_SELECTION_REQUIRED",
+          message: `Select ${totalTickets} seat${totalTickets === 1 ? "" : "s"} before checkout`,
+        });
+      }
+    } else if (seatingConfig) {
       // Only ticket types linked to a section require seat selection
       const totalSeatedTickets = items.reduce((sum, item) => {
         const tt = event.ticketTypes.find((t) => t.id === item.ticketTypeId);
@@ -171,10 +280,41 @@ export async function POST(req: NextRequest) {
 
       const freshEvent = await tx.event.findFirst({
         where: { id: eventId, status: "PUBLISHED" },
-        include: { ticketTypes: true, addOns: true },
+        include: {
+          ticketTypes: true,
+          addOns: true,
+          seatInventory: {
+            where: { id: { in: uniqueSelectedSeatIds } },
+            select: {
+              id: true,
+              sectionId: true,
+              seatLabel: true,
+              status: true,
+              orderId: true,
+              expiresAt: true,
+            },
+          },
+        },
       });
       if (!freshEvent) {
         throw new Error("EVENT_NOT_AVAILABLE");
+      }
+
+      if (freshEvent.mode === EventMode.RESERVED_SEATING) {
+        if (freshEvent.seatInventory.length !== uniqueSelectedSeatIds.length) {
+          throw new Error("INVALID_SEATS");
+        }
+
+        const nowInTx = new Date();
+        const unavailableSeat = freshEvent.seatInventory.find((seat) =>
+          seat.status !== SeatInventoryStatus.RESERVED ||
+          !seat.expiresAt ||
+          seat.expiresAt <= nowInTx ||
+          Boolean(seat.orderId),
+        );
+        if (unavailableSeat) {
+          throw new Error(`SEAT_RESERVATION_EXPIRED:${unavailableSeat.seatLabel}`);
+        }
       }
 
       let subtotal = 0;
@@ -194,7 +334,7 @@ export async function POST(req: NextRequest) {
         }
 
         const available = ticketType.quantity - ticketType.sold - ticketType.reservedQty;
-        if (item.quantity > available) {
+        if (freshEvent.mode !== EventMode.RESERVED_SEATING && item.quantity > available) {
           throw new Error(`INSUFFICIENT_INVENTORY:${ticketType.name}:${available}`);
         }
         if (item.quantity > ticketType.maxPerOrder) {
@@ -305,27 +445,57 @@ export async function POST(req: NextRequest) {
       });
 
       if (seatingConfig) {
-        for (const seatId of uniqueSelectedSeatIds) {
-          try {
-            await tx.eventSeatBooking.create({
-              data: {
-                eventId,
-                orderId: createdOrder.id,
-                seatId,
-                seatLabel: seatDescriptorMap[seatId].seatLabel,
-                status: "RESERVED",
-                expiresAt: holdUntil,
-              },
-            });
-          } catch (error) {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === "P2002"
-            ) {
-              throw new Error(`SEAT_ALREADY_RESERVED:${seatId}`);
-            }
-            throw error;
+        if (freshEvent.mode === EventMode.RESERVED_SEATING) {
+          const updatedSeats = await tx.seatInventory.updateMany({
+            where: {
+              eventId,
+              id: { in: uniqueSelectedSeatIds },
+              status: SeatInventoryStatus.RESERVED,
+              expiresAt: { gt: now },
+              orderId: null,
+            },
+            data: { orderId: createdOrder.id },
+          });
+          if (updatedSeats.count !== uniqueSelectedSeatIds.length) {
+            throw new Error("SEATS_CHANGED");
           }
+        } else {
+          for (const seatId of uniqueSelectedSeatIds) {
+            try {
+              await tx.eventSeatBooking.create({
+                data: {
+                  eventId,
+                  orderId: createdOrder.id,
+                  seatId,
+                  seatLabel: seatDescriptorMap[seatId].seatLabel,
+                  status: "RESERVED",
+                  expiresAt: holdUntil,
+                },
+              });
+            } catch (error) {
+              if (
+                error instanceof Prisma.PrismaClientKnownRequestError &&
+                error.code === "P2002"
+              ) {
+                throw new Error(`SEAT_ALREADY_RESERVED:${seatId}`);
+              }
+              throw error;
+            }
+          }
+        }
+      } else if (freshEvent.mode === EventMode.RESERVED_SEATING) {
+        const updatedSeats = await tx.seatInventory.updateMany({
+          where: {
+            eventId,
+            id: { in: uniqueSelectedSeatIds },
+            status: SeatInventoryStatus.RESERVED,
+            expiresAt: { gt: now },
+            orderId: null,
+          },
+          data: { orderId: createdOrder.id },
+        });
+        if (updatedSeats.count !== uniqueSelectedSeatIds.length) {
+          throw new Error("SEATS_CHANGED");
         }
       }
 
@@ -352,6 +522,10 @@ export async function POST(req: NextRequest) {
     const stripe = getStripeClient();
     if (!stripe) {
       await prisma.eventSeatBooking.deleteMany({ where: { orderId: order.id } });
+      await prisma.seatInventory.updateMany({
+        where: { orderId: order.id, status: SeatInventoryStatus.RESERVED },
+        data: { status: SeatInventoryStatus.AVAILABLE, orderId: null, expiresAt: null },
+      });
       await prisma.order.delete({ where: { id: order.id } });
       return fail(500, {
         code: "STRIPE_UNAVAILABLE",
@@ -391,7 +565,9 @@ export async function POST(req: NextRequest) {
         gst: Number(order.gst),
         total: Number(order.total),
       },
-      seatHoldExpiresAt: seatingConfig ? holdUntil.toISOString() : null,
+      seatHoldExpiresAt: isReservedSeatingEvent
+        ? (reservationToken ? verifyReservationToken(reservationToken)?.expiresAt ?? null : null)
+        : seatingConfig ? holdUntil.toISOString() : null,
     });
   } catch (err) {
     if (err instanceof Error) {
@@ -436,6 +612,24 @@ export async function POST(req: NextRequest) {
         return fail(409, {
           code: "SEAT_ALREADY_RESERVED",
           message: `Seat ${detail} was just taken. Please choose another seat.`,
+        });
+      }
+      if (code === "SEAT_RESERVATION_EXPIRED") {
+        return fail(409, {
+          code: "SEAT_RESERVATION_EXPIRED",
+          message: `${detail} is no longer reserved. Please choose again.`,
+        });
+      }
+      if (code === "INVALID_SEATS") {
+        return fail(400, {
+          code: "INVALID_SEATS",
+          message: "One or more selected seats are not part of this event",
+        });
+      }
+      if (code === "SEATS_CHANGED") {
+        return fail(409, {
+          code: "SEATS_CHANGED",
+          message: "One or more seats were just taken. Please choose again.",
         });
       }
       if (code === "EVENT_NOT_AVAILABLE") {

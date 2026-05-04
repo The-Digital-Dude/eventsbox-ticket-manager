@@ -385,6 +385,7 @@ model Event {
   endAt              DateTime
   timezone           String           @default("UTC")
   status             EventStatus      @default(DRAFT)
+  draftStep          Int              @default(0)
   rejectionReason    String?
   submittedAt        DateTime?
   publishedAt        DateTime?
@@ -450,7 +451,9 @@ model TicketType {
   kind        TicketTypeKind @default(DIRECT)
   price       Decimal        @db.Decimal(10, 2)
   quantity    Int
+  manualSoldOutPreviousQuantity Int?
   sold        Int            @default(0)
+  manuallySoldOut Boolean    @default(false)
   reservedQty Int            @default(0)
   compIssued  Int            @default(0)
   saleStartAt DateTime?

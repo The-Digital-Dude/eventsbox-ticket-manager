@@ -1,0 +1,4 @@
+ALTER TABLE "Event" ADD COLUMN "draftStep" INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE "TicketType" ADD COLUMN "manualSoldOutPreviousQuantity" INTEGER;
+ALTER TABLE "TicketType" ADD COLUMN "manuallySoldOut" BOOLEAN NOT NULL DEFAULT false;
