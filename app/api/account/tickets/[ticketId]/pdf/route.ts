@@ -1,20 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import PDFDocument from "pdfkit";
+import { createElement } from "react";
+import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/src/lib/db";
 import { requireAttendee } from "@/src/lib/auth/require-attendee";
 import { fail } from "@/src/lib/http/response";
-import { generateQrDataUrl } from "@/src/lib/qr";
+import { TicketPdf } from "@/src/lib/pdf/ticket-pdf";
 import { accountTicketQrParamsSchema } from "@/src/lib/validators/account";
 
-function formatDateTime(value: Date): string {
-  return value.toLocaleString("en-NZ", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+export const runtime = "nodejs";
+
+async function loadQrDataUrl(req: NextRequest, ticketId: string) {
+  const qrUrl = new URL(`/api/account/tickets/${ticketId}/qr`, req.url);
+  const res = await fetch(qrUrl, {
+    headers: {
+      cookie: req.headers.get("cookie") ?? "",
+    },
+    cache: "no-store",
   });
+
+  if (!res.ok) {
+    throw new Error("QR_IMAGE_UNAVAILABLE");
+  }
+
+  const buffer = Buffer.from(await res.arrayBuffer());
+  return `data:image/png;base64,${buffer.toString("base64")}`;
 }
 
 export async function GET(
@@ -47,18 +56,16 @@ export async function GET(
       select: {
         id: true,
         ticketNumber: true,
+        seatLabel: true,
         order: {
           select: {
-            id: true,
             attendeeUserId: true,
             status: true,
             event: {
               select: {
                 title: true,
                 startAt: true,
-                organizerProfile: {
-                  select: { logoUrl: true },
-                },
+                timezone: true,
                 venue: {
                   select: { name: true },
                 },
@@ -84,127 +91,22 @@ export async function GET(
       return fail(403, { code: "FORBIDDEN", message: "Ticket does not belong to your account" });
     }
 
-    const { order } = ticket;
-    const event = order.event;
-    const venueName = event.venue?.name ?? null;
-    const ticketTypeName = ticket.orderItem.ticketType.name;
+    const qrImageSrc = await loadQrDataUrl(req, ticket.id);
+    const pdfDocument = createElement(TicketPdf, {
+      ticket: {
+        eventTitle: ticket.order.event.title,
+        startAt: ticket.order.event.startAt,
+        timezone: ticket.order.event.timezone,
+        venueName: ticket.order.event.venue?.name ?? null,
+        ticketTypeName: ticket.orderItem.ticketType.name,
+        seatLabel: ticket.seatLabel,
+        ticketNumber: ticket.ticketNumber,
+        qrImageSrc,
+      },
+    }) as Parameters<typeof renderToBuffer>[0];
+    const pdf = await renderToBuffer(pdfDocument);
 
-    // Generate QR as base64 PNG data URL
-    const qrDataUrl = await generateQrDataUrl(ticket.id);
-    // Strip the data:image/png;base64, prefix to get raw base64
-    const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, "");
-    const qrBuffer = Buffer.from(qrBase64, "base64");
-
-    let logoBuffer: Buffer | null = null;
-    if (event.organizerProfile?.logoUrl) {
-      try {
-        const res = await fetch(event.organizerProfile.logoUrl);
-        if (res.ok) {
-          const ab = await res.arrayBuffer();
-          logoBuffer = Buffer.from(ab);
-        }
-      } catch (err) {
-        console.error("Failed to fetch organizer logo for PDF", err);
-      }
-    }
-
-    // Build PDF in memory
-    const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      const doc = new PDFDocument({ size: "A6", margin: 30 });
-
-      doc.on("data", (chunk: Buffer) => chunks.push(chunk));
-      doc.on("end", () => resolve(Buffer.concat(chunks)));
-      doc.on("error", reject);
-
-      const pageWidth = doc.page.width - 60; // margin * 2
-
-      // Header
-      if (logoBuffer) {
-        doc.image(logoBuffer, 50, 40, { width: 100 });
-        doc.moveDown(4);
-      } else {
-        doc
-          .fontSize(18)
-          .font("Helvetica-Bold")
-          .text("EVENTSBOX", { align: "center" });
-      }
-
-      doc.moveDown(0.3);
-      doc
-        .moveTo(30, doc.y)
-        .lineTo(30 + pageWidth, doc.y)
-        .strokeColor("#cccccc")
-        .stroke();
-      doc.moveDown(0.5);
-
-      // Event title
-      doc
-        .fontSize(13)
-        .font("Helvetica-Bold")
-        .fillColor("#111111")
-        .text(event.title, { align: "left" });
-
-      // Date
-      doc.moveDown(0.3);
-      doc
-        .fontSize(9)
-        .font("Helvetica")
-        .fillColor("#444444")
-        .text(`Date: ${formatDateTime(event.startAt)}`);
-
-      // Venue
-      if (venueName) {
-        doc.moveDown(0.2);
-        doc.text(`Venue: ${venueName}`);
-      }
-
-      doc.moveDown(0.5);
-      doc
-        .moveTo(30, doc.y)
-        .lineTo(30 + pageWidth, doc.y)
-        .strokeColor("#cccccc")
-        .stroke();
-      doc.moveDown(0.5);
-
-      // Ticket type
-      doc
-        .fontSize(11)
-        .font("Helvetica-Bold")
-        .fillColor("#111111")
-        .text(ticketTypeName);
-
-      doc.moveDown(0.3);
-      doc
-        .fontSize(9)
-        .font("Helvetica")
-        .fillColor("#444444")
-        .text(`Ticket #: ${ticket.ticketNumber}`);
-
-      doc.moveDown(0.2);
-      doc.text(`Order: ${order.id}`);
-
-      doc.moveDown(0.8);
-
-      // QR code image centered
-      const qrSize = 150;
-      const qrX = (doc.page.width - qrSize) / 2;
-      doc.image(qrBuffer, qrX, doc.y, { width: qrSize, height: qrSize });
-
-      doc.moveDown(0.5);
-      const afterQr = doc.y + qrSize + 8;
-      doc.y = afterQr;
-
-      doc
-        .fontSize(8)
-        .font("Helvetica")
-        .fillColor("#666666")
-        .text("Present this QR code at entry", { align: "center" });
-
-      doc.end();
-    });
-
-    return new NextResponse(new Uint8Array(pdfBuffer), {
+    return new NextResponse(new Uint8Array(pdf), {
       status: 200,
       headers: {
         "content-type": "application/pdf",

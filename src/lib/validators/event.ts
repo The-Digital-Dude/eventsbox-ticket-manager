@@ -159,8 +159,9 @@ export const publicSeatReservationSchema = z.object({
 });
 
 export const eventDecisionSchema = z.object({
-  action: z.enum(["PUBLISHED", "REJECTED"]),
+  action: z.enum(["PUBLISHED", "REJECTED", "REQUEST_CHANGES"]),
   reason: z.string().max(1000).optional(),
+  adminNote: z.string().trim().max(1000).optional(),
 });
 
 export const organizerEventCancelSchema = z.object({

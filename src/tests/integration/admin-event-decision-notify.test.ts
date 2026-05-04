@@ -87,6 +87,32 @@ describe("admin event decision notification integration", () => {
     );
   });
 
+  it("requests changes by moving the event to draft with an admin note", async () => {
+    updateEventMock.mockResolvedValueOnce({ id: "event-1", status: "DRAFT", adminNote: "Add venue map" });
+    const req = new NextRequest("http://localhost/api/admin/events/event-1/decision", {
+      method: "POST",
+      body: JSON.stringify({ action: "REQUEST_CHANGES", adminNote: "Add venue map" }),
+      headers: { "content-type": "application/json" },
+    });
+    const res = await POST(req, { params: Promise.resolve({ id: "event-1" }) });
+
+    expect(res.status).toBe(200);
+    expect(updateEventMock).toHaveBeenCalledWith({
+      where: { id: "event-1" },
+      data: {
+        status: "DRAFT",
+        adminNote: "Add venue map",
+        rejectionReason: null,
+      },
+    });
+    expect(sendOrganizerStatusMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "REQUEST_CHANGES",
+        reason: "Add venue map",
+      }),
+    );
+  });
+
   it("returns 400 when event is not pending approval", async () => {
     findEventMock.mockResolvedValueOnce({
       id: "event-1",

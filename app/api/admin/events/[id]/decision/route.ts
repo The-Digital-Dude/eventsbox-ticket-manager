@@ -32,14 +32,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return fail(400, { code: "INVALID_STATUS", message: "Only PENDING_APPROVAL events can be actioned" });
     }
 
-    const { action, reason } = parsed.data;
+    const { action, reason, adminNote } = parsed.data;
+    const requestedChangesNote = adminNote || reason;
 
     const updated = await prisma.event.update({
       where: { id },
       data: {
-        status: action,
-        ...(action === "PUBLISHED" ? { publishedAt: new Date(), rejectionReason: null } : {}),
-        ...(action === "REJECTED" ? { rejectionReason: reason ?? "Rejected by admin" } : {}),
+        status: action === "REQUEST_CHANGES" ? "DRAFT" : action,
+        ...(action === "PUBLISHED" ? { publishedAt: new Date(), rejectionReason: null, adminNote: null } : {}),
+        ...(action === "REJECTED" ? { rejectionReason: reason ?? "Rejected by admin", adminNote: null } : {}),
+        ...(action === "REQUEST_CHANGES"
+          ? { adminNote: requestedChangesNote ?? "Changes requested by admin", rejectionReason: null }
+          : {}),
       },
     });
 
@@ -47,7 +51,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       to: event.organizerProfile.user.email,
       eventTitle: event.title,
       status: action,
-      reason: action === "REJECTED" ? reason ?? "Rejected by admin" : undefined,
+      reason: action === "REJECTED"
+        ? reason ?? "Rejected by admin"
+        : action === "REQUEST_CHANGES"
+          ? requestedChangesNote ?? "Changes requested by admin"
+          : undefined,
       eventUrl: `${env.APP_URL}/organizer/events/${id}`,
     });
 

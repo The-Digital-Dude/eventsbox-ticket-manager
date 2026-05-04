@@ -30,6 +30,32 @@ type PayoutRequestRow = {
   stripeTransferId?: string | null;
 };
 
+type LedgerEntry = {
+  id: string;
+  date: string;
+  type: "Sale" | "Refund" | "Platform Fee" | "Payout";
+  description: string;
+  amount: number;
+  net: number;
+};
+
+type LedgerPayload = {
+  entries: LedgerEntry[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+  totals: {
+    grossSales: number;
+    totalFees: number;
+    totalRefunds: number;
+    totalPayouts: number;
+    netAvailable: number;
+  };
+};
+
 const nav = [
   { href: "/organizer/status", label: "Status" },
   { href: "/organizer/onboarding", label: "Onboarding" },
@@ -55,13 +81,21 @@ function formatAmount(value: number | string | null) {
   if (value === null || value === undefined) return "—";
   const normalized = Number(value);
   if (!Number.isFinite(normalized)) return "—";
-  return `$${normalized.toFixed(2)}`;
+  return `${normalized < 0 ? "-" : ""}$${Math.abs(normalized).toFixed(2)}`;
+}
+
+function ledgerTypeClass(type: LedgerEntry["type"]) {
+  if (type === "Sale") return "bg-emerald-100 text-emerald-700 border-transparent";
+  if (type === "Refund") return "bg-red-100 text-red-700 border-transparent";
+  if (type === "Platform Fee") return "bg-amber-100 text-amber-700 border-transparent";
+  return "bg-blue-100 text-blue-700 border-transparent";
 }
 
 export default function OrganizerPayoutPage() {
   const [manualNote, setManualNote] = useState("");
   const [settings, setSettings] = useState<PayoutSettings | null>(null);
   const [requests, setRequests] = useState<PayoutRequestRow[]>([]);
+  const [ledger, setLedger] = useState<LedgerPayload | null>(null);
   const [requestAmount, setRequestAmount] = useState("");
   const [requestNote, setRequestNote] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -77,7 +111,8 @@ export default function OrganizerPayoutPage() {
         fetch("/api/organizer/payout"),
         fetch("/api/organizer/payout/requests"),
       ]);
-      const [settingsPayload, requestsPayload] = await Promise.all([settingsRes.json(), requestsRes.json()]);
+      const ledgerRes = await fetch("/api/organizer/payout/ledger?pageSize=50");
+      const [settingsPayload, requestsPayload, ledgerPayload] = await Promise.all([settingsRes.json(), requestsRes.json(), ledgerRes.json()]);
 
       if (settingsPayload?.data) {
         setSettings(settingsPayload.data);
@@ -88,6 +123,12 @@ export default function OrganizerPayoutPage() {
         setRequests((requestsPayload?.data ?? []) as PayoutRequestRow[]);
       } else {
         setRequests([]);
+      }
+
+      if (ledgerRes.ok) {
+        setLedger((ledgerPayload?.data ?? null) as LedgerPayload | null);
+      } else {
+        setLedger(null);
       }
     } finally {
       setIsLoading(false);
@@ -367,6 +408,76 @@ export default function OrganizerPayoutPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-neutral-900">Transaction Ledger</h2>
+            <p className="mt-1 text-sm text-neutral-500">Sales, refunds, platform fees, and paid payouts derived from orders and payout requests.</p>
+          </div>
+          {ledger ? (
+            <div className="grid gap-2 text-sm sm:grid-cols-4">
+              <div className="rounded-xl border border-[var(--border)] bg-neutral-50 px-3 py-2">
+                <p className="text-xs text-neutral-500">Gross Sales</p>
+                <p className="font-semibold text-neutral-900">{formatAmount(ledger.totals.grossSales)}</p>
+              </div>
+              <div className="rounded-xl border border-[var(--border)] bg-neutral-50 px-3 py-2">
+                <p className="text-xs text-neutral-500">Total Fees</p>
+                <p className="font-semibold text-neutral-900">{formatAmount(ledger.totals.totalFees)}</p>
+              </div>
+              <div className="rounded-xl border border-[var(--border)] bg-neutral-50 px-3 py-2">
+                <p className="text-xs text-neutral-500">Refunds</p>
+                <p className="font-semibold text-neutral-900">{formatAmount(ledger.totals.totalRefunds)}</p>
+              </div>
+              <div className="rounded-xl border border-[var(--border)] bg-neutral-50 px-3 py-2">
+                <p className="text-xs text-neutral-500">Net Available</p>
+                <p className="font-semibold text-emerald-700">{formatAmount(ledger.totals.netAvailable)}</p>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {!ledger || ledger.entries.length === 0 ? (
+          <p className="text-sm text-neutral-500">No ledger entries yet.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="text-right">Net</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {ledger.entries.map((entry) => (
+                <TableRow key={entry.id}>
+                  <TableCell>{new Date(entry.date).toLocaleString()}</TableCell>
+                  <TableCell>
+                    <Badge className={ledgerTypeClass(entry.type)}>{entry.type}</Badge>
+                  </TableCell>
+                  <TableCell>{entry.description}</TableCell>
+                  <TableCell className={`text-right tabular-nums ${entry.amount < 0 ? "text-red-600" : "text-neutral-900"}`}>
+                    {formatAmount(entry.amount)}
+                  </TableCell>
+                  <TableCell className={`text-right tabular-nums ${entry.net < 0 ? "text-red-600" : "text-emerald-700"}`}>
+                    {formatAmount(entry.net)}
+                  </TableCell>
+                </TableRow>
+              ))}
+              <TableRow>
+                <TableCell colSpan={2} className="font-semibold text-neutral-900">Totals</TableCell>
+                <TableCell className="text-sm text-neutral-600">
+                  Gross Sales {formatAmount(ledger.totals.grossSales)} · Total Fees {formatAmount(ledger.totals.totalFees)} · Total Refunds {formatAmount(ledger.totals.totalRefunds)}
+                </TableCell>
+                <TableCell className="text-right font-semibold text-neutral-900">{formatAmount(ledger.totals.grossSales)}</TableCell>
+                <TableCell className="text-right font-semibold text-emerald-700">{formatAmount(ledger.totals.netAvailable)}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        )}
+      </section>
 
       <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between gap-3">

@@ -522,6 +522,8 @@ model Order {
   orderAddOns           OrderAddOn[]
   review                EventReview?
   seatInventory         SeatInventory[]
+  paymentMethod         String?
+  posNote               String?
 
   @@index([eventId])
   @@index([attendeeUserId])

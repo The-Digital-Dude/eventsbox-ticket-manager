@@ -45,6 +45,7 @@ type Order = {
 
 type EventDetail = {
   id: string; title: string; slug: string; status: string;
+  adminNote: string | null; rejectionReason: string | null;
   isFeatured: boolean;
   startAt: string; endAt: string; timezone: string;
   category: { name: string } | null;
@@ -81,21 +82,31 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
   const [togglingFeatured, setTogglingFeatured] = useState(false);
   const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [requestChangesNote, setRequestChangesNote] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
+  const [showRequestChangesForm, setShowRequestChangesForm] = useState(false);
 
-  async function decide(action: "PUBLISHED" | "REJECTED") {
+  async function decide(action: "PUBLISHED" | "REJECTED" | "REQUEST_CHANGES") {
     setDeciding(true);
     const res = await fetch(`/api/admin/events/${id}/decision`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, reason: action === "REJECTED" ? rejectReason.trim() || undefined : undefined }),
+      body: JSON.stringify(
+        action === "REJECTED"
+          ? { action, reason: rejectReason.trim() || undefined }
+          : action === "REQUEST_CHANGES"
+            ? { action, adminNote: requestChangesNote.trim() || undefined }
+            : { action },
+      ),
     });
     const payload = await res.json();
     setDeciding(false);
     if (!res.ok) return toast.error(payload?.error?.message ?? "Action failed");
-    toast.success(action === "PUBLISHED" ? "Event published" : "Event rejected");
+    toast.success(action === "PUBLISHED" ? "Event published" : action === "REQUEST_CHANGES" ? "Changes requested" : "Event rejected");
     setShowRejectForm(false);
+    setShowRequestChangesForm(false);
     setRejectReason("");
+    setRequestChangesNote("");
     // Reload event
     const updated = await fetch(`/api/admin/events/${id}`).then((r) => r.json());
     if (updated?.data) setEvent(updated.data);
@@ -212,6 +223,16 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
             <Button
               size="sm"
               variant="outline"
+              onClick={() => {
+                setRequestChangesNote(event.adminNote ?? "");
+                setShowRequestChangesForm((v) => !v);
+              }}
+            >
+              Request Changes
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
               className="text-red-600 hover:bg-red-50"
               onClick={() => setShowRejectForm((v) => !v)}
             >
@@ -254,6 +275,35 @@ export default function AdminEventDetailPage({ params }: { params: Promise<{ id:
               Cancel
             </Button>
           </div>
+        </div>
+      )}
+
+      {showRequestChangesForm && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <Input
+            value={requestChangesNote}
+            onChange={(e) => setRequestChangesNote(e.target.value)}
+            placeholder="Requested changes for the organizer"
+          />
+          <div className="mt-3 flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => decide("REQUEST_CHANGES")}
+              disabled={deciding}
+            >
+              Send Request
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setShowRequestChangesForm(false); setRequestChangesNote(""); }}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {event.adminNote && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Requested changes: {event.adminNote}
         </div>
       )}
 

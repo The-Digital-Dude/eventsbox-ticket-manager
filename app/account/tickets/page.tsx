@@ -4,9 +4,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/src/lib/db";
 import { requireAttendee } from "@/src/lib/auth/require-attendee";
 import { Badge } from "@/src/components/ui/badge";
+import { ResendConfirmationButton } from "@/app/account/tickets/resend-confirmation-button";
 
 type TicketCard = {
   id: string;
+  orderId: string;
   ticketNumber: string;
   checkedInAt: Date | null;
   eventTitle: string;
@@ -36,6 +38,7 @@ function buildTicketCards(
       startAt: Date;
       venue: { name: string; addressLine1: string } | null;
     };
+    id: string;
     items: Array<{
       ticketType: { name: string };
       tickets: Array<{ id: string; ticketNumber: string; checkedInAt: Date | null }>;
@@ -46,6 +49,7 @@ function buildTicketCards(
     order.items.flatMap((item) =>
       item.tickets.map((ticket) => ({
         id: ticket.id,
+        orderId: order.id,
         ticketNumber: ticket.ticketNumber,
         checkedInAt: ticket.checkedInAt,
         eventTitle: order.event.title,
@@ -90,6 +94,7 @@ async function loadAccountTickets() {
         status: "PAID",
       },
       select: {
+        id: true,
         event: {
           select: {
             title: true,
@@ -229,6 +234,7 @@ function TicketSection({
                   <FileText className="h-4 w-4" />
                   Download PDF
                 </a>
+                <ResendConfirmationButton orderId={ticket.orderId} />
                 <Link
                   href={`/events/${ticket.eventSlug}`}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--theme-accent)] px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"

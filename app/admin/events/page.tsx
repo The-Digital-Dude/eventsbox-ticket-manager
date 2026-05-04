@@ -20,6 +20,7 @@ type EventRow = {
   startAt: string;
   submittedAt: string | null;
   rejectionReason: string | null;
+  adminNote: string | null;
   category: { name: string } | null;
   venue: { name: string } | null;
   organizerProfile: { companyName: string | null; user: { email: string } };
@@ -60,6 +61,7 @@ export default function AdminEventsPage() {
   const [status, setStatus] = useState("PENDING_APPROVAL");
   const [q, setQ] = useState("");
   const [rejectDraft, setRejectDraft] = useState<{ id: string | null; reason: string }>({ id: null, reason: "" });
+  const [changesDraft, setChangesDraft] = useState<{ id: string | null; note: string }>({ id: null, note: "" });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkPendingAction, setBulkPendingAction] = useState<string | null>(null);
 
@@ -85,16 +87,17 @@ export default function AdminEventsPage() {
     setSelectedIds((prev) => prev.filter((id) => events.some((event) => event.id === id)));
   }, [events]);
 
-  async function decide(id: string, action: "PUBLISHED" | "REJECTED", reason?: string) {
+  async function decide(id: string, action: "PUBLISHED" | "REJECTED" | "REQUEST_CHANGES", reason?: string) {
     const res = await fetch(`/api/admin/events/${id}/decision`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, reason }),
+      body: JSON.stringify(action === "REQUEST_CHANGES" ? { action, adminNote: reason } : { action, reason }),
     });
     const payload = await res.json();
     if (!res.ok) return toast.error(payload?.error?.message ?? "Action failed");
-    toast.success(action === "PUBLISHED" ? "Event published" : "Event rejected");
+    toast.success(action === "PUBLISHED" ? "Event published" : action === "REQUEST_CHANGES" ? "Changes requested" : "Event rejected");
     setRejectDraft({ id: null, reason: "" });
+    setChangesDraft({ id: null, note: "" });
     await load();
   }
 
@@ -263,6 +266,13 @@ export default function AdminEventsPage() {
                     <Button
                       size="sm"
                       variant="outline"
+                      onClick={() => setChangesDraft({ id: event.id, note: event.adminNote ?? "" })}
+                    >
+                      Request Changes
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
                       className="text-red-600 hover:bg-red-50"
                       onClick={() => setRejectDraft({ id: event.id, reason: "" })}
                     >
@@ -315,9 +325,34 @@ export default function AdminEventsPage() {
                 </div>
               )}
 
+              {changesDraft.id === event.id && (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <Input
+                    value={changesDraft.note}
+                    onChange={(e) => setChangesDraft({ id: event.id, note: e.target.value })}
+                    placeholder="Requested changes for the organizer"
+                  />
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => decide(event.id, "REQUEST_CHANGES", changesDraft.note.trim() || undefined)}
+                    >
+                      Send Request
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setChangesDraft({ id: null, note: "" })}>Cancel</Button>
+                  </div>
+                </div>
+              )}
+
               {event.status === "REJECTED" && event.rejectionReason && (
                 <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                   Rejection reason: {event.rejectionReason}
+                </div>
+              )}
+              {event.adminNote && (
+                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  Requested changes: {event.adminNote}
                 </div>
               )}
             </article>

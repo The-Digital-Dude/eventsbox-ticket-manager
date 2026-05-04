@@ -33,6 +33,7 @@ async function getPublishedEvents(
   page = 1,
   tag?: string,
   audience?: string,
+  availability?: string,
 ) {
   const fromDate = parseDateInput(from);
   const toDate = to ? parseDateInput(`${to}T23:59:59Z`) : undefined;
@@ -88,10 +89,10 @@ async function getPublishedEvents(
       city: { select: { name: true } },
       ticketTypes: {
         where: { isActive: true },
-        orderBy: { price: "asc" },
+        orderBy: [{ sortOrder: "asc" }, { price: "asc" }],
         select: { price: true, quantity: true, sold: true, reservedQty: true },
-        take: 1,
       },
+      seatInventory: { select: { status: true, expiresAt: true } },
     },
     orderBy: { startAt: "asc" },
   });
@@ -108,9 +109,26 @@ async function getPublishedEvents(
         })
       : allEvents;
 
-  const total = durationFiltered.length;
+  const now = new Date();
+  const availabilityFiltered =
+    availability && availability !== "any"
+      ? durationFiltered.filter((event) => {
+          const ticketAvailability = event.ticketTypes.reduce(
+            (sum, ticket) => sum + Math.max(0, ticket.quantity - ticket.sold - ticket.reservedQty),
+            0,
+          );
+          const seatAvailability = event.seatInventory.filter((seat) =>
+            seat.status === "AVAILABLE" ||
+            (seat.status === "RESERVED" && seat.expiresAt !== null && seat.expiresAt <= now),
+          ).length;
+          const hasAvailability = ticketAvailability > 0 || seatAvailability > 0;
+          return availability === "available" ? hasAvailability : !hasAvailability;
+        })
+      : durationFiltered;
+
+  const total = availabilityFiltered.length;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const events = durationFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const events = availabilityFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return { events, total, pages };
 }
@@ -148,7 +166,7 @@ function buildQuery(sp: Record<string, string | undefined>, overrides: Record<st
   const merged: Record<string, string | number> = {};
   const keys = [
     "q", "category", "state", "from", "to",
-    "venueId", "cityId", "minPrice", "maxPrice", "duration", "page", "tag", "audience",
+    "venueId", "cityId", "minPrice", "maxPrice", "duration", "page", "tag", "audience", "availability",
   ] as const;
   for (const k of keys) {
     const v = k in overrides ? overrides[k] : sp[k];
@@ -174,6 +192,7 @@ export default async function PublicEventsPage({
     page?: string;
     tag?: string;
     audience?: string;
+    availability?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -194,6 +213,7 @@ export default async function PublicEventsPage({
       page,
       sp.tag,
       sp.audience,
+      sp.availability,
     ),
     getCategories(),
     getStates(),
@@ -214,6 +234,10 @@ export default async function PublicEventsPage({
     },
     sp.tag && { label: `Tag: #${sp.tag}`, key: "tag" },
     sp.audience && { label: `Audience: ${sp.audience}`, key: "audience" },
+    sp.availability && sp.availability !== "any" && {
+      label: sp.availability === "available" ? "Available tickets" : "Sold out only",
+      key: "availability",
+    },
   ].filter(Boolean) as Array<{ label: string; key: string }>;
 
   return (
@@ -318,6 +342,16 @@ export default async function PublicEventsPage({
 
             {/* Duration */}
             <select
+              name="availability"
+              defaultValue={sp.availability ?? "any"}
+              className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
+            >
+              <option value="any">Any availability</option>
+              <option value="available">Available tickets</option>
+              <option value="soldOut">Sold out only</option>
+            </select>
+
+            <select
               name="duration"
               defaultValue={sp.duration ?? "any"}
               className="h-12 rounded-xl border border-[var(--border)] bg-white px-4 text-sm shadow-sm focus:outline-none"
@@ -392,7 +426,9 @@ export default async function PublicEventsPage({
             </p>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {events.map((event) => {
-                const lowestPrice = event.ticketTypes[0] ? Number(event.ticketTypes[0].price) : null;
+                const lowestPrice = event.ticketTypes.length > 0
+                  ? Math.min(...event.ticketTypes.map((ticket) => Number(ticket.price)))
+                  : null;
                 const totalQty = event.ticketTypes.reduce((sum, t) => sum + t.quantity, 0);
                 const totalSold = event.ticketTypes.reduce((sum, t) => sum + t.sold, 0);
                 const totalReserved = event.ticketTypes.reduce((sum, ticket) => sum + ticket.reservedQty, 0);

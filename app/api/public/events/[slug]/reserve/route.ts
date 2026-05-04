@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
 import { createReservationToken } from "@/src/lib/reservations";
+import { cleanupExpiredSeatReservations } from "@/src/lib/services/seat-booking";
 import { publicSeatReservationSchema } from "@/src/lib/validators/event";
 
 const HOLD_MINUTES = 10;
@@ -38,18 +39,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
       if (!event) throw new Error("EVENT_NOT_FOUND");
       if (event.mode !== EventMode.RESERVED_SEATING) throw new Error("INVALID_EVENT_MODE");
 
-      await tx.seatInventory.updateMany({
-        where: {
-          eventId: event.id,
-          status: SeatInventoryStatus.RESERVED,
-          expiresAt: { lte: now },
-        },
-        data: {
-          status: SeatInventoryStatus.AVAILABLE,
-          orderId: null,
-          expiresAt: null,
-        },
-      });
+      await cleanupExpiredSeatReservations(tx, { eventId: event.id, now });
 
       const seats = await tx.seatInventory.findMany({
         where: { id: { in: seatIds } },

@@ -2,6 +2,7 @@ import { EventMode, SeatInventoryStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
+import { cleanupExpiredSeatReservations } from "@/src/lib/services/seat-booking";
 
 const REFRESH_INTERVAL_MS = 10_000;
 
@@ -64,18 +65,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
     });
   }
 
-  await prisma.seatInventory.updateMany({
-    where: {
-      eventId: event.id,
-      status: SeatInventoryStatus.RESERVED,
-      expiresAt: { lte: now },
-    },
-    data: {
-      status: SeatInventoryStatus.AVAILABLE,
-      orderId: null,
-      expiresAt: null,
-    },
-  });
+  await cleanupExpiredSeatReservations(prisma, { eventId: event.id, now });
 
   const ticketBySectionId = new Map(
     event.ticketTypes

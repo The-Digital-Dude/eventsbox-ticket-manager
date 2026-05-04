@@ -3,15 +3,19 @@ import { NextRequest } from "next/server";
 
 const {
   eventFindFirstMock,
+  eventSeatBookingDeleteManyMock,
   seatInventoryUpdateManyMock,
   prismaTransactionMock,
+  txEventSeatBookingDeleteManyMock,
   txEventFindFirstMock,
   txSeatInventoryFindManyMock,
   txSeatInventoryUpdateManyMock,
 } = vi.hoisted(() => ({
   eventFindFirstMock: vi.fn(),
+  eventSeatBookingDeleteManyMock: vi.fn(),
   seatInventoryUpdateManyMock: vi.fn(),
   prismaTransactionMock: vi.fn(),
+  txEventSeatBookingDeleteManyMock: vi.fn(),
   txEventFindFirstMock: vi.fn(),
   txSeatInventoryFindManyMock: vi.fn(),
   txSeatInventoryUpdateManyMock: vi.fn(),
@@ -21,6 +25,9 @@ vi.mock("@/src/lib/db", () => ({
   prisma: {
     event: {
       findFirst: eventFindFirstMock,
+    },
+    eventSeatBooking: {
+      deleteMany: eventSeatBookingDeleteManyMock,
     },
     seatInventory: {
       updateMany: seatInventoryUpdateManyMock,
@@ -39,6 +46,8 @@ describe("public seat reservations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     seatInventoryUpdateManyMock.mockResolvedValue({ count: 0 });
+    eventSeatBookingDeleteManyMock.mockResolvedValue({ count: 0 });
+    txEventSeatBookingDeleteManyMock.mockResolvedValue({ count: 0 });
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-04T12:00:00.000Z"));
   });
@@ -106,6 +115,13 @@ describe("public seat reservations", () => {
         expiresAt: null,
       },
     });
+    expect(eventSeatBookingDeleteManyMock).toHaveBeenCalledWith({
+      where: {
+        eventId: "event-1",
+        status: "RESERVED",
+        expiresAt: { lte: new Date("2026-05-04T12:00:00.000Z") },
+      },
+    });
     expect(payload.data.seats[0]).toMatchObject({
       id: "seat-1",
       seatLabel: "A1",
@@ -170,6 +186,7 @@ describe("public seat reservations", () => {
     prismaTransactionMock.mockImplementationOnce(async (callback) =>
       callback({
         event: { findFirst: txEventFindFirstMock },
+        eventSeatBooking: { deleteMany: txEventSeatBookingDeleteManyMock },
         seatInventory: {
           findMany: txSeatInventoryFindManyMock,
           updateMany: txSeatInventoryUpdateManyMock,

@@ -57,6 +57,7 @@ export function OrdersTableClient({ initialOrders }: { initialOrders: OrderRow[]
   const [submitting, setSubmitting] = useState(false);
   const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [cancelTransferSubmittingId, setCancelTransferSubmittingId] = useState<string | null>(null);
+  const [resendingOrderId, setResendingOrderId] = useState<string | null>(null);
 
   function setTicketTransferState(
     orderId: string,
@@ -172,6 +173,20 @@ export function OrdersTableClient({ initialOrders }: { initialOrders: OrderRow[]
     toast.success("Transfer cancelled");
   }
 
+  async function resendConfirmation(orderId: string) {
+    setResendingOrderId(orderId);
+    const res = await fetch(`/api/account/orders/${orderId}/resend-confirmation`, { method: "POST" });
+    const payload = await res.json();
+    setResendingOrderId(null);
+
+    if (!res.ok) {
+      toast.error(payload?.error?.message ?? "Unable to resend confirmation email");
+      return;
+    }
+
+    toast.success("Confirmation email sent");
+  }
+
   return (
     <section className="overflow-hidden rounded-xl border border-[var(--border)] bg-white shadow-sm">
       <table className="w-full text-sm">
@@ -268,9 +283,21 @@ export function OrdersTableClient({ initialOrders }: { initialOrders: OrderRow[]
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <Link href={`/orders/${order.id}`} className="text-sm font-medium text-[var(--theme-accent)] hover:underline">
-                      View
-                    </Link>
+                    <div className="flex flex-col items-start gap-2">
+                      <Link href={`/orders/${order.id}`} className="text-sm font-medium text-[var(--theme-accent)] hover:underline">
+                        View
+                      </Link>
+                      {order.status === "PAID" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void resendConfirmation(order.id)}
+                          disabled={resendingOrderId === order.id}
+                        >
+                          {resendingOrderId === order.id ? "Sending..." : "Resend email"}
+                        </Button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
                 <tr key={`${order.id}-tickets`}>

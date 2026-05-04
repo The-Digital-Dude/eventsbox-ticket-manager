@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, ChevronLeft, DollarSign, Package, RefreshCw, Save, Trash2, Users, X } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, DollarSign, Package, RefreshCw, Save, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
 import { Badge } from "@/src/components/ui/badge";
@@ -68,6 +68,7 @@ type EventDetail = {
   cancelPolicy: string | null;
   refundPolicy: string | null;
   customConfirmationMessage: string | null;
+  adminNote: string | null;
   commissionPct: number | string;
   gstPct: number | string;
   platformFeeFixed: number | string;
@@ -274,6 +275,27 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     await load();
   }
 
+  async function moveTicket(ticketId: string, direction: "up" | "down") {
+    if (!event) return;
+    const currentIndex = event.ticketTypes.findIndex((ticket) => ticket.id === ticketId);
+    const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= event.ticketTypes.length) return;
+
+    const nextTickets = [...event.ticketTypes];
+    const [moved] = nextTickets.splice(currentIndex, 1);
+    nextTickets.splice(nextIndex, 0, moved);
+
+    const res = await fetch(`/api/organizer/events/${id}/tickets/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticketIds: nextTickets.map((ticket) => ticket.id) }),
+    });
+    const payload = await res.json();
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to reorder tickets");
+    toast.success("Ticket order updated");
+    await load();
+  }
+
   async function togglePublish() {
     setPublishing(true);
     const res = await fetch(`/api/organizer/events/${id}/publish`, { method: "POST" });
@@ -430,6 +452,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {event.status === "REJECTED" && event.rejectionReason && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           <strong>Rejected:</strong> {event.rejectionReason}
+        </div>
+      )}
+
+      {event.adminNote && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <strong>Admin requested changes:</strong> {event.adminNote}
         </div>
       )}
 
@@ -708,7 +736,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           <p className="text-sm text-neutral-500">No ticket types yet. Add one above to get started.</p>
         ) : (
           <div className="space-y-3">
-            {event.ticketTypes.map((ticket) => {
+            {event.ticketTypes.map((ticket, index) => {
               const available = Math.max(0, ticket.quantity - ticket.sold - ticket.reservedQty);
               const soldPct = ticket.quantity > 0 ? Math.round((ticket.sold / ticket.quantity) * 100) : 0;
               const isSoldOut = ticket.manuallySoldOut || available <= 0;
@@ -759,7 +787,25 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   </div>
 
                   {canEdit && (
-                    <div className="mt-3 flex gap-2">
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => moveTicket(ticket.id, "up")}
+                        disabled={index === 0}
+                        aria-label={`Move ${ticket.name} up`}
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => moveTicket(ticket.id, "down")}
+                        disabled={index === event.ticketTypes.length - 1}
+                        aria-label={`Move ${ticket.name} down`}
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => toggleTicket(ticket.id, ticket.isActive)}>
                         {ticket.isActive ? "Deactivate" : "Activate"}
                       </Button>

@@ -86,6 +86,17 @@ export async function POST(req: NextRequest) {
       try {
         const ticket = ticketMap.get(scan.ticketId);
         if (!ticket) {
+          await writeAuditLog({
+            actorUserId: access.payload.sub,
+            action: "SCANNER_BATCH_INVALID_SCAN",
+            entityType: "Event",
+            entityId: parsed.data.eventId,
+            metadata: {
+              ticketId: scan.ticketId,
+              scannedAt: scan.scannedAt,
+              deviceId: scan.deviceId,
+            },
+          });
           results.push({ ticketId: scan.ticketId, outcome: "NOT_FOUND" });
           continue;
         }

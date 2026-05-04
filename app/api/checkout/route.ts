@@ -6,6 +6,7 @@ import { getStripeClient } from "@/src/lib/stripe/client";
 import { checkoutIntentSchema } from "@/src/lib/validators/event";
 import { getServerSession } from "@/src/lib/auth/server-auth";
 import { validatePromoCodeById } from "@/src/lib/services/promo-code";
+import { cleanupExpiredSeatReservations } from "@/src/lib/services/seat-booking";
 import { verifyReservationToken } from "@/src/lib/reservations";
 import { getSeatDescriptorMap } from "@/src/lib/venue-seating";
 import type { SeatState, VenueSeatingConfig } from "@/src/types/venue-seating";
@@ -270,13 +271,7 @@ export async function POST(req: NextRequest) {
     const holdUntil = new Date(now.getTime() + SEAT_HOLD_MS);
 
     const order = await prisma.$transaction(async (tx) => {
-      await tx.eventSeatBooking.deleteMany({
-        where: {
-          eventId,
-          status: "RESERVED",
-          expiresAt: { lt: now },
-        },
-      });
+      await cleanupExpiredSeatReservations(tx, { eventId, now });
 
       const freshEvent = await tx.event.findFirst({
         where: { id: eventId, status: "PUBLISHED" },

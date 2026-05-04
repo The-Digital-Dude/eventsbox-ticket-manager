@@ -11,9 +11,30 @@ type Scanner = {
   user: { email: string; isActive: boolean };
 };
 
+type ScannerEvent = {
+  id: string;
+  title: string;
+  startAt: string;
+  endAt: string;
+  venueName: string | null;
+  totalTickets: number;
+  checkedInCount: number;
+};
+
+type CheckinStats = {
+  totalTickets: number;
+  checkedIn: number;
+  remaining: number;
+  invalidScansToday: number;
+};
+
 export default function OrganizerScannersPage() {
   const [scanners, setScanners] = useState<Scanner[]>([]);
+  const [events, setEvents] = useState<ScannerEvent[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState("");
+  const [stats, setStats] = useState<CheckinStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
@@ -21,10 +42,16 @@ export default function OrganizerScannersPage() {
   const load = useCallback(async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/organizer/scanners");
-      const payload = await res.json();
+      const [res, eventsRes] = await Promise.all([
+        fetch("/api/organizer/scanners"),
+        fetch("/api/scanner/events"),
+      ]);
+      const [payload, eventsPayload] = await Promise.all([res.json(), eventsRes.json()]);
       if (!res.ok) throw new Error(payload.error?.message || "Failed to load scanners");
       setScanners(payload.data || []);
+      const loadedEvents = eventsRes.ok ? ((eventsPayload.data?.events ?? []) as ScannerEvent[]) : [];
+      setEvents(loadedEvents);
+      setSelectedEventId((current) => current || loadedEvents[0]?.id || "");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Error loading data");
     } finally {
@@ -32,9 +59,37 @@ export default function OrganizerScannersPage() {
     }
   }, []);
 
+  const loadStats = useCallback(async function loadStats(eventId: string) {
+    if (!eventId) {
+      setStats(null);
+      return;
+    }
+
+    setStatsLoading(true);
+    try {
+      const res = await fetch(`/api/organizer/events/${eventId}/checkin-stats`);
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error?.message || "Failed to load check-in stats");
+      setStats(payload.data as CheckinStats);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error loading check-in stats");
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!selectedEventId) return;
+    void loadStats(selectedEventId);
+    const interval = window.setInterval(() => {
+      void loadStats(selectedEventId);
+    }, 30_000);
+    return () => window.clearInterval(interval);
+  }, [loadStats, selectedEventId]);
 
   async function createScanner() {
     if (!form.email.trim() || !form.password.trim()) {
@@ -90,6 +145,41 @@ export default function OrganizerScannersPage() {
 
   return (
     <div className="space-y-6">
+      <section className="rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Event-Day Stats</h2>
+            <p className="mt-1 text-sm text-neutral-500">Auto-refreshes every 30 seconds for the selected event.</p>
+          </div>
+          <select
+            className="min-h-10 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm"
+            value={selectedEventId}
+            onChange={(event) => setSelectedEventId(event.target.value)}
+          >
+            {events.length === 0 ? <option value="">No events available</option> : null}
+            {events.map((event) => (
+              <option key={event.id} value={event.id}>
+                {event.title}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ["Total Tickets", stats?.totalTickets ?? 0],
+            ["Checked In", stats?.checkedIn ?? 0],
+            ["Remaining", stats?.remaining ?? 0],
+            ["Invalid Scans Today", stats?.invalidScansToday ?? 0],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-xl border border-[var(--border)] bg-neutral-50 p-4">
+              <p className="text-sm text-neutral-500">{label}</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums text-neutral-900">{statsLoading && !stats ? "..." : value}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">Scanner Accounts</h2>
         <Button size="sm" onClick={() => setShowForm(p => !p)}>

@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
   const minPriceRaw = req.nextUrl.searchParams.get("minPrice");
   const maxPriceRaw = req.nextUrl.searchParams.get("maxPrice");
   const duration = req.nextUrl.searchParams.get("duration") || undefined;
+  const availability = req.nextUrl.searchParams.get("availability") || undefined;
   const from = req.nextUrl.searchParams.get("from")?.trim() || undefined;
   const to = req.nextUrl.searchParams.get("to")?.trim() || undefined;
   const tag = req.nextUrl.searchParams.get("tag")?.trim() || undefined;
@@ -79,8 +80,11 @@ export async function GET(req: NextRequest) {
       city: { select: { id: true, name: true } },
       ticketTypes: {
         where: { isActive: true },
-        orderBy: { price: "asc" },
+        orderBy: [{ sortOrder: "asc" }, { price: "asc" }],
         select: { id: true, name: true, price: true, quantity: true, sold: true, reservedQty: true },
+      },
+      seatInventory: {
+        select: { status: true, expiresAt: true },
       },
       organizerProfile: { select: { companyName: true, brandName: true } },
     },
@@ -88,7 +92,7 @@ export async function GET(req: NextRequest) {
   });
 
   // Duration filter applied in JS (Prisma cannot compute endAt-startAt)
-  const filtered =
+  const durationFiltered =
     duration && duration !== "any"
       ? events.filter((e) => {
           const ms = e.endAt.getTime() - e.startAt.getTime();
@@ -99,5 +103,22 @@ export async function GET(req: NextRequest) {
         })
       : events;
 
-  return ok(filtered);
+  const now = new Date();
+  const availabilityFiltered =
+    availability && availability !== "any"
+      ? durationFiltered.filter((event) => {
+          const ticketAvailability = event.ticketTypes.reduce(
+            (sum, ticket) => sum + Math.max(0, ticket.quantity - ticket.sold - ticket.reservedQty),
+            0,
+          );
+          const seatAvailability = event.seatInventory.filter((seat) =>
+            seat.status === "AVAILABLE" ||
+            (seat.status === "RESERVED" && seat.expiresAt !== null && seat.expiresAt <= now),
+          ).length;
+          const hasAvailability = ticketAvailability > 0 || seatAvailability > 0;
+          return availability === "available" ? hasAvailability : !hasAvailability;
+        })
+      : durationFiltered;
+
+  return ok(availabilityFiltered);
 }

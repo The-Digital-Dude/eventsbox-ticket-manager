@@ -51,12 +51,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const { saleStartAt, saleEndAt, ...rest } = parsed.data;
+    const sortOrder = parsed.data.sortOrder !== 0
+      ? parsed.data.sortOrder
+      : ((await prisma.ticketType.aggregate({
+          where: { eventId: id },
+          _max: { sortOrder: true },
+        }))._max.sortOrder ?? -1) + 1;
 
     const ticket = await prisma.ticketType.create({
       data: {
         ...rest,
         eventId: id,
         price: rest.price,
+        sortOrder,
         ...(saleStartAt ? { saleStartAt: new Date(saleStartAt) } : {}),
         ...(saleEndAt ? { saleEndAt: new Date(saleEndAt) } : {}),
       },

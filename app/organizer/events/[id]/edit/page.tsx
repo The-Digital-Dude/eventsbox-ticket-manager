@@ -70,6 +70,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [tagInput, setTagInput] = useState("");
   const [audience, setAudience] = useState("");
   const [draftStep, setDraftStep] = useState(0);
+  const [adminNote, setAdminNote] = useState("");
 
   const cities = states.find((s) => s.id === stateId)?.cities ?? [];
 
@@ -138,6 +139,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setPlatformFeeFixed(String(ev.platformFeeFixed ?? 0));
       setTags(Array.isArray(ev.tags) ? ev.tags : []);
       setAudience(ev.audience ?? "");
+      setAdminNote(ev.adminNote ?? "");
       const queryStep = Number(stepParam);
       const savedStep = Number.isFinite(queryStep) ? queryStep : ev.draftStep ?? 0;
       setDraftStep(Math.min(Math.max(savedStep, 0), 4));
@@ -219,6 +221,12 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Edit Event</h1>
         <p className="mt-1 text-sm text-neutral-500">Changes apply to DRAFT or REJECTED events only.</p>
       </div>
+
+      {adminNote && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <strong>Admin requested changes:</strong> {adminNote}
+        </div>
+      )}
 
       <section className="rounded-2xl border border-[rgb(var(--theme-accent-rgb)/0.25)] bg-[rgb(var(--theme-accent-rgb)/0.06)] p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

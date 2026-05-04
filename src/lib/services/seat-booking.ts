@@ -4,6 +4,41 @@ type SeatBookingClient =
   | Pick<PrismaClient, "eventSeatBooking" | "seatInventory">
   | Pick<Prisma.TransactionClient, "eventSeatBooking" | "seatInventory">;
 
+export async function cleanupExpiredSeatReservations(
+  client: SeatBookingClient,
+  options: { eventId?: string; now?: Date } = {},
+) {
+  const now = options.now ?? new Date();
+  const eventFilter = options.eventId ? { eventId: options.eventId } : {};
+
+  const [legacyBookings, inventorySeats] = await Promise.all([
+    client.eventSeatBooking.deleteMany({
+      where: {
+        ...eventFilter,
+        status: "RESERVED",
+        expiresAt: { lte: now },
+      },
+    }),
+    client.seatInventory.updateMany({
+      where: {
+        ...eventFilter,
+        status: "RESERVED",
+        expiresAt: { lte: now },
+      },
+      data: {
+        status: "AVAILABLE",
+        orderId: null,
+        expiresAt: null,
+      },
+    }),
+  ]);
+
+  return {
+    legacyBookingsReleased: legacyBookings.count,
+    inventorySeatsReleased: inventorySeats.count,
+  };
+}
+
 export async function releaseSeatBookingsForOrder(client: SeatBookingClient, orderId: string) {
   await client.eventSeatBooking.deleteMany({
     where: { orderId },

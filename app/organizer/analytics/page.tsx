@@ -77,6 +77,23 @@ type AnalyticsPayload = {
   };
 };
 
+type AttendancePayload = {
+  data?: {
+    totalIssued: number;
+    checkedIn: number;
+    noShows: number;
+    checkInRate: number;
+    scanHistory: Array<{
+      ticketId: string;
+      ticketNumber: string;
+      attendeeName: string;
+      attendeeEmail: string;
+      checkedInAt: string | null;
+      device: string | null;
+    }>;
+  };
+};
+
 function parseMonths(raw?: string) {
   const value = Number(raw);
   if (!Number.isFinite(value)) return 12;
@@ -108,7 +125,7 @@ function EmptyTable({ label }: { label: string }) {
 export default async function OrganizerAnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ months?: string }>;
+  searchParams: Promise<{ months?: string; eventId?: string }>;
 }) {
   const session = await getServerSession();
   if (!session || session.user.role !== "ORGANIZER") redirect("/auth/login");
@@ -121,7 +138,7 @@ export default async function OrganizerAnalyticsPage({
     redirect("/organizer/status");
   }
 
-  const { months: rawMonths } = await searchParams;
+  const { months: rawMonths, eventId: rawEventId } = await searchParams;
   const months = parseMonths(rawMonths);
 
   const cookieHeader = (await cookies()).toString();
@@ -140,6 +157,18 @@ export default async function OrganizerAnalyticsPage({
   if (!data) {
     redirect("/organizer/dashboard");
   }
+
+  const selectedAttendanceEventId = rawEventId && data.events.some((event) => event.id === rawEventId)
+    ? rawEventId
+    : data.events[0]?.id ?? null;
+  const attendanceRes = selectedAttendanceEventId
+    ? await fetch(`${env.APP_URL}/api/organizer/analytics/attendance?eventId=${selectedAttendanceEventId}`, {
+        headers: { cookie: cookieHeader },
+        cache: "no-store",
+      })
+    : null;
+  const attendancePayload = attendanceRes?.ok ? ((await attendanceRes.json()) as AttendancePayload) : null;
+  const attendance = attendancePayload?.data ?? null;
 
   const monthly = data.monthly;
   const maxRevenue = Math.max(...monthly.map((month) => month.revenue), 1);
@@ -194,6 +223,14 @@ export default async function OrganizerAnalyticsPage({
             >
               Export All Orders (CSV)
             </Link>
+            {selectedAttendanceEventId ? (
+              <Link
+                href={`/api/organizer/export/report-pdf?eventId=${selectedAttendanceEventId}`}
+                className="inline-flex items-center rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+              >
+                Export PDF Report
+              </Link>
+            ) : null}
           </div>
         </div>
       </section>
@@ -230,6 +267,7 @@ export default async function OrganizerAnalyticsPage({
           <TabsTrigger value="promo-codes">Promo Codes</TabsTrigger>
           <TabsTrigger value="revenue-over-time">Revenue Over Time</TabsTrigger>
           <TabsTrigger value="addons">Add-ons</TabsTrigger>
+          <TabsTrigger value="attendance">Attendance</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
@@ -657,6 +695,106 @@ export default async function OrganizerAnalyticsPage({
                 </div>
               )}
             </article>
+          </section>
+        </TabsContent>
+
+        <TabsContent value="attendance" className="mt-4 space-y-4">
+          <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-neutral-900">Attendance Report</h2>
+                <p className="mt-1 text-sm text-neutral-500">Issued tickets, check-ins, no-shows, and scanner history by event.</p>
+              </div>
+              {data.events.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {data.events.map((event) => (
+                    <Link
+                      key={event.id}
+                      href={`/organizer/analytics?months=${months}&eventId=${event.id}`}
+                      className={`rounded-lg px-3 py-1.5 text-sm transition ${
+                        selectedAttendanceEventId === event.id
+                          ? "bg-[var(--theme-accent)] text-white"
+                          : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+                      }`}
+                    >
+                      {event.title}
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            {!attendance ? (
+              <p className="mt-6 text-sm text-neutral-500">No events available for attendance reporting yet.</p>
+            ) : (
+              <>
+                <div className="mt-6 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-neutral-50">
+                      <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-neutral-500">
+                        <th className="px-4 py-3">Event</th>
+                        <th className="px-4 py-3 text-right">Total Issued</th>
+                        <th className="px-4 py-3 text-right">Checked In</th>
+                        <th className="px-4 py-3 text-right">No-shows</th>
+                        <th className="px-4 py-3 text-right">Check-in Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-[var(--border)]">
+                        <td className="px-4 py-4 font-medium text-neutral-900">
+                          {data.events.find((event) => event.id === selectedAttendanceEventId)?.title ?? "Selected event"}
+                        </td>
+                        <td className="px-4 py-4 text-right tabular-nums text-neutral-700">{attendance.totalIssued}</td>
+                        <td className="px-4 py-4 text-right tabular-nums text-neutral-700">{attendance.checkedIn}</td>
+                        <td className="px-4 py-4 text-right tabular-nums text-neutral-700">{attendance.noShows}</td>
+                        <td className="px-4 py-4 text-right">
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="tabular-nums text-neutral-700">{attendance.checkInRate}%</span>
+                            <div className="h-1.5 w-20 rounded-full bg-neutral-100">
+                              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${attendance.checkInRate}%` }} />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-8">
+                  <h3 className="text-base font-semibold text-neutral-900">Scan History</h3>
+                  {attendance.scanHistory.length === 0 ? (
+                    <p className="mt-3 text-sm text-neutral-500">No check-ins recorded for this event yet.</p>
+                  ) : (
+                    <div className="mt-3 overflow-x-auto rounded-2xl border border-[var(--border)]">
+                      <table className="w-full text-sm">
+                        <thead className="bg-neutral-50">
+                          <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-neutral-500">
+                            <th className="px-4 py-3">Ticket Number</th>
+                            <th className="px-4 py-3">Attendee</th>
+                            <th className="px-4 py-3">Email</th>
+                            <th className="px-4 py-3">Checked-in Time</th>
+                            <th className="px-4 py-3">Device</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--border)]">
+                          {attendance.scanHistory.map((scan) => (
+                            <tr key={scan.ticketId}>
+                              <td className="px-4 py-3 font-medium text-neutral-900">{scan.ticketNumber}</td>
+                              <td className="px-4 py-3 text-neutral-700">{scan.attendeeName}</td>
+                              <td className="px-4 py-3 text-neutral-600">{scan.attendeeEmail}</td>
+                              <td className="px-4 py-3 text-neutral-600">
+                                {scan.checkedInAt ? new Date(scan.checkedInAt).toLocaleString() : "—"}
+                              </td>
+                              <td className="px-4 py-3 text-neutral-600">{scan.device ?? "Unknown device"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </section>
         </TabsContent>
       </Tabs>

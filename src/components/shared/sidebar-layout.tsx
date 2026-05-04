@@ -53,25 +53,39 @@ export function SidebarLayout({
     series: CalendarDays,
     orders: ReceiptText,
     scanner: ScanLine,
+    pos: ReceiptText,
     "platform config": Settings,
     categories: Compass,
     locations: MapPin,
   };
   const navigationItems = (() => {
-    if (role !== "organizer" || items.some((item) => item.href === "/organizer/series")) {
+    if (role !== "organizer") {
       return items;
     }
 
+    const withPos = items.some((item) => item.href === "/organizer/pos")
+      ? items
+      : (() => {
+          const posItem = { href: "/organizer/pos", label: "POS" };
+          const eventIndex = items.findIndex((item) => item.href === "/organizer/events");
+          if (eventIndex === -1) return [...items, posItem];
+          return [...items.slice(0, eventIndex + 1), posItem, ...items.slice(eventIndex + 1)];
+        })();
+
+    if (withPos.some((item) => item.href === "/organizer/series")) {
+      return withPos;
+    }
+
     const seriesItem = { href: "/organizer/series", label: "Series" };
-    const eventIndex = items.findIndex((item) => item.href === "/organizer/events");
+    const eventIndex = withPos.findIndex((item) => item.href === "/organizer/events");
     if (eventIndex === -1) {
-      return [...items, seriesItem];
+      return [...withPos, seriesItem];
     }
 
     return [
-      ...items.slice(0, eventIndex + 1),
+      ...withPos.slice(0, eventIndex + 1),
       seriesItem,
-      ...items.slice(eventIndex + 1),
+      ...withPos.slice(eventIndex + 1),
     ];
   })();
 

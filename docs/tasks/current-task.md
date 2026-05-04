@@ -1,6 +1,60 @@
 # Current Task
 
 ## Active Task
+**Phase I — Final Product Polish & Hardening**
+
+**Status:** DONE — remaining polish gaps from Phases A-H are implemented
+
+**Latest Handoff (2026-05-05):**
+- I1 Ticket Drag-Reorder UI is complete. Organizer event detail now has up/down controls for ticket types, backed by `POST /api/organizer/events/[id]/tickets/reorder`, and public/organizer/admin ticket reads continue to order by `TicketType.sortOrder`.
+- I2 Admin Request Changes is complete. Admin event governance now has a distinct Request Changes action that stores the requested change note on `Event.adminNote`, moves the event back to `DRAFT` for organizer edits/resubmission, clears rejection reason, emails the organizer, and surfaces the note on organizer/admin event status/detail pages.
+- I3 Resend Confirmation Email is complete. Added `POST /api/account/orders/[orderId]/resend-confirmation`, requiring ATTENDEE ownership of a PAID order and reusing `sendOrderConfirmationEmail`; attendee Orders and Tickets surfaces now expose resend buttons with toast feedback.
+- I4 Discovery Polish is complete. Public discovery now supports availability filtering in the UI and API, preserves price range filtering, computes sold-out/available states from ticket and reserved-seat inventory, and `/events/[slug]` emits Event JSON-LD structured data.
+- I5 Reservation Cleanup Hardening is complete. Added reusable `cleanupExpiredSeatReservations()` for expired `SeatInventory RESERVED` holds and legacy `EventSeatBooking RESERVED` rows, reused by public seat reads, public reserve, and checkout validation.
+- Added targeted coverage for request-changes decisions and expired seat cleanup behavior.
+- Validation on this handoff: `npx vitest run src/tests/integration/public-seat-reservations.test.ts src/tests/integration/admin-event-decision-notify.test.ts` passed; `npm run lint && npm run typecheck` passed.
+- Known risks/TBDs: availability filtering is computed after the primary event query so it remains correct across simple and reserved seating inventory, but it is not yet optimized for very large public event catalogs.
+
+---
+
+## Previous Task
+**Phase H — Reporting and Ledger**
+
+**Status:** DONE — reporting, payout ledger, event-day stats, and PDF report export are implemented
+
+**Latest Handoff (2026-05-05):**
+- H1 Attendance Report View is complete. `/organizer/analytics` now includes an Attendance tab with event selection, per-event issued/checked-in/no-show/check-in-rate totals, and scan history with ticket number, attendee name/email, checked-in time, and device.
+- Added `GET /api/organizer/analytics/attendance?eventId=...`, scoped to the authenticated organizer and returning `{ totalIssued, checkedIn, noShows, checkInRate, scanHistory }`.
+- H2 Unified Transaction Ledger is complete. `/organizer/payout` now shows a Transaction Ledger section with Sale, Refund, Platform Fee, and Payout rows plus gross sales, total fees, total refunds, and net available totals.
+- Added `GET /api/organizer/payout/ledger`, returning paginated ledger entries derived from PAID/REFUNDED orders and PAID payout requests.
+- H3 Event-Day Real-Time Dashboard is complete. `/organizer/scanner` now has an event-day stats panel for the selected event with Total Tickets, Checked In, Remaining, and Invalid Scans Today, polling every 30 seconds.
+- Added `GET /api/organizer/events/[id]/checkin-stats`. Invalid scanner not-found outcomes are recorded in `AuditLog` going forward via existing scanner check-in endpoints, then counted for the selected event for the current day.
+- H4 PDF Report Export is complete using the existing `@react-pdf/renderer` dependency from Phase G. `/organizer/analytics` now exposes an Export PDF Report button for the selected attendance event.
+- Added `GET /api/organizer/export/report-pdf?eventId=...`, returning a PDF with event summary, revenue metrics, ticket type breakdown, and attendance stats.
+- Validation on this handoff: `npm run lint && npm run typecheck` passed.
+- Known risks/TBDs: `invalidScansToday` is durable from this release forward; historical invalid scan attempts were not persisted before Phase H because no scan-attempt table existed.
+
+---
+
+## Previous Task
+**Phase G — PDF Tickets + Organizer POS**
+
+**Status:** DONE — attendee PDF ticket downloads and organizer POS ticket issuance are implemented
+
+**Latest Handoff (2026-05-05):**
+- G1 PDF Ticket Generation is complete. Added `@react-pdf/renderer`, created `src/lib/pdf/ticket-pdf.tsx`, and replaced `GET /api/account/tickets/[ticketId]/pdf` with a React PDF renderer using `renderToBuffer`.
+- The PDF route requires an ATTENDEE session, verifies the ticket belongs to the attendee's paid order, loads the existing attendee QR image endpoint with the current cookie, and returns `application/pdf` with `Content-Disposition: attachment; filename="ticket-[ticketNumber].pdf"`.
+- The attendee ticket wallet already had the per-ticket "Download PDF" action wired to `/api/account/tickets/[ticketId]/pdf`; that route is now backed by the requested React PDF implementation.
+- G2 POS System is complete. Added `/organizer/pos` as an ORGANIZER-only, approved-organizer page showing the organizer's published events, simple ticket selection with quantity, reserved seating seat selection, buyer info, payment method, and immediate issued QR display.
+- Added `POST /api/organizer/pos/issue`, requiring ORGANIZER access and ownership of a published event. It creates a PAID order without Stripe payment intent, creates the order item and QR ticket(s), increments sold inventory, marks reserved seats `SOLD`, sends the existing order confirmation email, and returns QR data URLs for the terminal.
+- POS payment method and optional note are now persisted on `Order.paymentMethod` and `Order.posNote`; migration `prisma/migrations/20260504145745_phase_g_pos_fields/migration.sql` adds both nullable columns.
+- Organizer sidebar navigation now includes a POS link.
+- Validation on this handoff: `npm run lint` and `npm run typecheck` passed.
+- Known risks/TBDs: None for Phase G.
+
+---
+
+## Previous Task
 **Phase F — Quick Wins**
 
 **Status:** DONE — duplicate/resume/ticket availability quick wins are implemented and prior TBDs are closed

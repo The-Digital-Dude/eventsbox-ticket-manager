@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/src/lib/db";
 import { fail, ok } from "@/src/lib/http/response";
 import { getScannerAccess, getScopedEvent, scannerAccessErrorResponse } from "@/src/lib/scanner-access";
+import { writeAuditLog } from "@/src/lib/services/audit";
 
 const checkinSchema = z.object({
   ticketId: z.string().min(1),
@@ -86,6 +87,17 @@ export async function POST(req: NextRequest) {
     });
 
     if (!ticket) {
+      await writeAuditLog({
+        actorUserId: access.payload.sub,
+        action: "SCANNER_INVALID_SCAN",
+        entityType: "Event",
+        entityId: parsed.data.eventId,
+        metadata: {
+          ticketId: parsed.data.ticketId,
+          scannedAt: parsed.data.scannedAt,
+          deviceId: parsed.data.deviceId,
+        },
+      });
       return ok({ outcome: "not_found" });
     }
 

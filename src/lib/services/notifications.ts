@@ -231,25 +231,31 @@ export async function sendOrderConfirmationEmail(input: {
 export async function sendOrganizerEventStatusEmail(input: {
   to: string;
   eventTitle: string;
-  status: "PUBLISHED" | "REJECTED" | "CANCELLED";
+  status: "PUBLISHED" | "REJECTED" | "REQUEST_CHANGES" | "CANCELLED";
   reason?: string | null;
   eventUrl: string;
 }) {
-  const statusLabel = input.status.replace("_", " ");
-  const subject = `Event ${statusLabel.toLowerCase()}: ${input.eventTitle}`;
+  const statusLabel = input.status === "REQUEST_CHANGES" ? "changes requested" : input.status.replace("_", " ").toLowerCase();
+  const subject = `Event ${statusLabel}: ${input.eventTitle}`;
   const text = [
     "Hello,",
     "",
-    `Your event "${input.eventTitle}" is now ${statusLabel}.`,
-    ...(input.reason ? [`Reason: ${input.reason}`] : []),
+    input.status === "REQUEST_CHANGES"
+      ? `An admin requested changes for "${input.eventTitle}".`
+      : `Your event "${input.eventTitle}" is now ${statusLabel.toUpperCase()}.`,
+    ...(input.reason ? [`Note: ${input.reason}`] : []),
     "",
     `View event: ${input.eventUrl}`,
   ].join("\n");
 
   const html = `
     <p>Hello,</p>
-    <p>Your event "<strong>${input.eventTitle}</strong>" is now <strong>${statusLabel}</strong>.</p>
-    ${input.reason ? `<p>Reason: ${input.reason}</p>` : ""}
+    <p>${
+      input.status === "REQUEST_CHANGES"
+        ? `An admin requested changes for "<strong>${input.eventTitle}</strong>".`
+        : `Your event "<strong>${input.eventTitle}</strong>" is now <strong>${statusLabel.toUpperCase()}</strong>.`
+    }</p>
+    ${input.reason ? `<p>Note: ${input.reason}</p>` : ""}
     <p><a href="${input.eventUrl}">View event</a></p>
   `;
 
