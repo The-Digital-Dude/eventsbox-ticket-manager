@@ -108,6 +108,13 @@ enum SeatBookingStatus {
   BOOKED
 }
 
+enum SeatInventoryStatus {
+  AVAILABLE
+  RESERVED
+  SOLD
+  BLOCKED
+}
+
 enum TicketTransferStatus {
   PENDING
   ACCEPTED
@@ -404,6 +411,9 @@ model Event {
   reviewCount        Int              @default(0)
   avgRating          Float            @default(0)
   seatBookings       EventSeatBooking[]
+  seatingSections    SeatingSection[]
+  seatInventory      SeatInventory[]
+  tableZones         TableZone[]
   waitlist           Waitlist[]
   affiliateLinks     AffiliateLink[]
   addOns             EventAddOn[]
@@ -508,6 +518,7 @@ model Order {
   affiliateLink         AffiliateLink? @relation(fields: [affiliateLinkId], references: [id])
   orderAddOns           OrderAddOn[]
   review                EventReview?
+  seatInventory         SeatInventory[]
 
   @@index([eventId])
   @@index([attendeeUserId])
@@ -619,6 +630,74 @@ model EventSeatBooking {
   @@unique([eventId, seatId])
   @@index([orderId])
   @@index([eventId, status, expiresAt])
+}
+
+model SeatingSection {
+  id        String          @id @default(cuid())
+  eventId   String
+  name      String
+  color     String
+  sortOrder Int             @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  event     Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  rows      SeatingRow[]
+  seats     SeatInventory[]
+
+  @@index([eventId])
+  @@index([eventId, sortOrder])
+}
+
+model SeatingRow {
+  id        String          @id @default(cuid())
+  sectionId String
+  label     String
+  sortOrder Int             @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  section   SeatingSection  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  seats     SeatInventory[]
+
+  @@index([sectionId])
+  @@index([sectionId, sortOrder])
+}
+
+model SeatInventory {
+  id        String              @id @default(cuid())
+  eventId   String
+  sectionId String
+  rowId     String
+  seatLabel String
+  status    SeatInventoryStatus @default(AVAILABLE)
+  orderId   String?
+  expiresAt DateTime?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  event     Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  section   SeatingSection      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  row       SeatingRow          @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  order     Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, seatLabel])
+  @@index([eventId, status, expiresAt])
+  @@index([sectionId])
+  @@index([rowId])
+  @@index([orderId])
+}
+
+model TableZone {
+  id            String   @id @default(cuid())
+  eventId       String
+  name          String
+  seatsPerTable Int
+  totalTables   Int
+  price         Decimal  @db.Decimal(10, 2)
+  color         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
 }
 
 model Waitlist {

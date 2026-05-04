@@ -1,6 +1,35 @@
 # Current Task
 
 ## Active Task
+**Phase B — Multi-Step Event Creation Wizard**
+
+**Status:** DONE — organizer event creation now uses the Phase B wizard flow
+
+**Latest Handoff (2026-05-04):**
+- Replaced `/organizer/events/new` with a five-step creation wizard: mode selection, event details, location/date with live preview, media, and review/create.
+- Wizard now captures and submits `mode`, `tagline`, `eventType`, `visibility`, and `onlineAccessLink` alongside existing event fields.
+- Organizer event creation API now accepts the Phase A event fields and saves online access links only for online events.
+- `eventCreateSchema` now validates the new event mode/type/visibility/tagline/online fields.
+- Validation on this handoff: `npm run lint` and `npm run typecheck` passed.
+
+---
+
+## Previous Task
+**Phase A — Schema Additions**
+
+**Status:** DONE — foundation schema for event creation modes and reserved seating is in place
+
+**Latest Handoff (2026-05-04):**
+- Event records now support `tagline`, `eventType`, `onlineAccessLink`, `visibility`, `mode`, and `adminNote`.
+- Added safe defaults for existing events: `eventType = PHYSICAL`, `visibility = PUBLIC`, and `mode = SIMPLE`.
+- Added reserved seating foundation models: `SeatingSection`, `SeatingRow`, `SeatInventory`, and `TableZone`.
+- Added `SeatInventoryStatus` with `AVAILABLE`, `RESERVED`, `SOLD`, and `BLOCKED`.
+- Checked-in migrations cover both the Event field additions and reserved seating model additions.
+- No UI files were changed for Phase A.
+
+---
+
+## Previous Task
 **Phase 26 — Attendee Experience Polish**
 
 **Status:** DONE — attendee discovery and notification UX received a focused polish pass on top of phases 22–25

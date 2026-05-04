@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       return fail(400, { code: "VALIDATION_ERROR", message: "Invalid event data", details: parsed.error.flatten() });
     }
 
-    const { startAt, endAt, heroImage, videoUrl, contactEmail, ...rest } = parsed.data;
+    const { startAt, endAt, heroImage, videoUrl, contactEmail, onlineAccessLink, ...rest } = parsed.data;
 
     if (new Date(endAt) <= new Date(startAt)) {
       return fail(400, { code: "INVALID_DATES", message: "End date must be after start date" });
@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
         heroImage: heroImage || null,
         videoUrl: videoUrl || null,
         contactEmail: contactEmail || null,
+        onlineAccessLink: rest.eventType === "ONLINE" ? onlineAccessLink || null : null,
         organizerProfileId: profile.id,
         startAt: new Date(startAt),
         endAt: new Date(endAt),

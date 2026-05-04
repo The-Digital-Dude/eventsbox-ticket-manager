@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const eventCreateSchema = z.object({
   title: z.string().min(3).max(200),
+  tagline: z.string().max(160).optional(),
   description: z.string().max(5000).optional(),
   categoryId: z.string().optional(),
   venueId: z.string().optional(),
@@ -11,6 +12,10 @@ export const eventCreateSchema = z.object({
   heroImage: z.string().url().optional().or(z.literal("")),
   videoUrl: z.string().url().optional().or(z.literal("")),
   images: z.array(z.string().url()).max(10).optional(),
+  eventType: z.enum(["PHYSICAL", "ONLINE"]).default("PHYSICAL"),
+  onlineAccessLink: z.string().url().optional().or(z.literal("")),
+  visibility: z.enum(["PUBLIC", "PRIVATE", "UNLISTED"]).default("PUBLIC"),
+  mode: z.enum(["SIMPLE", "RESERVED_SEATING"]).default("SIMPLE"),
   contactEmail: z.string().email().optional().or(z.literal("")),
   contactPhone: z.string().max(30).optional(),
   cancelPolicy: z.string().max(2000).optional(),
