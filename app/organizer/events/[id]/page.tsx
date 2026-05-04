@@ -39,6 +39,7 @@ type EventDetail = {
   title: string;
   slug: string;
   status: string;
+  mode: string;
   publishedAt: string | null;
   heroImage: string | null;
   description: string | null;
@@ -286,6 +287,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <Link href={`/organizer/events/${id}/addons`}>
               <Button variant="outline" size="sm">Add-ons</Button>
             </Link>
+            {event.mode === "RESERVED_SEATING" && (
+              <Link href={`/organizer/events/${id}/seating`}>
+                <Button variant="outline" size="sm">Seating</Button>
+              </Link>
+            )}
             {event._count.waitlist > 0 && (
               <Link href={`/organizer/events/${id}/waitlist`}>
                 <Button variant="outline" size="sm">Waitlist ({event._count.waitlist})</Button>

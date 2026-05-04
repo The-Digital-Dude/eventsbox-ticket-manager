@@ -67,6 +67,69 @@ export const ticketTypeCreateSchema = z.object({
 
 export const ticketTypeUpdateSchema = ticketTypeCreateSchema.partial();
 
+const colorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a valid hex color");
+
+export const seatingPostSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("createSection"),
+    name: z.string().trim().min(1).max(100),
+    color: colorSchema.default("#2563eb"),
+    sortOrder: z.coerce.number().int().min(0).default(0),
+  }),
+  z.object({
+    action: z.literal("createRow"),
+    sectionId: z.string().min(1),
+    label: z.string().trim().min(1).max(20),
+    sortOrder: z.coerce.number().int().min(0).default(0),
+  }),
+  z.object({
+    action: z.literal("createTableZone"),
+    name: z.string().trim().min(1).max(100),
+    seatsPerTable: z.coerce.number().int().min(1).max(100),
+    totalTables: z.coerce.number().int().min(1).max(500),
+    price: z.coerce.number().min(0),
+    color: colorSchema.optional().nullable(),
+  }),
+  z.object({
+    action: z.literal("bulkSeats"),
+    sectionId: z.string().min(1),
+    rowId: z.string().min(1).optional().nullable(),
+    rowCount: z.coerce.number().int().min(1).max(100),
+    seatsPerRow: z.coerce.number().int().min(1).max(250),
+    rowPrefix: z.string().trim().max(8).default(""),
+  }),
+]);
+
+export const seatingPatchSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("SECTION"),
+    name: z.string().trim().min(1).max(100).optional(),
+    color: colorSchema.optional(),
+    sortOrder: z.coerce.number().int().min(0).optional(),
+  }),
+  z.object({
+    type: z.literal("ROW"),
+    label: z.string().trim().min(1).max(20).optional(),
+    sortOrder: z.coerce.number().int().min(0).optional(),
+  }),
+  z.object({
+    type: z.literal("TABLE_ZONE"),
+    name: z.string().trim().min(1).max(100).optional(),
+    seatsPerTable: z.coerce.number().int().min(1).max(100).optional(),
+    totalTables: z.coerce.number().int().min(1).max(500).optional(),
+    price: z.coerce.number().min(0).optional(),
+    color: colorSchema.optional().nullable(),
+  }),
+  z.object({
+    type: z.literal("SEAT"),
+    status: z.enum(["AVAILABLE", "RESERVED", "SOLD", "BLOCKED"]),
+  }),
+]);
+
+export const seatingDeleteSchema = z.object({
+  type: z.enum(["SECTION", "ROW", "TABLE_ZONE", "SEAT"]),
+});
+
 export const checkoutIntentSchema = z.object({
   eventId: z.string().min(1),
   buyerName: z.string().min(2).max(200),

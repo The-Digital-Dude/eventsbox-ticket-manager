@@ -1,6 +1,26 @@
 # Current Task
 
 ## Active Task
+**Phase C — Reserved Seating Map Builder**
+
+**Status:** DONE — organizer reserved seating builder is implemented for reserved seating events
+
+**Latest Handoff (2026-05-04):**
+- Added `/organizer/events/[id]/seating` as a two-panel reserved seating builder for `RESERVED_SEATING` events only.
+- The visual canvas renders seating sections, rows, seat inventory, and table zones, with seat colors mapped to `AVAILABLE`, `RESERVED`, `SOLD`, and `BLOCKED`.
+- Organizers can create sections, rows, table zones, bulk-generate row/seat inventory, select map items, edit section/row/table/seat fields, and delete seating records.
+- Added organizer-owned seating APIs:
+  - `GET/POST /api/organizer/events/[id]/seating`
+  - `PATCH/DELETE /api/organizer/events/[id]/seating/[zoneId]`
+- All seating API routes require `ORGANIZER`, verify event ownership, and reject non-`RESERVED_SEATING` events.
+- Added a conditional `Seating` button on `/organizer/events/[id]` only when `event.mode === RESERVED_SEATING`.
+- Extended `src/lib/validators/event.ts` with Zod schemas for seating create/update/delete payloads.
+- Validation on this handoff: `npm run lint` and `npm run typecheck` passed.
+- Known risks/TBDs: Section-level pricing and table-zone sort order are not present in the current Prisma schema, so Phase C only edits fields that exist in Phase A models. Public seat picking, ticket sync, and generated ticket pricing remain deferred to later phases.
+
+---
+
+## Previous Task
 **Phase B — Multi-Step Event Creation Wizard**
 
 **Status:** DONE — organizer event creation now uses the Phase B wizard flow
