@@ -108,6 +108,7 @@ export default function OrganizerOnboardingPage() {
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState<StepId>("identity");
+  const [isLocked, setIsLocked] = useState(false);
   const [states, setStates] = useState<StateRow[]>([]);
   const [form, setForm] = useState<OnboardingForm>({
     companyName: "",
@@ -166,6 +167,11 @@ export default function OrganizerOnboardingPage() {
 
       if (onboardingPayload?.data) {
         setLogoUrl(onboardingPayload.data.logoUrl || null);
+        setIsLocked(
+          onboardingPayload.data.approvalStatus === "APPROVED" ||
+          onboardingPayload.data.approvalStatus === "PENDING_APPROVAL" ||
+          onboardingPayload.data.approvalStatus === "SUSPENDED"
+        );
         const fromDbOptional = (value?: string | null) => (value && value !== "N/A" ? value : "");
         setForm({
           companyName: fromDbOptional(onboardingPayload.data.companyName),
@@ -202,8 +208,11 @@ export default function OrganizerOnboardingPage() {
     review: false,
   };
 
-  const activeStepIndex = stepOrder.indexOf(activeStep);
-  const completionProgress = Math.round(((activeStepIndex + 1) / stepOrder.length) * 100);
+  const currentStepOrder = isLocked ? stepOrder.filter((id) => id !== "review") : stepOrder;
+  const currentStepMeta = isLocked ? stepMeta.filter((s) => s.id !== "review") : stepMeta;
+
+  const activeStepIndex = currentStepOrder.indexOf(activeStep);
+  const completionProgress = Math.round(((activeStepIndex + 1) / currentStepOrder.length) * 100);
 
   function updateField<K extends keyof OnboardingForm>(key: K, value: OnboardingForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -226,13 +235,13 @@ export default function OrganizerOnboardingPage() {
 
   function goNextStep() {
     if (!canMoveNext(activeStep)) return;
-    const nextIndex = Math.min(activeStepIndex + 1, stepOrder.length - 1);
-    setActiveStep(stepOrder[nextIndex]);
+    const nextIndex = Math.min(activeStepIndex + 1, currentStepOrder.length - 1);
+    setActiveStep(currentStepOrder[nextIndex]);
   }
 
   function goPrevStep() {
     const prevIndex = Math.max(activeStepIndex - 1, 0);
-    setActiveStep(stepOrder[prevIndex]);
+    setActiveStep(currentStepOrder[prevIndex]);
   }
 
   async function saveOnboarding(submitForApproval: boolean) {
@@ -278,7 +287,7 @@ export default function OrganizerOnboardingPage() {
           <div className="mb-5 flex items-end justify-between">
             <h2 className="text-lg font-semibold tracking-tight text-neutral-900">Progress</h2>
             <p className="text-sm font-semibold text-[var(--theme-accent)]">
-              {activeStepIndex + 1}/{stepOrder.length}
+              {activeStepIndex + 1}/{currentStepOrder.length}
             </p>
           </div>
 
@@ -287,10 +296,10 @@ export default function OrganizerOnboardingPage() {
           </div>
 
           <div className="space-y-2">
-            {stepMeta.map((step, index) => {
+            {currentStepMeta.map((step, index) => {
               const Icon = step.icon;
               const isActive = step.id === activeStep;
-              const isDone = stepCompletion[step.id] || stepOrder.indexOf(step.id) < activeStepIndex;
+              const isDone = stepCompletion[step.id] || currentStepOrder.indexOf(step.id) < activeStepIndex;
               return (
                 <button
                   key={step.id}
@@ -345,11 +354,11 @@ export default function OrganizerOnboardingPage() {
                         className="hidden"
                         id="logo-upload"
                         onChange={handleLogoUpload}
-                        disabled={logoUploading}
+                        disabled={logoUploading || isLocked}
                       />
                       <label
-                        htmlFor="logo-upload"
-                        className={`cursor-pointer inline-flex items-center justify-center whitespace-nowrap rounded-md bg-neutral-100 px-3 py-1.5 text-sm font-medium hover:bg-neutral-200 transition-colors ${logoUploading ? "opacity-50 pointer-events-none" : ""}`}
+                        htmlFor={isLocked ? undefined : "logo-upload"}
+                        className={`cursor-pointer inline-flex items-center justify-center whitespace-nowrap rounded-md bg-neutral-100 px-3 py-1.5 text-sm font-medium hover:bg-neutral-200 transition-colors ${(logoUploading || isLocked) ? "opacity-50 pointer-events-none" : ""}`}
                       >
                         {logoUploading ? "Uploading..." : "Upload Logo"}
                       </label>
@@ -360,19 +369,19 @@ export default function OrganizerOnboardingPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <LabelWithIcon icon={Building2} text="Company Name *" />
-                    <Input value={form.companyName} onChange={(e) => updateField("companyName", e.target.value)} />
+                    <Input disabled={isLocked} value={form.companyName} onChange={(e) => updateField("companyName", e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <LabelWithIcon icon={User} text="Contact Name *" />
-                    <Input value={form.contactName} onChange={(e) => updateField("contactName", e.target.value)} />
+                    <Input disabled={isLocked} value={form.contactName} onChange={(e) => updateField("contactName", e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <LabelWithIcon icon={FileText} text="Brand Name (Optional)" />
-                    <Input value={form.brandName} onChange={(e) => updateField("brandName", e.target.value)} />
+                    <Input disabled={isLocked} value={form.brandName} onChange={(e) => updateField("brandName", e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <LabelWithIcon icon={Globe} text="Website (Optional)" />
-                    <Input value={form.website} onChange={(e) => updateField("website", e.target.value)} placeholder="https://example.com" />
+                    <Input disabled={isLocked} value={form.website} onChange={(e) => updateField("website", e.target.value)} placeholder="https://example.com" />
                   </div>
                 </div>
               </div>
@@ -387,35 +396,35 @@ export default function OrganizerOnboardingPage() {
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   <div className="space-y-2">
                     <LabelWithIcon icon={Phone} text="Phone *" />
-                    <Input value={form.phone} onChange={(e) => updateField("phone", e.target.value)} />
+                    <Input disabled={isLocked} value={form.phone} onChange={(e) => updateField("phone", e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <LabelWithIcon icon={Hash} text="Tax ID" />
-                    <Input value={form.taxId} onChange={(e) => updateField("taxId", e.target.value)} />
+                    <Input disabled={isLocked} value={form.taxId} onChange={(e) => updateField("taxId", e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <LabelWithIcon icon={Mail} text="Support Email (Optional)" />
-                    <Input value={form.supportEmail} onChange={(e) => updateField("supportEmail", e.target.value)} placeholder="support@company.com" />
+                    <Input disabled={isLocked} value={form.supportEmail} onChange={(e) => updateField("supportEmail", e.target.value)} placeholder="support@company.com" />
                   </div>
                   <div className="space-y-2">
                     <LabelWithIcon icon={Phone} text="Alternate Phone (Optional)" />
-                    <Input value={form.alternatePhone} onChange={(e) => updateField("alternatePhone", e.target.value)} />
+                    <Input disabled={isLocked} value={form.alternatePhone} onChange={(e) => updateField("alternatePhone", e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <LabelWithIcon icon={Facebook} text="Facebook Page (Optional)" />
-                    <Input value={form.facebookPage} onChange={(e) => updateField("facebookPage", e.target.value)} placeholder="facebook.com/yourpage" />
+                    <Input disabled={isLocked} value={form.facebookPage} onChange={(e) => updateField("facebookPage", e.target.value)} placeholder="facebook.com/yourpage" />
                   </div>
                   <div className="space-y-2">
                     <LabelWithIcon icon={Twitter} text="Twitter/X URL (Optional)" />
-                    <Input value={form.twitterUrl} onChange={(e) => updateField("twitterUrl", e.target.value)} placeholder="https://x.com/yourhandle" />
+                    <Input disabled={isLocked} value={form.twitterUrl} onChange={(e) => updateField("twitterUrl", e.target.value)} placeholder="https://x.com/yourhandle" />
                   </div>
                   <div className="space-y-2">
                     <LabelWithIcon icon={Instagram} text="Instagram URL (Optional)" />
-                    <Input value={form.instagramUrl} onChange={(e) => updateField("instagramUrl", e.target.value)} placeholder="https://instagram.com/yourhandle" />
+                    <Input disabled={isLocked} value={form.instagramUrl} onChange={(e) => updateField("instagramUrl", e.target.value)} placeholder="https://instagram.com/yourhandle" />
                   </div>
                   <div className="space-y-2">
                     <LabelWithIcon icon={Link2} text="Other Social Link (Optional)" />
-                    <Input value={form.socialMediaLink} onChange={(e) => updateField("socialMediaLink", e.target.value)} placeholder="instagram.com/... or x.com/..." />
+                    <Input disabled={isLocked} value={form.socialMediaLink} onChange={(e) => updateField("socialMediaLink", e.target.value)} placeholder="instagram.com/... or x.com/..." />
                   </div>
                 </div>
               </div>
@@ -430,16 +439,17 @@ export default function OrganizerOnboardingPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2 md:col-span-2">
                     <LabelWithIcon icon={MapPinHouse} text="Address Line 1 *" />
-                    <Input value={form.addressLine1} onChange={(e) => updateField("addressLine1", e.target.value)} />
+                    <Input disabled={isLocked} value={form.addressLine1} onChange={(e) => updateField("addressLine1", e.target.value)} />
                   </div>
                   <div className="space-y-2 md:col-span-2">
                     <LabelWithIcon icon={MapPinHouse} text="Address Line 2" />
-                    <Input value={form.addressLine2} onChange={(e) => updateField("addressLine2", e.target.value)} />
+                    <Input disabled={isLocked} value={form.addressLine2} onChange={(e) => updateField("addressLine2", e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <LabelWithIcon icon={MapPin} text="State" />
                     <select
-                      className="app-select"
+                      disabled={isLocked}
+                      className="app-select disabled:opacity-50"
                       value={form.stateId}
                       onChange={(e) => {
                         updateField("stateId", e.target.value);
@@ -456,7 +466,7 @@ export default function OrganizerOnboardingPage() {
                   </div>
                   <div className="space-y-2">
                     <LabelWithIcon icon={MapPin} text="City" />
-                    <select className="app-select" value={form.cityId} onChange={(e) => updateField("cityId", e.target.value)}>
+                    <select disabled={isLocked} className="app-select disabled:opacity-50" value={form.cityId} onChange={(e) => updateField("cityId", e.target.value)}>
                       <option value="">Select city</option>
                       {cities.map((city) => (
                         <option key={city.id} value={city.id}>
@@ -532,10 +542,18 @@ export default function OrganizerOnboardingPage() {
             ) : null}
           </section>
 
+          {isLocked && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 shadow-sm">
+              Your profile is currently under review or has been approved. If you need to make changes, please contact an administrator.
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-white px-4 py-3 shadow-sm">
-            <Button disabled={loading} variant="outline" onClick={() => saveOnboarding(false)}>
-              {loading ? "Saving..." : "Save Draft"}
-            </Button>
+            {!isLocked ? (
+              <Button disabled={loading} variant="outline" onClick={() => saveOnboarding(false)}>
+                {loading ? "Saving..." : "Save Draft"}
+              </Button>
+            ) : <div />}
             <div className="flex gap-2">
               <Button variant="outline" disabled={activeStepIndex === 0 || loading} onClick={goPrevStep}>
                 Back
@@ -545,9 +563,11 @@ export default function OrganizerOnboardingPage() {
                   Next Step
                 </Button>
               ) : (
-                <Button disabled={loading} onClick={() => saveOnboarding(true)}>
-                  {loading ? "Submitting..." : "Submit for Approval"}
-                </Button>
+                !isLocked && (
+                  <Button disabled={loading} onClick={() => saveOnboarding(true)}>
+                    {loading ? "Submitting..." : "Submit for Approval"}
+                  </Button>
+                )
               )}
             </div>
           </div>

@@ -11,6 +11,25 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/admin",
+        destination: "/admin/dashboard",
+        permanent: false,
+      },
+      {
+        source: "/account",
+        destination: "/account/dashboard",
+        permanent: false,
+      },
+      {
+        source: "/organizer",
+        destination: "/organizer/dashboard",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default withSentryConfig(nextConfig, {

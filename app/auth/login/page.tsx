@@ -20,6 +20,23 @@ export default function LoginPage() {
     resolver: zodResolver(z.object({ email: z.email(), password: z.string().min(8) })),
   });
 
+  const setCredentials = (role: "admin" | "organizer" | "attendee") => {
+    switch (role) {
+      case "admin":
+        form.setValue("email", "admin@eventsbox.local");
+        form.setValue("password", "Admin123!");
+        break;
+      case "organizer":
+        form.setValue("email", "organizer@demo.local");
+        form.setValue("password", "Demo123!");
+        break;
+      case "attendee":
+        form.setValue("email", "attendee@demo.local");
+        form.setValue("password", "Demo123!");
+        break;
+    }
+  };
+
   async function handleSubmit(values: { email: string; password: string }) {
     setLoading(true);
     const res = await fetch("/api/auth/login", {
@@ -65,7 +82,18 @@ export default function LoginPage() {
         <p className="text-xs text-white/70">Secure access for organizer and admin roles.</p>
       </section>
 
-      <section className="flex items-center justify-center p-6 md:p-10">
+      <section className="flex flex-col items-center justify-center p-6 md:p-10">
+        <div className="mb-6 flex w-full max-w-md justify-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => setCredentials("admin")}>
+            Admin Demo
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setCredentials("organizer")}>
+            Organizer Demo
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setCredentials("attendee")}>
+            Attendee Demo
+          </Button>
+        </div>
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Sign in</CardTitle>
