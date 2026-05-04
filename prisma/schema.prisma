@@ -56,6 +56,22 @@ enum EventStatus {
   CANCELLED
 }
 
+enum EventType {
+  PHYSICAL
+  ONLINE
+}
+
+enum EventVisibility {
+  PUBLIC
+  PRIVATE
+  UNLISTED
+}
+
+enum EventMode {
+  SIMPLE
+  RESERVED_SEATING
+}
+
 enum TicketTypeKind {
   DIRECT
   COMBO
@@ -339,10 +355,16 @@ model Event {
   stateId            String?
   cityId             String?
   title              String
+  tagline            String?
   slug               String           @unique
   description        String?
   heroImage          String?
   images             String[]         @default([])
+  eventType          EventType        @default(PHYSICAL)
+  onlineAccessLink   String?
+  visibility         EventVisibility  @default(PUBLIC)
+  mode               EventMode        @default(SIMPLE)
+  adminNote          String?
   contactEmail       String?
   contactPhone       String?
   lat                         Float?
