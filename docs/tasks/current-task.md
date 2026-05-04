@@ -1,6 +1,25 @@
 # Current Task
 
 ## Active Task
+**Phase D — Auto Ticket Generation Preview**
+
+**Status:** DONE — reserved seating table zones can preview and sync generated ticket types
+
+**Latest Handoff (2026-05-04):**
+- Added a reserved-seating-only `Ticket Preview / Sync Tickets` section on `/organizer/events/[id]`.
+- The preview shows one generated-ticket card per syncable priced `TableZone`, including zone name, source type, price, capacity, and `Synced` / `Not synced` status.
+- Added `Sync All`, which calls `POST /api/organizer/events/[id]/tickets/sync`.
+- Added the organizer-owned sync API. It requires `ORGANIZER`, verifies event ownership, rejects non-`RESERVED_SEATING` events, and creates or updates `TicketType` records for table zones using `name = zone.name`, `price = zone.price`, and `quantity = zone.totalTables`.
+- Generated table tickets are linked using the existing nullable `TicketType.sectionId` field with the `TableZone.id`; no schema migration was added in Phase D.
+- Added a compatibility PATCH alias at `/api/organizer/events/[id]/ticket-types/[ticketTypeId]` and wired generated ticket cards to inline-edit generated ticket name and price through that route.
+- Added targeted integration coverage in `src/tests/integration/organizer-ticket-sync.test.ts`.
+- Validation on this handoff: `npm run lint`, `npm run typecheck`, and `npx vitest run src/tests/integration/organizer-ticket-sync.test.ts` passed.
+- Note: an accidental broad `npm run test:integration -- src/tests/integration/organizer-ticket-sync.test.ts` invocation expanded to the full integration suite and failed in pre-existing environment-dependent tests because local Postgres/Upstash were unavailable; the targeted new ticket-sync test passed when run directly.
+- Known risks/TBDs: `SeatingSection` still has no price field in the current Prisma schema, so section-level generated ticket sync is intentionally not implemented in Phase D. GA seating zones are also not represented by the current Phase A/C schema.
+
+---
+
+## Previous Task
 **Phase C — Reserved Seating Map Builder**
 
 **Status:** DONE — organizer reserved seating builder is implemented for reserved seating events

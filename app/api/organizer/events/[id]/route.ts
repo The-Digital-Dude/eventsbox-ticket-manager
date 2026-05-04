@@ -14,6 +14,15 @@ const eventInclude = {
   city: { select: { id: true, name: true } },
   series: { select: { id: true, title: true } },
   ticketTypes: { orderBy: { sortOrder: "asc" as const } },
+  seatingSections: {
+    orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
+    select: {
+      id: true,
+      name: true,
+      _count: { select: { seats: true } },
+    },
+  },
+  tableZones: { orderBy: { createdAt: "asc" as const } },
   _count: { select: { orders: true, waitlist: true } },
   orders: {
     where: { status: "PAID" as const },

@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, ChevronLeft, DollarSign, Package, Trash2, Users } from "lucide-react";
+import { CalendarDays, ChevronLeft, DollarSign, Package, RefreshCw, Save, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { SidebarLayout } from "@/src/components/shared/sidebar-layout";
 import { Badge } from "@/src/components/ui/badge";
@@ -34,6 +34,21 @@ type TicketType = {
   sortOrder: number;
 };
 
+type SeatingSectionPreview = {
+  id: string;
+  name: string;
+  _count: { seats: number };
+};
+
+type TableZonePreview = {
+  id: string;
+  name: string;
+  seatsPerTable: number;
+  totalTables: number;
+  price: number | string;
+  color: string | null;
+};
+
 type EventDetail = {
   id: string;
   title: string;
@@ -63,6 +78,8 @@ type EventDetail = {
     seatingConfig: { sections: VenueSection[] } | null;
   } | null;
   ticketTypes: TicketType[];
+  seatingSections: SeatingSectionPreview[];
+  tableZones: TableZonePreview[];
   _count: { orders: number; waitlist: number };
   orders: Array<{ total: number | string; platformFee: number | string; gst: number | string }>;
   auditLogs: Array<{
@@ -122,6 +139,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [submitting, setSubmitting] = useState(false);
   const [canceling, setCanceling] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [syncingTickets, setSyncingTickets] = useState(false);
+  const [savingGeneratedTicketId, setSavingGeneratedTicketId] = useState<string | null>(null);
+  const [ticketEditDrafts, setTicketEditDrafts] = useState<Record<string, { name: string; price: string }>>({});
 
   // Ticket form state
   const [showTicketForm, setShowTicketForm] = useState(false);
@@ -180,7 +200,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   async function toggleTicket(ticketId: string, isActive: boolean) {
-    const res = await fetch(`/api/organizer/events/${id}/tickets/${ticketId}`, {
+    const res = await fetch(`/api/organizer/events/${id}/ticket-types/${ticketId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isActive: !isActive }),
@@ -242,8 +262,63 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     await load();
   }
 
+  async function syncTickets() {
+    setSyncingTickets(true);
+    const res = await fetch(`/api/organizer/events/${id}/tickets/sync`, { method: "POST" });
+    const payload = await res.json();
+    setSyncingTickets(false);
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to sync tickets");
+    toast.success(`Synced ${payload.data.ticketTypes.length} ticket type${payload.data.ticketTypes.length === 1 ? "" : "s"}`);
+    await load();
+  }
+
+  function startGeneratedTicketEdit(ticket: TicketType) {
+    setTicketEditDrafts((drafts) => ({
+      ...drafts,
+      [ticket.id]: { name: ticket.name, price: String(Number(ticket.price).toFixed(2)) },
+    }));
+  }
+
+  function cancelGeneratedTicketEdit(ticketId: string) {
+    setTicketEditDrafts((drafts) => {
+      const next = { ...drafts };
+      delete next[ticketId];
+      return next;
+    });
+  }
+
+  async function saveGeneratedTicket(ticketId: string) {
+    const draft = ticketEditDrafts[ticketId];
+    if (!draft) return;
+    if (!draft.name.trim()) return toast.error("Ticket name is required");
+    if (draft.price === "") return toast.error("Ticket price is required");
+
+    setSavingGeneratedTicketId(ticketId);
+    const res = await fetch(`/api/organizer/events/${id}/ticket-types/${ticketId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: draft.name.trim(), price: Number(draft.price) }),
+    });
+    const payload = await res.json();
+    setSavingGeneratedTicketId(null);
+    if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to update generated ticket");
+    toast.success("Generated ticket updated");
+    cancelGeneratedTicketEdit(ticketId);
+    await load();
+  }
+
   const canEdit = event?.status === "DRAFT" || event?.status === "REJECTED";
   const canSubmit = canEdit && (event?.ticketTypes?.filter((t) => t.isActive).length ?? 0) > 0;
+  const syncableTicketZones = event?.tableZones.map((zone) => ({
+    id: zone.id,
+    name: zone.name,
+    sourceType: "Table",
+    price: zone.price,
+    capacity: zone.totalTables,
+    seatsPerTable: zone.seatsPerTable,
+    ticket: event.ticketTypes.find((ticket) => ticket.sectionId === zone.id) ?? null,
+  })) ?? [];
+  const unsupportedPricedSections = event?.seatingSections.filter((section) => section._count.seats > 0) ?? [];
 
   if (loading) {
     return (
@@ -412,6 +487,138 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         )}
       </section>
 
+      {event.mode === "RESERVED_SEATING" && (
+        <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-neutral-900">Ticket Preview / Sync Tickets</h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                Preview sellable seating zones and generate matching ticket types for checkout.
+              </p>
+            </div>
+            <Button size="sm" onClick={syncTickets} disabled={syncingTickets || syncableTicketZones.length === 0}>
+              <RefreshCw className={`h-4 w-4 ${syncingTickets ? "animate-spin" : ""}`} />
+              {syncingTickets ? "Syncing..." : "Sync All"}
+            </Button>
+          </div>
+
+          {unsupportedPricedSections.length > 0 && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Section-level pricing is not available in the current schema, so section zones are shown in the seating builder
+              but are not synced as generated tickets in Phase D.
+            </div>
+          )}
+
+          {syncableTicketZones.length === 0 ? (
+            <p className="text-sm text-neutral-500">
+              No priced seating zones are syncable yet. Add a table zone with pricing in the seating builder to generate tickets.
+            </p>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {syncableTicketZones.map((zone) => {
+                const ticket = zone.ticket;
+                const draft = ticket ? ticketEditDrafts[ticket.id] : null;
+                return (
+                  <div key={zone.id} className="rounded-xl border border-[var(--border)] p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-medium text-neutral-900">{ticket?.name ?? zone.name}</h3>
+                          <Badge className="border-transparent bg-sky-100 text-sky-700">{zone.sourceType}</Badge>
+                          {ticket ? (
+                            <Badge className="border-transparent bg-emerald-100 text-emerald-700">Synced</Badge>
+                          ) : (
+                            <Badge className="border-transparent bg-amber-100 text-amber-700">Not synced</Badge>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs text-neutral-500">
+                          Source zone: {zone.name} · {zone.seatsPerTable} seats per table
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-semibold text-neutral-900">${Number(ticket?.price ?? zone.price).toFixed(2)}</p>
+                        <p className="text-xs text-neutral-500">{ticket?.quantity ?? zone.capacity} table capacity</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                      <div>
+                        <p className="text-xs text-neutral-500">Zone name</p>
+                        <p className="font-medium text-neutral-900">{zone.name}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-neutral-500">Price</p>
+                        <p className="font-medium text-neutral-900">${Number(zone.price).toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-neutral-500">Capacity</p>
+                        <p className="font-medium text-neutral-900">{zone.capacity}</p>
+                      </div>
+                    </div>
+
+                    {ticket && canEdit && (
+                      <div className="mt-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                        {draft ? (
+                          <div className="grid gap-3 md:grid-cols-[1fr_140px_auto]">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Ticket name</Label>
+                              <Input
+                                value={draft.name}
+                                onChange={(e) => setTicketEditDrafts((drafts) => ({
+                                  ...drafts,
+                                  [ticket.id]: { ...draft, name: e.target.value },
+                                }))}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Price ($)</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={draft.price}
+                                onChange={(e) => setTicketEditDrafts((drafts) => ({
+                                  ...drafts,
+                                  [ticket.id]: { ...draft, price: e.target.value },
+                                }))}
+                              />
+                            </div>
+                            <div className="flex items-end gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => saveGeneratedTicket(ticket.id)}
+                                disabled={savingGeneratedTicketId === ticket.id}
+                              >
+                                <Save className="h-4 w-4" />
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => cancelGeneratedTicketEdit(ticket.id)}>
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-xs text-neutral-500">Generated ticket</p>
+                              <p className="text-sm font-medium text-neutral-900">
+                                {ticket.name} · ${Number(ticket.price).toFixed(2)}
+                              </p>
+                            </div>
+                            <Button size="sm" variant="outline" onClick={() => startGeneratedTicketEdit(ticket)}>
+                              Edit
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Ticket Types */}
       <section className="rounded-2xl border border-[var(--border)] bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
@@ -491,7 +698,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                         <Badge>{ticket.kind}</Badge>
                         {ticket.sectionId ? (
                           <Badge className="border-transparent bg-sky-100 text-sky-700">
-                            {event.venue?.seatingConfig?.sections.find((s) => s.id === ticket.sectionId)?.name ?? "Seated"}
+                            {event.tableZones.find((zone) => zone.id === ticket.sectionId)?.name
+                              ?? event.venue?.seatingConfig?.sections.find((s) => s.id === ticket.sectionId)?.name
+                              ?? "Seated"}
                           </Badge>
                         ) : (
                           <Badge className="border-transparent bg-neutral-100 text-neutral-500">GA</Badge>
