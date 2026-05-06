@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
 
   const [venues, cities] = await Promise.all([
     prisma.venue.findMany({
-      where: { status: "APPROVED" },
+      where: { status: "APPROVED", isEventOnly: false },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),

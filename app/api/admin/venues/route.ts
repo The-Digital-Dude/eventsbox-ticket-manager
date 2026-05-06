@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
     const includeLayout = req.nextUrl.searchParams.get("includeLayout") === "true";
     const rows = await prisma.venue.findMany({
       where: {
+        isEventOnly: false,
         ...(status ? { status: status as VenueStatus } : {}),
         ...(q
           ? {

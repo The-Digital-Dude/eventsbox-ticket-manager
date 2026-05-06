@@ -1,6 +1,20 @@
 import { z } from "zod";
 
-export const eventCreateSchema = z.object({
+const oneTimeVenueSchema = z.object({
+  name: z.string().trim().min(2).max(200),
+  addressLine1: z.string().trim().min(3).max(300),
+  addressLine2: z.string().trim().max(300).optional(),
+  countryId: z.string().optional(),
+  stateId: z.string().optional(),
+  cityId: z.string().optional(),
+  stateName: z.string().trim().min(1).max(120).optional(),
+  cityName: z.string().trim().min(1).max(120).optional(),
+  categoryId: z.string().optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+});
+
+const eventBaseSchema = z.object({
   title: z.string().min(3).max(200),
   tagline: z.string().max(160).optional(),
   description: z.string().max(5000).optional(),
@@ -13,6 +27,8 @@ export const eventCreateSchema = z.object({
   videoUrl: z.string().url().optional().or(z.literal("")),
   images: z.array(z.string().url()).max(10).optional(),
   eventType: z.enum(["PHYSICAL", "ONLINE"]).default("PHYSICAL"),
+  locationMode: z.enum(["ONE_TIME", "SAVED_VENUE"]).default("ONE_TIME").optional(),
+  oneTimeVenue: oneTimeVenueSchema.optional(),
   onlineAccessLink: z.string().url().optional().or(z.literal("")),
   visibility: z.enum(["PUBLIC", "PRIVATE", "UNLISTED"]).default("PUBLIC"),
   mode: z.enum(["SIMPLE", "RESERVED_SEATING"]).default("SIMPLE"),
@@ -39,7 +55,30 @@ export const eventCreateSchema = z.object({
   draftStep: z.coerce.number().int().min(0).max(4).default(0).optional(),
 });
 
-export const eventUpdateSchema = eventCreateSchema.partial().extend({
+export const eventCreateSchema = eventBaseSchema.superRefine((event, ctx) => {
+  if (event.eventType !== "PHYSICAL") return;
+
+  if (event.locationMode === "SAVED_VENUE") {
+    if (!event.venueId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["venueId"], message: "Select a saved venue" });
+    }
+    return;
+  }
+
+  if (!event.oneTimeVenue) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["oneTimeVenue"], message: "One-time venue details are required" });
+    return;
+  }
+
+  if (!event.oneTimeVenue.stateId && !event.oneTimeVenue.stateName) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["oneTimeVenue", "stateName"], message: "State is required" });
+  }
+  if (!event.oneTimeVenue.cityId && !event.oneTimeVenue.cityName) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["oneTimeVenue", "cityName"], message: "City is required" });
+  }
+});
+
+export const eventUpdateSchema = eventBaseSchema.partial().extend({
   seriesId: z.string().cuid().nullable().optional(),
 });
 

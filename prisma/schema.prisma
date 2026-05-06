@@ -322,6 +322,7 @@ model City {
 model Venue {
   id                   String           @id @default(cuid())
   organizerProfileId   String
+  isEventOnly          Boolean          @default(false)
   name                 String
   addressLine1         String
   addressLine2         String?
@@ -349,6 +350,7 @@ model Venue {
   events               Event[]
 
   @@index([organizerProfileId])
+  @@index([organizerProfileId, isEventOnly])
   @@index([status])
 }
 

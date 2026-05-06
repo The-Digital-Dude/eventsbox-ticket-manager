@@ -23,6 +23,7 @@ type VenueRow = { id: string; name: string; status: string };
 type EventMode = "SIMPLE" | "RESERVED_SEATING";
 type EventType = "PHYSICAL" | "ONLINE";
 type EventVisibility = "PUBLIC" | "PRIVATE" | "UNLISTED";
+type LocationMode = "ONE_TIME" | "SAVED_VENUE";
 
 const steps = [
   "Mode Selection",
@@ -73,10 +74,16 @@ export default function NewEventPage() {
   const [eventType, setEventType] = useState<EventType>("PHYSICAL");
   const [categoryId, setCategoryId] = useState("");
   const [visibility, setVisibility] = useState<EventVisibility>("PUBLIC");
+  const [locationMode, setLocationMode] = useState<LocationMode>("ONE_TIME");
   const [venueId, setVenueId] = useState("");
+  const [venueName, setVenueName] = useState("");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [addressLine2, setAddressLine2] = useState("");
   const [countryId, setCountryId] = useState("");
   const [stateId, setStateId] = useState("");
   const [cityId, setCityId] = useState("");
+  const [stateName, setStateName] = useState("");
+  const [cityName, setCityName] = useState("");
   const [onlineAccessLink, setOnlineAccessLink] = useState("");
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
@@ -107,7 +114,9 @@ export default function NewEventPage() {
   const selectedCity = states.flatMap((state) => state.cities).find((city) => city.id === cityId);
   const locationLabel = eventType === "ONLINE"
     ? "Online"
-    : selectedVenue?.name || [selectedCity?.name, selectedState?.name, selectedCountry?.name].filter(Boolean).join(", ") || "Location not set";
+    : locationMode === "SAVED_VENUE"
+      ? selectedVenue?.name || "Location not set"
+      : venueName || [cityName || selectedCity?.name, stateName || selectedState?.name, selectedCountry?.name].filter(Boolean).join(", ") || "Location not set";
 
   const summaryRows = useMemo(() => [
     ["Mode", mode === "RESERVED_SEATING" ? "Reserved Seating Event" : mode === "SIMPLE" ? "Simple Event" : "Not selected"],
@@ -182,6 +191,24 @@ export default function NewEventPage() {
         toast.error("End date must be after start date");
         return false;
       }
+      if (eventType === "PHYSICAL" && locationMode === "SAVED_VENUE" && !venueId) {
+        toast.error("Select a saved venue");
+        return false;
+      }
+      if (eventType === "PHYSICAL" && locationMode === "ONE_TIME") {
+        if (venueName.trim().length < 2) {
+          toast.error("Venue name is required");
+          return false;
+        }
+        if (addressLine1.trim().length < 3) {
+          toast.error("Address line 1 is required");
+          return false;
+        }
+        if (!stateName.trim() || !cityName.trim()) {
+          toast.error("State and city are required");
+          return false;
+        }
+      }
     }
     return true;
   }
@@ -228,10 +255,26 @@ export default function NewEventPage() {
         categoryId: categoryId || undefined,
         tags,
         visibility,
-        venueId: eventType === "PHYSICAL" ? venueId || undefined : undefined,
-        countryId: eventType === "PHYSICAL" ? countryId || undefined : undefined,
-        stateId: eventType === "PHYSICAL" ? stateId || undefined : undefined,
-        cityId: eventType === "PHYSICAL" ? cityId || undefined : undefined,
+        locationMode: eventType === "PHYSICAL" ? locationMode : undefined,
+        venueId: eventType === "PHYSICAL" && locationMode === "SAVED_VENUE" ? venueId || undefined : undefined,
+        oneTimeVenue: eventType === "PHYSICAL" && locationMode === "ONE_TIME"
+          ? {
+              name: venueName,
+              addressLine1,
+              addressLine2: addressLine2 || undefined,
+              countryId: countryId || undefined,
+              stateId: stateId || undefined,
+              cityId: cityId || undefined,
+              stateName,
+              cityName,
+              categoryId: categoryId || undefined,
+              lat,
+              lng,
+            }
+          : undefined,
+        countryId: eventType === "PHYSICAL" && locationMode === "ONE_TIME" ? countryId || undefined : undefined,
+        stateId: eventType === "PHYSICAL" && locationMode === "ONE_TIME" ? stateId || undefined : undefined,
+        cityId: eventType === "PHYSICAL" && locationMode === "ONE_TIME" ? cityId || undefined : undefined,
         onlineAccessLink: eventType === "ONLINE" ? onlineAccessLink || undefined : undefined,
         startAt: toIsoDateTime(startAt),
         endAt: toIsoDateTime(endAt),
@@ -257,7 +300,7 @@ export default function NewEventPage() {
     setSaving(false);
     if (!res.ok) return toast.error(payload?.error?.message ?? "Failed to create event");
     toast.success("Event created");
-    router.push(`/organizer/events/${payload.data.id}`);
+    router.push(mode === "RESERVED_SEATING" ? `/organizer/events/${payload.data.id}/seating` : `/organizer/events/${payload.data.id}`);
   }
 
   return (
@@ -423,52 +466,117 @@ export default function NewEventPage() {
                 </div>
                 {eventType === "PHYSICAL" ? (
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Venue</Label>
-                      <select className="app-select" value={venueId} onChange={(event) => setVenueId(event.target.value)}>
-                        <option value="">Select venue</option>
-                        {venues.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}
-                      </select>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {([
+                        ["ONE_TIME", "One-time venue", "Use this location for this event only."],
+                        ["SAVED_VENUE", "Saved venue", "Copy seating from an approved venue."],
+                      ] as const).map(([value, label, copy]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setLocationMode(value)}
+                          className={`rounded-xl border p-4 text-left transition ${
+                            locationMode === value
+                              ? "border-[var(--theme-accent)] bg-[rgb(var(--theme-accent-rgb)/0.08)]"
+                              : "border-[var(--border)] bg-white hover:border-[rgb(var(--theme-accent-rgb)/0.35)]"
+                          }`}
+                        >
+                          <span className="block text-sm font-semibold text-neutral-900">{label}</span>
+                          <span className="mt-1 block text-xs text-neutral-500">{copy}</span>
+                        </button>
+                      ))}
                     </div>
-                    <div className="space-y-2">
-                      <Label>Search Address</Label>
-                      <PlacesAutocomplete
-                        placeholder="Start typing a location to search..."
-                        onSelect={(place) => {
-                          if (place.lat !== undefined) setLat(place.lat);
-                          if (place.lng !== undefined) setLng(place.lng);
-                          const { countryId: nextCountryId, stateId: nextStateId, cityId: nextCityId } = matchLocation(place, { countries, states });
-                          if (nextCountryId) setCountryId(nextCountryId);
-                          setStateId(nextStateId ?? "");
-                          setCityId(nextCityId ?? "");
-                          toast.success("Location auto-filled from Google Maps");
-                        }}
-                      />
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-3">
+
+                    {locationMode === "SAVED_VENUE" ? (
                       <div className="space-y-2">
-                        <Label>Country</Label>
-                        <SearchableSelect
-                          options={[{ value: "", label: "Select country" }, ...countries.map((country) => ({ value: country.id, label: country.name }))]}
-                          value={countryId}
-                          onChange={(value) => { setCountryId(value); setStateId(""); setCityId(""); }}
-                          placeholder="Select country"
-                          searchPlaceholder="Search countries..."
-                        />
+                        <Label>Venue</Label>
+                        <select className="app-select" value={venueId} onChange={(event) => setVenueId(event.target.value)}>
+                          <option value="">Select venue</option>
+                          {venues.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}
+                        </select>
                       </div>
-                      <div className="space-y-2">
-                        <Label>State</Label>
-                        <div className="flex h-10 w-full items-center rounded-xl border border-[var(--border)] bg-neutral-50 px-3 text-sm text-neutral-600">
-                          {selectedState?.name ?? "Auto-filled from address search"}
+                    ) : (
+                      <>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Venue Name <span className="text-red-500">*</span></Label>
+                            <Input value={venueName} onChange={(event) => setVenueName(event.target.value)} placeholder="e.g. Convention Hall A" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Search Address</Label>
+                            <PlacesAutocomplete
+                              placeholder="Start typing a location to search..."
+                              onSelect={(place) => {
+                                if (place.address) setAddressLine1(place.address);
+                                if (place.lat !== undefined) setLat(place.lat);
+                                if (place.lng !== undefined) setLng(place.lng);
+                                const { countryId: nextCountryId, stateId: nextStateId, cityId: nextCityId } = matchLocation(place, { countries, states });
+                                if (nextCountryId) setCountryId(nextCountryId);
+                                setStateId(nextStateId ?? "");
+                                setCityId(nextCityId ?? "");
+                                setStateName(states.find((state) => state.id === nextStateId)?.name ?? "");
+                                setCityName(states.flatMap((state) => state.cities).find((city) => city.id === nextCityId)?.name ?? "");
+                                toast.success("Location auto-filled from Google Maps");
+                              }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>City</Label>
-                        <div className="flex h-10 w-full items-center rounded-xl border border-[var(--border)] bg-neutral-50 px-3 text-sm text-neutral-600">
-                          {selectedCity?.name ?? "Auto-filled from address search"}
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>Address Line 1 <span className="text-red-500">*</span></Label>
+                            <Input value={addressLine1} onChange={(event) => setAddressLine1(event.target.value)} />
+                          </div>
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>Address Line 2</Label>
+                            <Input value={addressLine2} onChange={(event) => setAddressLine2(event.target.value)} />
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label>Country</Label>
+                            <SearchableSelect
+                              options={[{ value: "", label: "Select country" }, ...countries.map((country) => ({ value: country.id, label: country.name }))]}
+                              value={countryId}
+                              onChange={(value) => { setCountryId(value); setStateId(""); setCityId(""); setStateName(""); setCityName(""); }}
+                              placeholder="Select country"
+                              searchPlaceholder="Search countries..."
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>State</Label>
+                            <Input
+                              type="text"
+                              value={stateName}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                setStateName(value);
+                                const match = states.find((state) => state.name.toLowerCase() === value.trim().toLowerCase());
+                                setStateId(match?.id ?? "");
+                                if (!match || match.id !== stateId) {
+                                  setCityId("");
+                                }
+                              }}
+                              placeholder="Enter state"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>City</Label>
+                            <Input
+                              type="text"
+                              value={cityName}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                setCityName(value);
+                                const state = states.find((item) => item.id === stateId || item.name.toLowerCase() === stateName.trim().toLowerCase());
+                                const match = state?.cities.find((city) => city.name.toLowerCase() === value.trim().toLowerCase());
+                                setCityId(match?.id ?? "");
+                              }}
+                              placeholder="Enter city"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-2">

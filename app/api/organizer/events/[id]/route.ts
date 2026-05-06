@@ -115,6 +115,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     const { startAt, endAt, heroImage, videoUrl, contactEmail, images, seriesId, ...rest } = parsed.data;
+    delete rest.locationMode;
+    delete rest.oneTimeVenue;
 
     if (seriesId !== undefined && seriesId !== null) {
       const ownedSeries = await prisma.eventSeries.findFirst({

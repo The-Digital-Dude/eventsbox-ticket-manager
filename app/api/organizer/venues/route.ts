@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     }
 
     const venues = await prisma.venue.findMany({
-      where: { organizerProfileId: profile.id },
+      where: { organizerProfileId: profile.id, isEventOnly: false },
       include: { state: true, city: true, category: true },
       orderBy: { createdAt: "desc" },
     });

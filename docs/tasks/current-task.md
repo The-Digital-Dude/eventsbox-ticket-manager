@@ -3,9 +3,17 @@
 ## Active Task
 **Phase I — Final Product Polish & Hardening**
 
-**Status:** DONE — remaining polish gaps from Phases A-H are implemented
+**Status:** DONE — one-time event venues and saved-venue seating snapshots are implemented
 
-**Latest Handoff (2026-05-05):**
+**Latest Handoff (2026-05-07):**
+- Added event-only venues for the event creation wizard. Physical events now default to one-time venue details with text inputs for state/city, creating hidden approved `Venue` rows linked to the event and excluded from organizer/admin/public venue lists.
+- Saved venue selection remains available for physical events. For reserved-seating events, the selected venue's seating template is copied into event-owned seating sections/rows/seats or table zones during event creation, so later venue edits do not mutate the event.
+- Added migration `prisma/migrations/20260506120000_add_event_only_venues/migration.sql` for `Venue.isEventOnly` plus a reusable `copyVenueSeatingToEvent()` helper.
+- Added focused coverage in `src/tests/integration/event-one-time-venue.test.ts` and `src/tests/unit/venue-seating-copy.test.ts`.
+- Validation on this handoff: `npx prisma generate`, `npx prisma db push`, `npx vitest run src/tests/integration/event-one-time-venue.test.ts src/tests/unit/venue-seating-copy.test.ts`, `npm run lint`, and `npm run typecheck` passed.
+- Known risks/TBDs: local Postgres was not reachable from Vitest for live DB integration coverage, so the new event creation route coverage uses mocked Prisma transaction assertions.
+
+**Previous Handoff (2026-05-05):**
 - I1 Ticket Drag-Reorder UI is complete. Organizer event detail now has up/down controls for ticket types, backed by `POST /api/organizer/events/[id]/tickets/reorder`, and public/organizer/admin ticket reads continue to order by `TicketType.sortOrder`.
 - I2 Admin Request Changes is complete. Admin event governance now has a distinct Request Changes action that stores the requested change note on `Event.adminNote`, moves the event back to `DRAFT` for organizer edits/resubmission, clears rejection reason, emails the organizer, and surfaces the note on organizer/admin event status/detail pages.
 - I3 Resend Confirmation Email is complete. Added `POST /api/account/orders/[orderId]/resend-confirmation`, requiring ATTENDEE ownership of a PAID order and reusing `sendOrderConfirmationEmail`; attendee Orders and Tickets surfaces now expose resend buttons with toast feedback.
