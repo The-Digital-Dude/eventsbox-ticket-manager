@@ -6,6 +6,18 @@
 **Status:** DONE — one-time event venues and saved-venue seating snapshots are implemented
 
 **Latest Handoff (2026-05-07):**
+- Added section-level reserved seating pricing. `SeatingSection.price` is now nullable in Prisma with migration `prisma/migrations/20260507090000_add_seating_section_price/migration.sql`.
+- The reserved seating builder now lets organizers set a price on each section. Ticket sync uses priced sections plus live non-blocked `SeatInventory` counts to create/update section-linked checkout ticket types.
+- Manual ticket creation for reserved seating now offers event-owned seating sections/table zones and locks linked ticket capacity to the selected zone count, preventing organizer-entered ticket quantities from exceeding seating capacity.
+- Existing table-zone sync behavior remains supported.
+- Validation on this handoff: `npx prisma generate`, `npx prisma db push`, `npx vitest run src/tests/integration/organizer-ticket-sync.test.ts`, `npm run typecheck`, and `npm run lint` passed.
+- Known risks/TBDs: none identified yet.
+
+---
+
+## Previous Handoff
+
+**Latest Handoff (2026-05-07):**
 - Added event-only venues for the event creation wizard. Physical events now default to one-time venue details with text inputs for state/city, creating hidden approved `Venue` rows linked to the event and excluded from organizer/admin/public venue lists.
 - Saved venue selection remains available for physical events. For reserved-seating events, the selected venue's seating template is copied into event-owned seating sections/rows/seats or table zones during event creation, so later venue edits do not mutate the event.
 - Added migration `prisma/migrations/20260506120000_add_event_only_venues/migration.sql` for `Venue.isEventOnly` plus a reusable `copyVenueSeatingToEvent()` helper.

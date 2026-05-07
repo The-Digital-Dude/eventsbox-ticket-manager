@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { EventMode, Role } from "@prisma/client";
+import { EventMode, Role, SeatInventoryStatus } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
@@ -27,13 +27,52 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const owned = await getOwnedEvent(id, auth.sub);
     if ("error" in owned) return owned.error;
 
-    const tableZones = await prisma.tableZone.findMany({
-      where: { eventId: id },
-      orderBy: { createdAt: "asc" },
-    });
+    const [seatingSections, tableZones] = await Promise.all([
+      prisma.seatingSection.findMany({
+        where: { eventId: id, price: { not: null }, seats: { some: { status: { not: SeatInventoryStatus.BLOCKED } } } },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        include: {
+          _count: {
+            select: {
+              seats: { where: { status: { not: SeatInventoryStatus.BLOCKED } } },
+            },
+          },
+        },
+      }),
+      prisma.tableZone.findMany({
+        where: { eventId: id },
+        orderBy: { createdAt: "asc" },
+      }),
+    ]);
 
     const synced = await prisma.$transaction(async (tx) => {
       const results = [];
+
+      for (const section of seatingSections) {
+        const existing = await tx.ticketType.findFirst({
+          where: { eventId: id, sectionId: section.id },
+          orderBy: { createdAt: "asc" },
+        });
+
+        const data = {
+          name: section.name,
+          price: section.price ?? 0,
+          quantity: section._count.seats,
+          sectionId: section.id,
+          isActive: true,
+        };
+
+        const ticketType = existing
+          ? await tx.ticketType.update({ where: { id: existing.id }, data })
+          : await tx.ticketType.create({ data: { ...data, eventId: id } });
+
+        results.push({
+          action: existing ? "updated" : "created",
+          sourceType: "SECTION",
+          sourceId: section.id,
+          ticketType,
+        });
+      }
 
       for (const zone of tableZones) {
         const existing = await tx.ticketType.findFirst({

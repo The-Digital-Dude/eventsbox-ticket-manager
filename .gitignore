@@ -44,3 +44,4 @@ next-env.d.ts
 docs/tasks/codex-phase5-prompt.md
 docs/tasks/codex-phase6-prompt.md
 env.yaml
+/.claude/

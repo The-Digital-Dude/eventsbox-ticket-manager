@@ -35,6 +35,7 @@ type SeatingSection = {
   id: string;
   eventId: string;
   name: string;
+  price: number | string | null;
   color: string;
   sortOrder: number;
   rows: SeatingRow[];
@@ -108,6 +109,7 @@ export default function SeatingBuilderPage({ params }: { params: Promise<{ id: s
   const [selected, setSelected] = useState<SelectedItem | null>(null);
 
   const [sectionName, setSectionName] = useState("");
+  const [sectionPrice, setSectionPrice] = useState("");
   const [sectionColor, setSectionColor] = useState(sectionColors[0]);
   const [sectionSortOrder, setSectionSortOrder] = useState("0");
   const [rowLabel, setRowLabel] = useState("");
@@ -156,6 +158,7 @@ export default function SeatingBuilderPage({ params }: { params: Promise<{ id: s
     if (!selected) return;
     if (selected.type === "SECTION") {
       setSectionName(selected.item.name);
+      setSectionPrice(toFormValue(selected.item.price));
       setSectionColor(selected.item.color);
       setSectionSortOrder(String(selected.item.sortOrder));
     }
@@ -224,6 +227,7 @@ export default function SeatingBuilderPage({ params }: { params: Promise<{ id: s
     const created = await post({
       action: "createSection",
       name: `Section ${(data?.sections.length ?? 0) + 1}`,
+      price: null,
       color: sectionColors[(data?.sections.length ?? 0) % sectionColors.length],
       sortOrder: data?.sections.length ?? 0,
     }, "Section added");
@@ -257,7 +261,13 @@ export default function SeatingBuilderPage({ params }: { params: Promise<{ id: s
     setSaving(true);
     const body =
       selected.type === "SECTION"
-        ? { type: "SECTION", name: sectionName, color: sectionColor, sortOrder: Number(sectionSortOrder) }
+        ? {
+            type: "SECTION",
+            name: sectionName,
+            price: sectionPrice === "" ? null : Number(sectionPrice),
+            color: sectionColor,
+            sortOrder: Number(sectionSortOrder),
+          }
         : selected.type === "ROW"
           ? { type: "ROW", label: rowLabel, sortOrder: Number(rowSortOrder) }
           : selected.type === "SEAT"
@@ -418,6 +428,11 @@ export default function SeatingBuilderPage({ params }: { params: Promise<{ id: s
                       >
                         <span className="text-base font-semibold text-neutral-900">{section.name}</span>
                         <span className="ml-2 text-xs text-neutral-500">{section.rows.length} rows / {section.seats.length} seats</span>
+                        {section.price != null && (
+                          <Badge className="ml-2 border-transparent bg-emerald-100 text-emerald-700">
+                            ${Number(section.price).toFixed(2)}
+                          </Badge>
+                        )}
                       </button>
                       <Button size="sm" variant="outline" onClick={() => createRow(section)} disabled={saving}>
                         <Plus className="h-4 w-4" /> Row
@@ -512,6 +527,20 @@ export default function SeatingBuilderPage({ params }: { params: Promise<{ id: s
                         <Label>Swatch</Label>
                         <Input type="color" value={sectionColor} onChange={(event) => setSectionColor(event.target.value)} />
                       </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Section price</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={sectionPrice}
+                        onChange={(event) => setSectionPrice(event.target.value)}
+                        placeholder="0.00"
+                      />
+                      <p className="text-xs text-neutral-500">
+                        Sync uses this price and the section seat count to create the checkout ticket.
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label>Sort order</Label>

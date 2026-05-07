@@ -6,6 +6,7 @@ const {
   requireRoleMock,
   organizerProfileFindUniqueMock,
   eventFindFirstMock,
+  seatingSectionFindManyMock,
   tableZoneFindManyMock,
   prismaTransactionMock,
   txTicketTypeFindFirstMock,
@@ -15,6 +16,7 @@ const {
   requireRoleMock: vi.fn(),
   organizerProfileFindUniqueMock: vi.fn(),
   eventFindFirstMock: vi.fn(),
+  seatingSectionFindManyMock: vi.fn(),
   tableZoneFindManyMock: vi.fn(),
   prismaTransactionMock: vi.fn(),
   txTicketTypeFindFirstMock: vi.fn(),
@@ -33,6 +35,9 @@ vi.mock("@/src/lib/db", () => ({
     },
     event: {
       findFirst: eventFindFirstMock,
+    },
+    seatingSection: {
+      findMany: seatingSectionFindManyMock,
     },
     tableZone: {
       findMany: tableZoneFindManyMock,
@@ -53,6 +58,18 @@ const tableZone = {
   color: "#2563eb",
   createdAt: new Date("2026-05-04T00:00:00.000Z"),
   updatedAt: new Date("2026-05-04T00:00:00.000Z"),
+};
+
+const seatingSection = {
+  id: "section-1",
+  eventId: "event-1",
+  name: "Floor Section",
+  price: new Prisma.Decimal(45),
+  color: "#16a34a",
+  sortOrder: 0,
+  createdAt: new Date("2026-05-04T00:00:00.000Z"),
+  updatedAt: new Date("2026-05-04T00:00:00.000Z"),
+  _count: { seats: 400 },
 };
 
 function queueTicketSyncTransaction() {
@@ -81,7 +98,64 @@ describe("organizer ticket sync integration", () => {
     requireRoleMock.mockResolvedValue({ sub: "organizer-user-1", role: "ORGANIZER" });
     organizerProfileFindUniqueMock.mockResolvedValue({ id: "org-profile-1" });
     eventFindFirstMock.mockResolvedValue({ id: "event-1", mode: "RESERVED_SEATING" });
+    seatingSectionFindManyMock.mockResolvedValue([]);
     tableZoneFindManyMock.mockResolvedValue([tableZone]);
+  });
+
+  it("creates generated ticket types for priced seating sections using seat count", async () => {
+    seatingSectionFindManyMock.mockResolvedValue([seatingSection]);
+    tableZoneFindManyMock.mockResolvedValue([]);
+    queueTicketSyncTransaction();
+    txTicketTypeFindFirstMock.mockResolvedValue(null);
+    txTicketTypeCreateMock.mockResolvedValue({
+      id: "ticket-type-1",
+      eventId: "event-1",
+      sectionId: seatingSection.id,
+      name: seatingSection.name,
+      price: seatingSection.price,
+      quantity: seatingSection._count.seats,
+      isActive: true,
+    });
+
+    const res = await syncTicketsPost(
+      new NextRequest("http://localhost/api/organizer/events/event-1/tickets/sync", { method: "POST" }),
+      { params: Promise.resolve({ id: "event-1" }) },
+    );
+    expect(res).toBeDefined();
+    if (!res) throw new Error("Expected ticket sync response");
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(seatingSectionFindManyMock).toHaveBeenCalledWith({
+      where: {
+        eventId: "event-1",
+        price: { not: null },
+        seats: { some: { status: { not: "BLOCKED" } } },
+      },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      include: {
+        _count: {
+          select: {
+            seats: { where: { status: { not: "BLOCKED" } } },
+          },
+        },
+      },
+    });
+    expect(txTicketTypeCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        eventId: "event-1",
+        sectionId: seatingSection.id,
+        name: "Floor Section",
+        price: seatingSection.price,
+        quantity: 400,
+        isActive: true,
+      }),
+    });
+    expect(payload.data.ticketTypes[0]).toMatchObject({
+      action: "created",
+      sourceType: "SECTION",
+      sourceId: seatingSection.id,
+    });
   });
 
   it("creates generated ticket types for priced table zones", async () => {

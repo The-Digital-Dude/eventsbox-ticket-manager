@@ -116,6 +116,7 @@ export const seatingPostSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("createSection"),
     name: z.string().trim().min(1).max(100),
+    price: z.coerce.number().min(0).optional().nullable(),
     color: colorSchema.default("#2563eb"),
     sortOrder: z.coerce.number().int().min(0).default(0),
   }),
@@ -147,6 +148,7 @@ export const seatingPatchSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("SECTION"),
     name: z.string().trim().min(1).max(100).optional(),
+    price: z.coerce.number().min(0).optional().nullable(),
     color: colorSchema.optional(),
     sortOrder: z.coerce.number().int().min(0).optional(),
   }),

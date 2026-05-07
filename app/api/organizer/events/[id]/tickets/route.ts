@@ -1,12 +1,26 @@
 import { NextRequest } from "next/server";
-import { Role } from "@prisma/client";
+import { EventMode, Role, SeatInventoryStatus } from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { requireRole } from "@/src/lib/auth/guards";
 import { fail, ok } from "@/src/lib/http/response";
 import { ticketTypeCreateSchema } from "@/src/lib/validators/event";
 
 async function getOwnEvent(id: string, organizerProfileId: string) {
-  return prisma.event.findFirst({ where: { id, organizerProfileId } });
+  return prisma.event.findFirst({
+    where: { id, organizerProfileId },
+    include: {
+      seatingSections: {
+        include: {
+          _count: {
+            select: {
+              seats: { where: { status: { not: SeatInventoryStatus.BLOCKED } } },
+            },
+          },
+        },
+      },
+      tableZones: true,
+    },
+  });
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -51,6 +65,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const { saleStartAt, saleEndAt, ...rest } = parsed.data;
+    let quantity = rest.quantity;
+    let price = rest.price;
+
+    if (event.mode === EventMode.RESERVED_SEATING && rest.sectionId) {
+      const section = event.seatingSections.find((item) => item.id === rest.sectionId);
+      const tableZone = event.tableZones.find((item) => item.id === rest.sectionId);
+
+      if (!section && !tableZone) {
+        return fail(400, {
+          code: "INVALID_SECTION",
+          message: "Select a seating section or table zone from this event",
+        });
+      }
+
+      if (section) {
+        if (section._count.seats < 1) {
+          return fail(400, {
+            code: "SECTION_HAS_NO_SEATS",
+            message: "Generate seats in this section before creating a section ticket",
+          });
+        }
+        quantity = section._count.seats;
+        if (section.price !== null) price = Number(section.price);
+      }
+
+      if (tableZone) {
+        quantity = tableZone.totalTables;
+        price = Number(tableZone.price);
+      }
+    }
     const sortOrder = parsed.data.sortOrder !== 0
       ? parsed.data.sortOrder
       : ((await prisma.ticketType.aggregate({
@@ -62,7 +106,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       data: {
         ...rest,
         eventId: id,
-        price: rest.price,
+        price,
+        quantity,
         sortOrder,
         ...(saleStartAt ? { saleStartAt: new Date(saleStartAt) } : {}),
         ...(saleEndAt ? { saleEndAt: new Date(saleEndAt) } : {}),

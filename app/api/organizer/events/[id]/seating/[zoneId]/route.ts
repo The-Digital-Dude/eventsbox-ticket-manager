@@ -43,6 +43,7 @@ export async function PATCH(
         where: { id: zoneId },
         data: {
           name: parsed.data.name,
+          price: parsed.data.price,
           color: parsed.data.color,
           sortOrder: parsed.data.sortOrder,
         },

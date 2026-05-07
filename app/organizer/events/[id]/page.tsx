@@ -39,6 +39,7 @@ type TicketType = {
 type SeatingSectionPreview = {
   id: string;
   name: string;
+  price: number | string | null;
   _count: { seats: number };
 };
 
@@ -181,7 +182,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   async function addTicket() {
     if (!tName.trim()) return toast.error("Ticket name is required");
     if (!tPrice) return toast.error("Price is required");
-    if (!tQuantity) return toast.error("Quantity is required");
+    if (!tQuantity && !selectedTicketSeatingZone) return toast.error("Quantity is required");
     setTicketSaving(true);
     const res = await fetch(`/api/organizer/events/${id}/tickets`, {
       method: "POST",
@@ -353,7 +354,37 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
   const canEdit = event?.status === "DRAFT" || event?.status === "REJECTED";
   const canSubmit = canEdit && (event?.ticketTypes?.filter((t) => t.isActive).length ?? 0) > 0;
-  const syncableTicketZones = event?.tableZones.map((zone) => ({
+  const ticketSeatingZones = event?.mode === "RESERVED_SEATING"
+    ? [
+        ...(event.seatingSections ?? []).map((section) => ({
+          id: section.id,
+          name: section.name,
+          type: "Section",
+          price: section.price,
+          capacity: section._count.seats,
+        })),
+        ...(event.tableZones ?? []).map((zone) => ({
+          id: zone.id,
+          name: zone.name,
+          type: "Table",
+          price: zone.price,
+          capacity: zone.totalTables,
+        })),
+      ]
+    : [];
+  const selectedTicketSeatingZone = ticketSeatingZones.find((zone) => zone.id === tSectionId) ?? null;
+  const syncableSectionZones = event?.seatingSections
+    .filter((section) => section.price != null && section._count.seats > 0)
+    .map((section) => ({
+      id: section.id,
+      name: section.name,
+      sourceType: "Section",
+      price: section.price,
+      capacity: section._count.seats,
+      seatsPerTable: null,
+      ticket: event.ticketTypes.find((ticket) => ticket.sectionId === section.id) ?? null,
+    })) ?? [];
+  const syncableTableZones = event?.tableZones.map((zone) => ({
     id: zone.id,
     name: zone.name,
     sourceType: "Table",
@@ -362,7 +393,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     seatsPerTable: zone.seatsPerTable,
     ticket: event.ticketTypes.find((ticket) => ticket.sectionId === zone.id) ?? null,
   })) ?? [];
-  const unsupportedPricedSections = event?.seatingSections.filter((section) => section._count.seats > 0) ?? [];
+  const syncableTicketZones = [...syncableSectionZones, ...syncableTableZones];
+  const unpricedSections = event?.seatingSections.filter((section) => section.price == null && section._count.seats > 0) ?? [];
 
   if (loading) {
     return (
@@ -552,16 +584,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             </Button>
           </div>
 
-          {unsupportedPricedSections.length > 0 && (
+          {unpricedSections.length > 0 && (
             <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Section-level pricing is not available in the current schema, so section zones are shown in the seating builder
-              but are not synced as generated tickets in Phase D.
+              {unpricedSections.length} section{unpricedSections.length === 1 ? "" : "s"} have seats but no section price.
+              Add a price in the seating builder before syncing those sections to checkout tickets.
             </div>
           )}
 
           {syncableTicketZones.length === 0 ? (
             <p className="text-sm text-neutral-500">
-              No priced seating zones are syncable yet. Add a table zone with pricing in the seating builder to generate tickets.
+              No priced seating zones are syncable yet. Add section pricing or a priced table zone in the seating builder to generate tickets.
             </p>
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
@@ -582,12 +614,15 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                           )}
                         </div>
                         <p className="mt-1 text-xs text-neutral-500">
-                          Source zone: {zone.name} · {zone.seatsPerTable} seats per table
+                          Source zone: {zone.name}
+                          {zone.seatsPerTable ? ` · ${zone.seatsPerTable} seats per table` : ""}
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-semibold text-neutral-900">${Number(ticket?.price ?? zone.price).toFixed(2)}</p>
-                        <p className="text-xs text-neutral-500">{ticket?.quantity ?? zone.capacity} table capacity</p>
+                        <p className="text-xs text-neutral-500">
+                          {ticket?.quantity ?? zone.capacity} {zone.sourceType === "Section" ? "seat" : "table"} capacity
+                        </p>
                       </div>
                     </div>
 
@@ -699,17 +734,32 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   <option value="COMBO">Combo</option>
                 </select>
               </div>
-              {(event.venue?.seatingConfig?.sections ?? []).length > 0 && (
+              {ticketSeatingZones.length > 0 && (
                 <div className="space-y-2">
                   <Label>Seating Section</Label>
-                  <select className="app-select" value={tSectionId} onChange={(e) => setTSectionId(e.target.value)}>
+                  <select
+                    className="app-select"
+                    value={tSectionId}
+                    onChange={(e) => {
+                      const nextSectionId = e.target.value;
+                      setTSectionId(nextSectionId);
+                      const zone = ticketSeatingZones.find((item) => item.id === nextSectionId);
+                      if (zone) {
+                        setTQuantity(String(zone.capacity));
+                        if (zone.price != null) setTPrice(String(Number(zone.price).toFixed(2)));
+                        if (!tName.trim()) setTName(zone.name);
+                      }
+                    }}
+                  >
                     <option value="">— General Admission (no assigned seat) —</option>
-                    {(event.venue!.seatingConfig!.sections).map((s) => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.mapType})</option>
+                    {ticketSeatingZones.map((zone) => (
+                      <option key={zone.id} value={zone.id}>
+                        {zone.name} ({zone.type}, {zone.capacity} {zone.type === "Section" ? "seats" : "tables"})
+                      </option>
                     ))}
                   </select>
                   <p className="text-xs text-neutral-500">
-                    Link to a section so buyers pick a specific seat. Leave blank for standing / GA tickets.
+                    Linked section tickets use the seating builder count automatically. Leave blank for standing / GA tickets.
                   </p>
                 </div>
               )}
@@ -719,7 +769,19 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               </div>
               <div className="space-y-2">
                 <Label>Quantity <span className="text-red-500">*</span></Label>
-                <Input type="number" min="1" value={tQuantity} onChange={(e) => setTQuantity(e.target.value)} placeholder="100" />
+                <Input
+                  type="number"
+                  min="1"
+                  value={selectedTicketSeatingZone ? String(selectedTicketSeatingZone.capacity) : tQuantity}
+                  onChange={(e) => setTQuantity(e.target.value)}
+                  placeholder="100"
+                  disabled={Boolean(selectedTicketSeatingZone)}
+                />
+                {selectedTicketSeatingZone && (
+                  <p className="text-xs text-neutral-500">
+                    Capacity is locked to the selected {selectedTicketSeatingZone.type.toLowerCase()} count.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Max per order</Label>
@@ -750,7 +812,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                         {ticket.sectionId ? (
                           <Badge className="border-transparent bg-sky-100 text-sky-700">
                             {event.tableZones.find((zone) => zone.id === ticket.sectionId)?.name
-                              ?? event.venue?.seatingConfig?.sections.find((s) => s.id === ticket.sectionId)?.name
+                              ?? event.seatingSections.find((section) => section.id === ticket.sectionId)?.name
+                              ?? event.venue?.seatingConfig?.sections.find((section) => section.id === ticket.sectionId)?.name
                               ?? "Seated"}
                           </Badge>
                         ) : (

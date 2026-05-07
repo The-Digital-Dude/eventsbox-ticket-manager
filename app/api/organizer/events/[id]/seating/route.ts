@@ -82,6 +82,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         data: {
           eventId: id,
           name: parsed.data.name,
+          price: parsed.data.price,
           color: parsed.data.color,
           sortOrder: parsed.data.sortOrder,
         },

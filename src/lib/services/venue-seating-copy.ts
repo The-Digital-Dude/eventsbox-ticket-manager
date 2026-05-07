@@ -59,6 +59,7 @@ export async function copyVenueSeatingToEvent(
       data: {
         eventId: input.eventId,
         name: venueSection.name,
+        price: venueSection.price == null ? null : new Prisma.Decimal(venueSection.price),
         color: sectionColors[sectionIndex % sectionColors.length],
         sortOrder: sectionIndex,
       },
